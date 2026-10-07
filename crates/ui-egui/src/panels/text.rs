@@ -415,71 +415,110 @@ fn style_strip(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, track_idx: us
     let Some(tr) = app.session.active_sequence().and_then(|q| q.caption_tracks.get(track_idx)).cloned() else { return };
     let st = tr.style.clone();
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r).id_salt("caption-style"));
-    child.horizontal_centered(|ui| {
-        ui.spacing_mut().item_spacing.x = 6.0;
-        let r = egui::ComboBox::from_id_salt(("caption-font", tr.id.0)).selected_text(&st.font).width(130.0).height(400.0).show_ui(ui, |ui| {
-            if !filmcraft_text::fonts::system_scanned() {
-                filmcraft_text::fonts::scan_system();
-            }
-            // names starting with '.' are macOS-private system faces (UI/fallback fonts, some without a space glyph)
-            for (f, _) in filmcraft_text::families().into_iter().filter(|(f, _)| !f.starts_with('.')) {
-                let resp = ui.selectable_label(f.eq_ignore_ascii_case(&st.font), &f);
-                // An edge row may be only partly visible; automation must click its visible portion.
-                let visible = resp.rect.intersect(ui.clip_rect());
-                if visible.is_positive() {
-                    app.auto.add(&format!("text.captions.style.font.option.{f}"), visible, &f);
+    egui::ScrollArea::horizontal().auto_shrink([false, false]).id_salt("caption-style-scroll").show(&mut child, |ui| {
+        ui.horizontal_centered(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            let r = egui::ComboBox::from_id_salt(("caption-font", tr.id.0)).selected_text(&st.font).width(130.0).height(400.0).show_ui(ui, |ui| {
+                if !filmcraft_text::fonts::system_scanned() {
+                    filmcraft_text::fonts::scan_system();
                 }
+                // names starting with '.' are macOS-private system faces (UI/fallback fonts, some without a space glyph)
+                for (f, _) in filmcraft_text::families().into_iter().filter(|(f, _)| !f.starts_with('.')) {
+                    let resp = ui.selectable_label(f.eq_ignore_ascii_case(&st.font), &f);
+                    // An edge row may be only partly visible; automation must click its visible portion.
+                    let visible = resp.rect.intersect(ui.clip_rect());
+                    if visible.is_positive() {
+                        app.auto.add(&format!("text.captions.style.font.option.{f}"), visible, &f);
+                    }
+                    if resp.clicked() {
+                        actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "font": f})));
+                    }
+                }
+            });
+            app.auto.add("text.captions.style.font", r.response.rect, "Caption font");
+            let mut size = st.size;
+            let resp = ui.add(crate::widgets::number_drag(&mut size).range(8.0..=200.0).speed(0.5).suffix(" px"));
+            app.auto.add("text.captions.style.size", resp.rect, "Caption size");
+            // a drag ended by Escape keeps the size it had (#580)
+            let escaped = resp.drag_stopped() && ui.input(|i| i.key_pressed(egui::Key::Escape));
+            if !escaped && (resp.drag_stopped() || (resp.changed() && !resp.dragged())) {
+                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "size": size})));
+            }
+            let mut col = Color32::from_rgba_unmultiplied(st.color[0], st.color[1], st.color[2], st.color[3]);
+            let resp = egui::color_picker::color_edit_button_srgba(ui, &mut col, egui::color_picker::Alpha::Opaque);
+            app.auto.add("text.captions.style.color", resp.rect, "Text colour");
+            if resp.changed() {
+                let c = col.to_srgba_unmultiplied();
+                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "color": c})));
+            }
+
+            ui.label(egui::RichText::new(tl!("Stroke")).size(11.0).color(app.tokens.text_dim));
+            let mut outline = st.outline;
+            let resp = ui.add(crate::widgets::number_drag(&mut outline).range(0.0..=40.0).speed(0.2).suffix(" px"));
+            app.auto.add("text.captions.style.outline", resp.rect, "Outline width");
+            let escaped = resp.drag_stopped() && ui.input(|i| i.key_pressed(egui::Key::Escape));
+            if !escaped && (resp.drag_stopped() || (resp.changed() && !resp.dragged())) {
+                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "outline": outline})));
+            }
+            let mut out_col = Color32::from_rgba_unmultiplied(st.outline_color[0], st.outline_color[1], st.outline_color[2], st.outline_color[3]);
+            let resp = egui::color_picker::color_edit_button_srgba(ui, &mut out_col, egui::color_picker::Alpha::Opaque);
+            app.auto.add("text.captions.style.outlineColor", resp.rect, "Outline colour");
+            if resp.changed() {
+                let c = out_col.to_srgba_unmultiplied();
+                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "outlineColor": c})));
+            }
+
+            let mut bg = st.background;
+            let resp = ui.checkbox(&mut bg, tl!("Box"));
+            app.auto.add("text.captions.style.background", resp.rect, "Background box");
+            if resp.changed() {
+                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "background": bg})));
+            }
+            if bg {
+                let mut bg_col =
+                    Color32::from_rgba_unmultiplied(st.background_color[0], st.background_color[1], st.background_color[2], st.background_color[3]);
+                let resp = egui::color_picker::color_edit_button_srgba(ui, &mut bg_col, egui::color_picker::Alpha::OnlyBlend);
+                app.auto.add("text.captions.style.backgroundColor", resp.rect, "Background box colour");
+                if resp.changed() {
+                    let c = bg_col.to_srgba_unmultiplied();
+                    actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "backgroundColor": c})));
+                }
+            }
+
+            ui.label(egui::RichText::new(tl!("Margin")).size(11.0).color(app.tokens.text_dim));
+            let mut margin_pct = (st.margin * 100.0).round();
+            let resp = ui.add(crate::widgets::number_drag(&mut margin_pct).range(0.0..=45.0).speed(0.5).suffix(" %"));
+            app.auto.add("text.captions.style.margin", resp.rect, "Edge margin");
+            let escaped = resp.drag_stopped() && ui.input(|i| i.key_pressed(egui::Key::Escape));
+            if !escaped && (resp.drag_stopped() || (resp.changed() && !resp.dragged())) {
+                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "margin": margin_pct / 100.0})));
+            }
+
+            ui.label(egui::RichText::new(tl!("Align")).size(11.0).color(app.tokens.text_dim));
+            for (a, icon_txt, name, tip) in [
+                (CaptionAlign::Left, "L", "left", tl!("Align left")),
+                (CaptionAlign::Center, "C", "center", tl!("Align center")),
+                (CaptionAlign::Right, "R", "right", tl!("Align right")),
+            ] {
+                let resp = ui.selectable_label(st.align == a, icon_txt).on_hover_text(tip);
+                app.auto.add(&format!("text.captions.style.align.{name}"), resp.rect, name);
                 if resp.clicked() {
-                    actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "font": f})));
+                    actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "align": name})));
+                }
+            }
+            ui.label(egui::RichText::new(tl!("Position")).size(11.0).color(app.tokens.text_dim));
+            for (a, name, tip) in [
+                (CaptionAnchor::Top, "top", tl!("Position: top")),
+                (CaptionAnchor::Middle, "middle", tl!("Position: middle")),
+                (CaptionAnchor::Bottom, "bottom", tl!("Position: bottom")),
+            ] {
+                let resp = ui.selectable_label(st.anchor == a, name[..1].to_uppercase()).on_hover_text(tip);
+                app.auto.add(&format!("text.captions.style.anchor.{name}"), resp.rect, name);
+                if resp.clicked() {
+                    actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "anchor": name})));
                 }
             }
         });
-        app.auto.add("text.captions.style.font", r.response.rect, "Caption font");
-        let mut size = st.size;
-        let resp = ui.add(crate::widgets::number_drag(&mut size).range(8.0..=200.0).speed(0.5).suffix(" px"));
-        app.auto.add("text.captions.style.size", resp.rect, "Caption size");
-        // a drag ended by Escape keeps the size it had (#580)
-        let escaped = resp.drag_stopped() && ui.input(|i| i.key_pressed(egui::Key::Escape));
-        if !escaped && (resp.drag_stopped() || (resp.changed() && !resp.dragged())) {
-            actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "size": size})));
-        }
-        let mut col = Color32::from_rgba_unmultiplied(st.color[0], st.color[1], st.color[2], st.color[3]);
-        let resp = egui::color_picker::color_edit_button_srgba(ui, &mut col, egui::color_picker::Alpha::Opaque);
-        app.auto.add("text.captions.style.color", resp.rect, "Text colour");
-        if resp.changed() {
-            let c = col.to_srgba_unmultiplied();
-            actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "color": c})));
-        }
-        let mut bg = st.background;
-        let resp = ui.checkbox(&mut bg, tl!("Box"));
-        app.auto.add("text.captions.style.background", resp.rect, "Background box");
-        if resp.changed() {
-            actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "background": bg})));
-        }
-        ui.label(egui::RichText::new(tl!("Align")).size(11.0).color(app.tokens.text_dim));
-        for (a, icon_txt, name, tip) in [
-            (CaptionAlign::Left, "L", "left", tl!("Align left")),
-            (CaptionAlign::Center, "C", "center", tl!("Align center")),
-            (CaptionAlign::Right, "R", "right", tl!("Align right")),
-        ] {
-            let resp = ui.selectable_label(st.align == a, icon_txt).on_hover_text(tip);
-            app.auto.add(&format!("text.captions.style.align.{name}"), resp.rect, name);
-            if resp.clicked() {
-                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "align": name})));
-            }
-        }
-        ui.label(egui::RichText::new(tl!("Position")).size(11.0).color(app.tokens.text_dim));
-        for (a, name, tip) in [
-            (CaptionAnchor::Top, "top", tl!("Position: top")),
-            (CaptionAnchor::Middle, "middle", tl!("Position: middle")),
-            (CaptionAnchor::Bottom, "bottom", tl!("Position: bottom")),
-        ] {
-            let resp = ui.selectable_label(st.anchor == a, name[..1].to_uppercase()).on_hover_text(tip);
-            app.auto.add(&format!("text.captions.style.anchor.{name}"), resp.rect, name);
-            if resp.clicked() {
-                actions.push(("captions.setStyle".into(), json!({"track": tr.id.0, "anchor": name})));
-            }
-        }
     });
 }
 
