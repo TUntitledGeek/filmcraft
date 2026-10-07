@@ -325,7 +325,7 @@ pub fn track_from_document(doc: &Document, id: TrackId, name: &str, format: Capt
             id: ClipId(alloc()),
             start: c.start,
             duration: c.end - c.start,
-            text: c.text.clone(),
+            text: filmcraft_project::plain_text(&c.text),
             speaker: c.speaker.clone(),
             cue_id: c.id.clone(),
             settings: c.settings.clone(),
@@ -406,5 +406,26 @@ mod tests {
         d.normalize();
         let r: Vec<(i64, i64)> = d.cues.iter().map(|c| (c.start.0, c.end.0)).collect();
         assert_eq!(r, vec![(0, 10), (10, 12), (12, 20)]);
+    }
+
+    #[test]
+    fn track_from_document_strips_formatting_tags() {
+        let doc = Document {
+            cues: vec![Cue {
+                start: Tick(10),
+                end: Tick(50),
+                text: "<i>Hello</i> &amp; <b>World</b> <font color=\"#ff0000\">!</font>".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let mut id = 1;
+        let track = track_from_document(&doc, TrackId(10), "Subtitles", CaptionFormat::Subtitle, &mut || {
+            let cur = id;
+            id += 1;
+            cur
+        });
+        assert_eq!(track.captions.len(), 1);
+        assert_eq!(track.captions[0].text, "Hello & World !");
     }
 }
