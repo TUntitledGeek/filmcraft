@@ -74,7 +74,18 @@ fn serve(stream: TcpStream, tx: &Sender<ControlRequest>, ctx: &egui::Context) {
         let (req, rrx) = ControlRequest::new(method, params);
         tx.send(req).ok()?;
         ctx.request_repaint();
-        Some(rrx.recv_timeout(Duration::from_secs(60)).unwrap_or_else(|_| json!({"ok": false, "error": "timeout"})))
+        // Wait up to 500ms for a normal repaint. If the window is minimized or occluded
+        // (common under Wayland compositors which suspend occluded frame callbacks),
+        // unminimize and request focus so the compositor activates surface redraws.
+        match rrx.recv_timeout(Duration::from_millis(500)) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                ctx.request_repaint();
+                Some(rrx.recv_timeout(Duration::from_secs(60)).unwrap_or_else(|_| json!({"ok": false, "error": "timeout"})))
+            }
+        }
     });
 }
 
