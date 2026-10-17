@@ -33,6 +33,7 @@ pub mod automation;
 pub mod brand;
 pub mod calc;
 mod cjk;
+pub mod collab_overlay;
 pub mod control;
 pub mod crash;
 pub mod credits;
@@ -373,6 +374,26 @@ pub struct FilmcraftApp {
     /// OS files/image that were already on the clipboard when the last Copy/Cut ran. Paste ignores
     /// that same media so it pastes the copied clips instead (#697).
     pub(crate) stale_clipboard_media: Option<String>,
+    /// Active peer-to-peer co-op session, when connected.
+    pub collab: Option<std::sync::Arc<filmcraft_collab::CollabSession>>,
+    /// Active peer-to-peer co-op network transport handle.
+    pub collab_transport: Option<filmcraft_collab::CollabTransport>,
+    /// Whether the co-op session connection dialog is open.
+    pub collab_dialog_open: bool,
+    /// Name input in co-op dialog.
+    pub collab_name_input: String,
+    /// Room code input in co-op dialog.
+    pub collab_room_input: String,
+    /// Listen port input in co-op dialog.
+    pub collab_port_input: String,
+    /// Remote address input in co-op dialog.
+    pub collab_addr_input: String,
+    /// Whether hosting or joining in co-op dialog.
+    pub collab_is_host: bool,
+    /// Pending extension offer prompt from a peer.
+    pub pending_extension_offer: Option<ExtensionOfferModal>,
+    /// Last timestamp local presence was broadcast.
+    last_presence_send: std::time::Instant,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
     pub gpu: Option<GpuState>,
     /// Preview render job being watched (job id, where to start playing when it completes).
@@ -401,6 +422,15 @@ pub struct GpuState {
     pub broken: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Largest texture side the device accepts.
     pub max_texture: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExtensionOfferModal {
+    pub extension_id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub sha256: String,
 }
 
 /// Largest texture side a plan needs on the GPU (output and every layer).
@@ -597,6 +627,16 @@ impl FilmcraftApp {
             command_inbox: None,
             v_down: false,
             stale_clipboard_media: None,
+            collab: None,
+            collab_transport: None,
+            collab_dialog_open: false,
+            collab_name_input: "Editor".into(),
+            collab_room_input: "ROOM-1".into(),
+            collab_port_input: "9090".into(),
+            collab_addr_input: "127.0.0.1:9090".into(),
+            collab_is_host: true,
+            pending_extension_offer: None,
+            last_presence_send: std::time::Instant::now(),
             gpu: None,
             watched_render: None,
             applied_prefs: None,
@@ -1617,6 +1657,163 @@ impl FilmcraftApp {
         self.control_rx = Some(rx);
     }
 
+    pub fn start_collab_host(&mut self, port: u16, user_name: &str, room_code: &str) -> Result<(), String> {
+        let bind_addr: std::net::SocketAddr = format!("0.0.0.0:{port}").parse().map_err(|e| format!("Invalid bind address: {e}"))?;
+        let config = filmcraft_collab::CollabConfig {
+            peer_id: 1,
+            user_name: user_name.to_string(),
+            user_color: [60, 140, 255, 255],
+            bind_addr,
+            room_code: room_code.to_string(),
+        };
+        let session = std::sync::Arc::new(filmcraft_collab::CollabSession::new(config.clone()));
+        let transport = filmcraft_collab::CollabTransport::new(session.clone(), true)
+            .map_err(|e| format!("Transport init error: {e}"))?;
+        transport.start_host(bind_addr)
+            .map_err(|e| format!("Failed to listen on {bind_addr}: {e}"))?;
+
+        let tx = session.msg_tx.clone();
+        let peer_id = config.peer_id;
+        self.session.on_command = Some(std::sync::Arc::new(move |id, params| {
+            let _ = tx.send(filmcraft_collab::CollabMessage::CommitCommand {
+                peer_id,
+                rev: 0,
+                id: id.to_string(),
+                params: params.clone(),
+            });
+        }));
+
+        self.collab = Some(session);
+        self.collab_transport = Some(transport);
+        self.collab_is_host = true;
+        Ok(())
+    }
+
+    pub fn join_collab_room(&mut self, remote_addr_str: &str, user_name: &str, room_code: &str) -> Result<(), String> {
+        let remote_addr: std::net::SocketAddr = remote_addr_str.parse()
+            .map_err(|e| format!("Invalid remote address: {e}"))?;
+        let peer_id = (std::process::id() as u16).max(2);
+        let config = filmcraft_collab::CollabConfig {
+            peer_id,
+            user_name: user_name.to_string(),
+            user_color: [255, 120, 60, 255],
+            bind_addr: "0.0.0.0:0".parse().unwrap(),
+            room_code: room_code.to_string(),
+        };
+        let session = std::sync::Arc::new(filmcraft_collab::CollabSession::new(config.clone()));
+        let transport = filmcraft_collab::CollabTransport::new(session.clone(), false)
+            .map_err(|e| format!("Transport init error: {e}"))?;
+        transport.connect_to(remote_addr);
+
+        let tx = session.msg_tx.clone();
+        self.session.on_command = Some(std::sync::Arc::new(move |id, params| {
+            let _ = tx.send(filmcraft_collab::CollabMessage::CommitCommand {
+                peer_id,
+                rev: 0,
+                id: id.to_string(),
+                params: params.clone(),
+            });
+        }));
+
+        self.collab = Some(session);
+        self.collab_transport = Some(transport);
+        self.collab_is_host = false;
+        Ok(())
+    }
+
+    pub fn disconnect_collab(&mut self) {
+        if let Some(transport) = self.collab_transport.take() {
+            transport.shutdown();
+        }
+        self.collab = None;
+        self.session.on_command = None;
+    }
+
+    pub fn drain_collab(&mut self, ctx: &egui::Context) {
+        let Some(transport) = &self.collab_transport else { return };
+        while let Some(event) = transport.try_recv_event() {
+            match event {
+                filmcraft_collab::CollabEvent::CommandReceived { peer_id, rev: _, id, params } => {
+                    log::info!("Collab: executing remote command from peer {}: {}", peer_id, id);
+                    self.session.suppress_command_hook = true;
+                    let r = self.session.execute(&id, params);
+                    self.session.suppress_command_hook = false;
+                    if let Err(e) = r {
+                        log::warn!("Collab: command {} execution error: {}", id, e);
+                    }
+                    ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::SnapshotRequested { peer_id } => {
+                    log::info!("Collab: sending project snapshot to peer {}", peer_id);
+                    if let Ok(project_json) = serde_json::to_string(&self.session.project) {
+                        let _ = transport.session.msg_tx.send(filmcraft_collab::CollabMessage::SyncSnapshot {
+                            project_json,
+                            revision: self.session.revision,
+                        });
+                    }
+                }
+                filmcraft_collab::CollabEvent::SnapshotReceived { project_json, revision } => {
+                    log::info!("Collab: received project snapshot (rev {})", revision);
+                    match serde_json::from_str::<filmcraft_project::Project>(&project_json) {
+                        Ok(proj) => {
+                            self.session.project = std::sync::Arc::new(proj);
+                            self.session.revision = revision;
+                            self.session.saved_revision = revision;
+                            ctx.request_repaint();
+                        }
+                        Err(e) => {
+                            log::error!("Collab: failed to parse project snapshot: {}", e);
+                        }
+                    }
+                }
+                filmcraft_collab::CollabEvent::AssetReceived { category, filename, data, .. } => {
+                    log::info!("Collab: received asset {} in {}", filename, category);
+                    if let Some(path) = &self.session.path {
+                        if let Some(parent) = std::path::Path::new(path).parent() {
+                            let target_dir = parent.join(&category);
+                            let _ = std::fs::create_dir_all(&target_dir);
+                            let target_file = target_dir.join(&filename);
+                            let _ = std::fs::write(&target_file, &data);
+                        }
+                    }
+                    ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::ExtensionOffered { extension_id, name, version, description, sha256 } => {
+                    self.pending_extension_offer = Some(ExtensionOfferModal {
+                        extension_id,
+                        name,
+                        version,
+                        description,
+                        sha256,
+                    });
+                    ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::PeerConnected { peer_id, name, .. } => {
+                    self.ui.status = format!("Peer '{}' (ID {}) connected", name, peer_id);
+                    ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::PeerDisconnected { peer_id } => {
+                    self.ui.status = format!("Peer {} disconnected", peer_id);
+                    ctx.request_repaint();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub fn broadcast_collab_presence(&mut self, ctx: &egui::Context) {
+        let Some(collab) = &self.collab else { return };
+        if self.last_presence_send.elapsed() < std::time::Duration::from_millis(33) {
+            return;
+        }
+        self.last_presence_send = std::time::Instant::now();
+
+        let playhead = Some(self.session.playhead());
+        let cursor = ctx.input(|i| i.pointer.hover_pos()).map(|p| [p.x, p.y]);
+        let msg = collab.create_presence(playhead, cursor);
+        let _ = collab.msg_tx.send(msg);
+    }
+
     /// Capture once the UI shows the current state (`settled`): after a seek the monitor shows the
     /// nearest cached picture until the exact frame is decoded, and an agent must not be handed
     /// the stand-in.
@@ -2075,6 +2272,8 @@ impl eframe::App for FilmcraftApp {
         }
         let had_synthetic = !self.synthetic.is_empty();
         self.drain_control(ctx);
+        self.drain_collab(ctx);
+        self.broadcast_collab_presence(ctx);
         if !self.synthetic.is_empty() && !had_synthetic {
             // Occluded macOS windows stop running `ui`; bring the window forward (without taking
             // keyboard focus) so the input is processed.

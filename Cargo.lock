@@ -1859,6 +1859,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "filmcraft-collab"
+version = "0.8.0"
+dependencies = [
+ "filmcraft-engine",
+ "filmcraft-project",
+ "filmcraft-time",
+ "log",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "filmcraft-color"
 version = "0.8.0"
 dependencies = [
@@ -2325,6 +2341,7 @@ dependencies = [
  "egui_kittest",
  "filmcraft-audio-dsp",
  "filmcraft-codecs",
+ "filmcraft-collab",
  "filmcraft-color",
  "filmcraft-edit",
  "filmcraft-engine",
@@ -6057,7 +6074,9 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

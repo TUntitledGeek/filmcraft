@@ -84,6 +84,7 @@ const LAYERS: &[(&str, u8)] = &[
     ("platform", 5),
     ("ui-egui", 5),
     ("automation", 5),
+    ("collab", 5),
     ("filmcraft", 6),
     ("cli", 6),
     ("web", 6),
@@ -106,6 +107,7 @@ const SAME_LAYER: &[(&str, &str)] = &[
     ("gpu", "render"),
     ("cli", "filmcraft"),
     ("tts", "tts-text"),
+    ("ui-egui", "collab"),
 ];
 
 /// Crates that must not appear below L5 (UI toolkits, windowing, OS audio/menus).

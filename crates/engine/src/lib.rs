@@ -442,6 +442,10 @@ pub struct Session {
     pub browser: media_browser::BrowserState,
     /// Nesting depth of [`Session::execute`] (commands that run other commands).
     exec_depth: u32,
+    /// When true, [`on_command`] will not be invoked for executed commands.
+    pub suppress_command_hook: bool,
+    /// Callback hook notified whenever a journaled command successfully executes.
+    pub on_command: Option<Arc<dyn Fn(&str, &Value) + Send + Sync>>,
     /// Each media file's size and modification time when last seen (Settings ▸ Media ▸
     /// Automatically refresh growing files, [`media_watch`]).
     pub media_stamps: std::collections::HashMap<String, media_watch::Stamp>,
@@ -537,6 +541,8 @@ impl Session {
             log: Default::default(),
             browser: Default::default(),
             exec_depth: 0,
+            suppress_command_hook: false,
+            on_command: None,
             media_stamps: Default::default(),
             media_scan: None,
         }
@@ -724,6 +730,11 @@ impl Session {
         // playback reads the newest snapshot (mixer moves, mutes… are heard while playing)
         self.previews.live.publish_project(self.project.clone());
         if r.is_ok() && spec.journal {
+            if self.exec_depth == 0 && !self.suppress_command_hook {
+                if let Some(hook) = &self.on_command {
+                    hook(id, &params);
+                }
+            }
             self.journal.push((id.to_string(), params));
             if self.journal.len() > 10_000 {
                 self.journal.drain(..1000);

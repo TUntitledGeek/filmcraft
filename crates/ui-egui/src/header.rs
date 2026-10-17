@@ -93,6 +93,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if btn(ui, Icon::Bell, "notifications", tl!("Progress"), app).clicked() {
         app.ui.mode = Mode::Export;
     }
+    // Co-op Editing: button to open live collaboration dialog
+    let collab_active = app.collab.is_some();
+    let collab_tip = if collab_active { tl!("Co-op Session (Active)") } else { tl!("Start or Join Co-op Session") };
+    let resp_collab = btn(ui, Icon::Globe, "coop", &collab_tip, app);
+    if resp_collab.clicked() {
+        app.collab_dialog_open = !app.collab_dialog_open;
+    }
     // Quick Export: a popup with File Name & Location, a preset list and Export (Premiere 26)
     let qx = rect.max.x - 14.0 - 4.0 * 38.0; // the fifth button from the right
     if btn(ui, Icon::Export, "quickExport", tl!("Quick Export"), app).clicked() {

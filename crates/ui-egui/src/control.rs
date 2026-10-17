@@ -460,6 +460,42 @@ pub fn handle(app: &mut FilmcraftApp, ctx: &egui::Context, req: &ControlRequest)
             response.request_focus();
             ok(json!({"focusRequested": id, "widgetId": format!("{:016x}", widget_id.value())}))
         }
+        "collab.host" => {
+            let port = p.get("port").and_then(Value::as_u64).unwrap_or(9090) as u16;
+            let name = s("name").unwrap_or("Host");
+            let room = s("room").unwrap_or("ROOM-1");
+            match app.start_collab_host(port, name, room) {
+                Ok(()) => ok(json!({"hosting": true, "port": port, "room": room})),
+                Err(e) => err(e),
+            }
+        }
+        "collab.join" => {
+            let Some(addr) = s("addr") else { return err("need `addr`") };
+            let name = s("name").unwrap_or("Editor");
+            let room = s("room").unwrap_or("ROOM-1");
+            match app.join_collab_room(addr, name, room) {
+                Ok(()) => ok(json!({"connecting": true, "addr": addr, "room": room})),
+                Err(e) => err(e),
+            }
+        }
+        "collab.disconnect" => {
+            app.disconnect_collab();
+            ok(json!({"disconnected": true}))
+        }
+        "collab.status" => {
+            if let Some(collab) = &app.collab {
+                let peers_cnt = collab.peers.try_read().map(|p| p.len()).unwrap_or(0);
+                ok(json!({
+                    "active": true,
+                    "is_host": app.collab_is_host,
+                    "peer_id": collab.config.peer_id,
+                    "room": collab.config.room_code,
+                    "peer_count": peers_cnt,
+                }))
+            } else {
+                ok(json!({"active": false}))
+            }
+        }
         "app.quit" => {
             // scripted quits don't wait on the save prompt; unsaved changes stay in the recovery journal
             app.quit_confirmed = true;

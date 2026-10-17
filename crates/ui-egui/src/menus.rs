@@ -178,6 +178,10 @@ pub fn targets_source(app: &FilmcraftApp, params: &Value) -> bool {
 
 /// Execute a UI or engine command by id.
 pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params: Value) -> Result<Value, String> {
+    if id == "collab.toggleDialog" {
+        app.collab_dialog_open = !app.collab_dialog_open;
+        return Ok(Value::Null);
+    }
     if id == "edit.selectAll" && (crate::panels::graphics::select_all_edited_text(app) || crate::panels::effect_controls::select_all_keyframes(app)) {
         return Ok(Value::Null);
     }
@@ -706,6 +710,14 @@ pub fn menu_items(app: &FilmcraftApp) -> Vec<MenuItem> {
     }
     crate::panels::workspaces::menu(app, &mut v);
     open_recent(&mut v, &app.session, |n| app.ui.language.tr(n).to_string());
+    v.push(MenuItem {
+        id: "collab.toggleDialog".into(),
+        label: "Live Co-op Editing...".into(),
+        path: vec!["File".into()],
+        shortcut: None,
+        enabled: true,
+        checked: None,
+    });
     v
 }
 

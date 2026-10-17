@@ -304,6 +304,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             crate::panels::masks::monitor_overlay(app, ui, pic, frame_size);
             crate::panels::transform_handles::monitor_overlay(app, ui, pic, frame_size);
         }
+        if let Some(collab) = &app.collab {
+            if let Ok(peers) = collab.peers.try_read() {
+                let peer_list: Vec<_> = peers.values().cloned().collect();
+                crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic);
+            }
+        }
     }
     if show_picture {
         monitor_view::guides(app, ui, which, video_area, pic, frame_size);

@@ -3,6 +3,7 @@
 
 pub mod audio_fx_editor;
 pub mod clip_dialogs;
+pub mod collab_panel;
 pub mod color_dialogs;
 pub mod dialogs;
 pub mod effect_controls;

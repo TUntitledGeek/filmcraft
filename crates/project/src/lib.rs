@@ -486,7 +486,7 @@ pub struct Marker {
     pub color: Label,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TrackKind {
     #[default]
     Video,

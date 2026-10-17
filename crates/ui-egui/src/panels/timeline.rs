@@ -683,6 +683,35 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         }
     }
 
+    // ---- collaborative presence overlay (remote playheads, ghost drags, soft locks)
+    if let Some(collab) = &app.collab {
+        if let (Ok(peers_map), Ok(locks_mgr)) = (collab.peers.try_read(), collab.lock_manager.try_read()) {
+            let peers: Vec<_> = peers_map.values().cloned().collect();
+            let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+            // Get all unexpired soft locks
+            let mut active_locks = Vec::new();
+            for kind in [TrackKind::Video, TrackKind::Audio] {
+                let n = if kind == TrackKind::Video { nv } else { na };
+                for idx in 0..n {
+                    if let Some(l) = locks_mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms) {
+                        active_locks.push(l.clone());
+                    }
+                }
+            }
+            let layout_clone = layout.clone();
+            let rows_clone = rows.clone();
+            crate::collab_overlay::paint_timeline_presence(
+                &painter,
+                &peers,
+                &active_locks,
+                content,
+                ruler,
+                |t| layout_clone.x_of(t),
+                |k, idx| rows_clone.iter().find(|r| r.kind == k && r.index == idx).map(|r| (r.rect.min.y, r.rect.max.y)),
+            );
+        }
+    }
+
     // ---- scroll bars
     zoom_scrollbar(
         app,
