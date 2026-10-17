@@ -464,8 +464,9 @@ pub fn handle(app: &mut FilmcraftApp, ctx: &egui::Context, req: &ControlRequest)
             let port = p.get("port").and_then(Value::as_u64).unwrap_or(9090) as u16;
             let name = s("name").unwrap_or("Host");
             let room = s("room").unwrap_or("ROOM-1");
-            match app.start_collab_host(port, name, room) {
-                Ok(()) => ok(json!({"hosting": true, "port": port, "room": room})),
+            let passcode = s("passcode");
+            match app.start_collab_host(port, name, room, passcode) {
+                Ok(()) => ok(json!({"hosting": true, "port": port, "room": room, "passcode_protected": passcode.is_some()})),
                 Err(e) => err(e),
             }
         }
@@ -473,8 +474,9 @@ pub fn handle(app: &mut FilmcraftApp, ctx: &egui::Context, req: &ControlRequest)
             let Some(addr) = s("addr") else { return err("need `addr`") };
             let name = s("name").unwrap_or("Editor");
             let room = s("room").unwrap_or("ROOM-1");
-            match app.join_collab_room(addr, name, room) {
-                Ok(()) => ok(json!({"connecting": true, "addr": addr, "room": room})),
+            let passcode = s("passcode");
+            match app.join_collab_room(addr, name, room, passcode) {
+                Ok(()) => ok(json!({"connecting": true, "addr": addr, "room": room, "passcode_protected": passcode.is_some()})),
                 Err(e) => err(e),
             }
         }

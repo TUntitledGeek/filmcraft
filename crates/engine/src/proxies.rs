@@ -19,7 +19,7 @@ use filmcraft_export::{ExportSettings, Format, Progress, Report};
 use filmcraft_media::{MediaKind, SharedSource};
 use filmcraft_project::{IngestAction, ItemId, ItemKind, MediaClip, MediaRef, Project, SequenceSettings, TrackKind};
 use filmcraft_time::{Tick, TimeRange};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::commands::{CommandSpec, always, bad, bool_p, str_p, u64_p};
@@ -55,10 +55,44 @@ pub const PRESETS: &[Preset] = &[
     Preset { id: "prores_lt_half", label: "ProRes 422 LT, ½ size", format: Format::ProRes, scale: 0.5, prores: "lt", extension: "mov", proxy: true },
     Preset { id: "h264_quarter", label: "H.264, ¼ size", format: Format::H264, scale: 0.25, prores: "", extension: "mp4", proxy: true },
     Preset { id: "h264_half", label: "H.264, ½ size", format: Format::H264, scale: 0.5, prores: "", extension: "mp4", proxy: true },
+    Preset { id: "h264_360p_fast_scrub", label: "H.264 360p/480p, ¼ size (Tier 1 Fast Scrub)", format: Format::H264, scale: 0.25, prores: "", extension: "mp4", proxy: true },
+    Preset { id: "h264_720p_preview", label: "H.264 720p/1080p, ½ size (Tier 2 Preview)", format: Format::H264, scale: 0.5, prores: "", extension: "mp4", proxy: true },
     Preset { id: "prores_lt", label: "ProRes 422 LT (full size)", format: Format::ProRes, scale: 1.0, prores: "lt", extension: "mov", proxy: false },
     Preset { id: "prores_hq", label: "ProRes 422 HQ (full size)", format: Format::ProRes, scale: 1.0, prores: "hq", extension: "mov", proxy: false },
     Preset { id: "h264", label: "H.264 (full size)", format: Format::H264, scale: 1.0, prores: "", extension: "mp4", proxy: false },
 ];
+
+/// Multi-tier progressive proxy quality stages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum ProxyTier {
+    /// Initial metadata and peak waveform data.
+    Metadata = 0,
+    /// Fast scrubbable 360p/480p proxy (~5 MB/min).
+    FastScrub480p = 1,
+    /// High-definition 720p/1080p preview (~20 MB/min).
+    PreviewHd = 2,
+    /// Original full-resolution camera master.
+    Master = 3,
+}
+
+impl ProxyTier {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Metadata => "Waveforms & Metadata",
+            Self::FastScrub480p => "480p Fast Scrub",
+            Self::PreviewHd => "1080p Preview",
+            Self::Master => "4K Master",
+        }
+    }
+
+    pub fn preset_id(&self) -> Option<&'static str> {
+        match self {
+            Self::FastScrub480p => Some("h264_360p_fast_scrub"),
+            Self::PreviewHd => Some("h264_720p_preview"),
+            _ => None,
+        }
+    }
+}
 
 pub const DEFAULT_PROXY_PRESET: &str = "prores_proxy_quarter";
 pub const DEFAULT_TRANSCODE_PRESET: &str = "prores_lt";

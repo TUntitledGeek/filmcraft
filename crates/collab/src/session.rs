@@ -17,6 +17,7 @@ pub struct CollabConfig {
     pub user_color: [u8; 4],
     pub bind_addr: SocketAddr,
     pub room_code: String,
+    pub passcode: Option<String>,
 }
 
 /// State of an active collaborative session.

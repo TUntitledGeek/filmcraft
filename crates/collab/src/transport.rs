@@ -4,18 +4,28 @@
 //! automatic heartbeat keep-alives, soft-lock lease pruning, and event dispatch
 //! to the UI thread via non-blocking channels.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver as StdReceiver, Sender as StdSender, channel as std_channel};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use log::{error, info, warn};
+#[cfg(not(target_arch = "wasm32"))]
+use log::{error, info};
+use log::warn;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::net::{TcpListener, TcpStream};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::{broadcast, mpsc, watch, RwLock};
 
-use crate::protocol::{CollabMessage, PeerId, PROTOCOL_VERSION};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::protocol::{compute_auth_hmac, CollabMessage, PROTOCOL_VERSION};
+use crate::protocol::PeerId;
 use crate::session::CollabSession;
 
 /// Maximum payload size allowed for framed network packets (64 MB).
@@ -78,8 +88,34 @@ pub enum CollabEvent {
         total_bytes: u64,
         data: Vec<u8>,
     },
+    AuthFailed {
+        reason: String,
+    },
+    MediaTierOffered {
+        clip_id: u64,
+        filename: String,
+        tier: u8,
+        sha256: String,
+        size_bytes: u64,
+        duration_ticks: u64,
+        url: Option<String>,
+    },
+    MediaTierProgressed {
+        clip_id: u64,
+        tier: u8,
+        received_bytes: u64,
+        total_bytes: u64,
+    },
+    MediaTierPromoted {
+        clip_id: u64,
+        tier: u8,
+        path_or_url: String,
+    },
 }
 
+pub type WakeupCallback = Arc<dyn Fn() + Send + Sync + 'static>;
+
+#[cfg(not(target_arch = "wasm32"))]
 /// Send a framed message across an async writer: 4-byte big-endian length + JSON bytes.
 pub async fn send_framed<W: AsyncWriteExt + Unpin>(writer: &mut W, msg: &CollabMessage) -> std::io::Result<()> {
     let bytes = serde_json::to_vec(msg)
@@ -91,6 +127,7 @@ pub async fn send_framed<W: AsyncWriteExt + Unpin>(writer: &mut W, msg: &CollabM
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Read a framed message from an async reader: 4-byte big-endian length + JSON bytes.
 pub async fn read_framed<R: AsyncReadExt + Unpin>(reader: &mut R) -> std::io::Result<CollabMessage> {
     let mut len_buf = [0u8; 4];
@@ -109,14 +146,14 @@ pub async fn read_framed<R: AsyncReadExt + Unpin>(reader: &mut R) -> std::io::Re
     Ok(msg)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Represents an active network peer connection.
 struct PeerConnection {
     sender: mpsc::UnboundedSender<CollabMessage>,
     last_seen: Arc<RwLock<Instant>>,
 }
 
-pub type WakeupCallback = Arc<dyn Fn() + Send + Sync + 'static>;
-
+#[cfg(not(target_arch = "wasm32"))]
 /// Collaborative Network Transport Controller.
 pub struct CollabTransport {
     pub session: Arc<CollabSession>,
@@ -129,6 +166,7 @@ pub struct CollabTransport {
     wakeup: Arc<std::sync::Mutex<Option<WakeupCallback>>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl CollabTransport {
     /// Create a new transport handle and start background Tokio runtime.
     pub fn new(session: Arc<CollabSession>, is_host: bool) -> Result<Self, std::io::Error> {
@@ -338,12 +376,14 @@ impl CollabTransport {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Drop for CollabTransport {
     fn drop(&mut self) {
         self.shutdown();
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Manage the bidirectional message flow for a single TCP stream.
 async fn handle_peer_stream(
     stream: TcpStream,
@@ -369,10 +409,17 @@ async fn handle_peer_stream(
         return;
     }
 
-    // If client, request snapshot
-    if is_client {
-        if let Err(e) = send_framed(&mut writer, &CollabMessage::RequestSnapshot).await {
-            warn!("Failed to send RequestSnapshot: {}", e);
+    let host_passcode = session.config.passcode.clone();
+    let mut authenticated = is_client || host_passcode.is_none();
+    let mut auth_nonce: Option<[u8; 32]> = None;
+
+    // If host has a passcode set, challenge the incoming peer immediately
+    if !is_client && host_passcode.is_some() {
+        let nonce = rand::random::<[u8; 32]>();
+        auth_nonce = Some(nonce);
+        if let Err(e) = send_framed(&mut writer, &CollabMessage::AuthChallenge { nonce }).await {
+            warn!("Failed to send AuthChallenge: {}", e);
+            return;
         }
     }
 
@@ -388,6 +435,7 @@ async fn handle_peer_stream(
 
     let last_seen = Arc::new(RwLock::new(Instant::now()));
     let mut registered_peer_id: Option<PeerId> = None;
+    let mut pending_peer_hello: Option<(PeerId, String, [u8; 4])> = None;
 
     // Step 3: Reader loop
     loop {
@@ -405,20 +453,24 @@ async fn handle_peer_stream(
                         if protocol_version != PROTOCOL_VERSION {
                             warn!("Peer {} protocol version mismatch (theirs: {}, ours: {})", peer_id, protocol_version, PROTOCOL_VERSION);
                         }
-                        registered_peer_id = Some(peer_id);
-                        peers.write().await.insert(
-                            peer_id,
-                            PeerConnection {
-                                sender: outgoing_tx.clone(),
-                                last_seen: last_seen.clone(),
-                            },
-                        );
-                        let _ = event_tx.send(CollabEvent::PeerConnected {
-                            peer_id,
-                            name: name.clone(),
-                            color_rgba,
-                        });
-                        info!("Peer {} ('{}') successfully registered", peer_id, name);
+                        if authenticated {
+                            registered_peer_id = Some(peer_id);
+                            peers.write().await.insert(
+                                peer_id,
+                                PeerConnection {
+                                    sender: outgoing_tx.clone(),
+                                    last_seen: last_seen.clone(),
+                                },
+                            );
+                            let _ = event_tx.send(CollabEvent::PeerConnected {
+                                peer_id,
+                                name: name.clone(),
+                                color_rgba,
+                            });
+                            info!("Peer {} ('{}') successfully registered", peer_id, name);
+                        } else {
+                            pending_peer_hello = Some((peer_id, name, color_rgba));
+                        }
                     }
                     CollabMessage::Presence(presence) => {
                         let id = presence.peer_id;
@@ -486,9 +538,113 @@ async fn handle_peer_stream(
                         }
                     }
                     CollabMessage::RequestSnapshot => {
-                        if let Some(peer_id) = registered_peer_id {
-                            let _ = event_tx.send(CollabEvent::SnapshotRequested { peer_id });
+                        if authenticated {
+                            if let Some(peer_id) = registered_peer_id {
+                                let _ = event_tx.send(CollabEvent::SnapshotRequested { peer_id });
+                            }
+                        } else {
+                            warn!("Rejected snapshot request from unauthenticated peer");
                         }
+                    }
+                    CollabMessage::AuthChallenge { nonce } => {
+                        let pass = session.config.passcode.as_deref().unwrap_or("");
+                        let hmac = compute_auth_hmac(&nonce, pass);
+                        let _ = outgoing_tx.send(CollabMessage::AuthResponse { hmac });
+                    }
+                    CollabMessage::AuthResponse { hmac } => {
+                        if !is_client {
+                            if let (Some(pass), Some(nonce)) = (&host_passcode, &auth_nonce) {
+                                let expected = compute_auth_hmac(nonce, pass);
+                                if hmac == expected {
+                                    authenticated = true;
+                                    let _ = outgoing_tx.send(CollabMessage::AuthResult { ok: true, reason: None });
+                                    info!("Peer successfully authenticated with room passcode");
+                                    if let Some((pid, name, color)) = pending_peer_hello.take() {
+                                        registered_peer_id = Some(pid);
+                                        peers.write().await.insert(
+                                            pid,
+                                            PeerConnection {
+                                                sender: outgoing_tx.clone(),
+                                                last_seen: last_seen.clone(),
+                                            },
+                                        );
+                                        let _ = event_tx.send(CollabEvent::PeerConnected {
+                                            peer_id: pid,
+                                            name: name.clone(),
+                                            color_rgba: color,
+                                        });
+                                        info!("Peer {} ('{}') successfully registered", pid, name);
+                                    }
+                                } else {
+                                    warn!("Peer failed room passcode authentication");
+                                    let _ = outgoing_tx.send(CollabMessage::AuthResult {
+                                        ok: false,
+                                        reason: Some("Invalid room passcode".into()),
+                                    });
+                                    let _ = event_tx.send(CollabEvent::AuthFailed {
+                                        reason: "Peer entered invalid room passcode".into(),
+                                    });
+                                    tokio::time::sleep(Duration::from_millis(50)).await;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    CollabMessage::AuthResult { ok, reason } => {
+                        if !ok {
+                            let r = reason.unwrap_or_else(|| "Invalid room passcode".into());
+                            error!("Room authentication failed: {}", r);
+                            let _ = event_tx.send(CollabEvent::AuthFailed { reason: r });
+                            break;
+                        } else {
+                            authenticated = true;
+                            info!("Room passcode verified; requesting snapshot");
+                            if let Some((pid, name, color)) = pending_peer_hello.take() {
+                                registered_peer_id = Some(pid);
+                                peers.write().await.insert(
+                                    pid,
+                                    PeerConnection {
+                                        sender: outgoing_tx.clone(),
+                                        last_seen: last_seen.clone(),
+                                    },
+                                );
+                                let _ = event_tx.send(CollabEvent::PeerConnected {
+                                    peer_id: pid,
+                                    name: name.clone(),
+                                    color_rgba: color,
+                                });
+                                info!("Peer {} ('{}') successfully registered", pid, name);
+                            }
+                            if is_client {
+                                let _ = outgoing_tx.send(CollabMessage::RequestSnapshot);
+                            }
+                        }
+                    }
+                    CollabMessage::MediaTierOffer { clip_id, filename, tier, sha256, size_bytes, duration_ticks, url } => {
+                        let _ = event_tx.send(CollabEvent::MediaTierOffered {
+                            clip_id,
+                            filename,
+                            tier,
+                            sha256,
+                            size_bytes,
+                            duration_ticks,
+                            url,
+                        });
+                    }
+                    CollabMessage::MediaTierProgress { clip_id, tier, received_bytes, total_bytes } => {
+                        let _ = event_tx.send(CollabEvent::MediaTierProgressed {
+                            clip_id,
+                            tier,
+                            received_bytes,
+                            total_bytes,
+                        });
+                    }
+                    CollabMessage::MediaTierPromoted { clip_id, tier, path_or_url } => {
+                        let _ = event_tx.send(CollabEvent::MediaTierPromoted {
+                            clip_id,
+                            tier,
+                            path_or_url,
+                        });
                     }
                     CollabMessage::SyncSnapshot { project_json, revision, active_sequence } => {
                         let _ = event_tx.send(CollabEvent::SnapshotReceived {
@@ -539,6 +695,11 @@ async fn handle_peer_stream(
             }
             Err(e) => {
                 info!("Peer stream disconnected: {}", e);
+                if is_client && !authenticated {
+                    let _ = event_tx.send(CollabEvent::AuthFailed {
+                        reason: "Connection closed by host (authentication rejected or disconnected)".into(),
+                    });
+                }
                 break;
             }
         }
@@ -553,4 +714,50 @@ async fn handle_peer_stream(
         let _ = event_tx.send(CollabEvent::PeerDisconnected { peer_id: id });
         info!("Collab peer {} cleaned up after disconnect", id);
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+/// Collaborative Network Transport Controller (Web / WASM).
+pub struct CollabTransport {
+    pub session: Arc<CollabSession>,
+    event_rx: StdReceiver<CollabEvent>,
+    #[allow(dead_code)]
+    event_tx: StdSender<CollabEvent>,
+    pub is_host: bool,
+    wakeup: Arc<std::sync::Mutex<Option<WakeupCallback>>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl CollabTransport {
+    pub fn new(session: Arc<CollabSession>, is_host: bool) -> Result<Self, std::io::Error> {
+        let (event_tx, event_rx) = std_channel();
+        Ok(Self {
+            session,
+            event_rx,
+            event_tx,
+            is_host,
+            wakeup: Arc::new(std::sync::Mutex::new(None)),
+        })
+    }
+
+    pub fn set_wakeup(&self, wakeup: WakeupCallback) {
+        if let Ok(mut lock) = self.wakeup.lock() {
+            *lock = Some(wakeup);
+        }
+    }
+
+    pub fn try_recv_event(&self) -> Option<CollabEvent> {
+        self.event_rx.try_recv().ok()
+    }
+
+    pub fn start_host(&self, _bind_addr: SocketAddr) -> Result<(), std::io::Error> {
+        warn!("Direct TCP host binding is unavailable in the browser environment.");
+        Ok(())
+    }
+
+    pub fn connect_to(&self, _remote_addr: SocketAddr) {
+        warn!("Direct TCP client connect is unavailable in the browser environment (use WebSocket bridge).");
+    }
+
+    pub fn shutdown(&self) {}
 }

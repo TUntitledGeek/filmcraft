@@ -137,9 +137,79 @@ pub enum CollabMessage {
         revision: u64,
         active_sequence: Option<u64>,
     },
+
+    /// Authentication challenge sent from host to connecting peer when passcode is set.
+    AuthChallenge {
+        nonce: [u8; 32],
+    },
+
+    /// Authentication response containing HMAC-SHA256 proof of room passcode.
+    AuthResponse {
+        hmac: [u8; 32],
+    },
+
+    /// Result of authentication challenge.
+    AuthResult {
+        ok: bool,
+        reason: Option<String>,
+    },
+
+    /// Multi-tier progressive proxy notification (Tier 0: Waveforms -> Tier 1: 480p -> Tier 2: 1080p -> Tier 3: 4K Master).
+    MediaTierOffer {
+        clip_id: u64,
+        filename: String,
+        tier: u8,
+        sha256: String,
+        size_bytes: u64,
+        duration_ticks: u64,
+        url: Option<String>,
+    },
+
+    /// Progress report for an actively streaming proxy or media tier.
+    MediaTierProgress {
+        clip_id: u64,
+        tier: u8,
+        received_bytes: u64,
+        total_bytes: u64,
+    },
+
+    /// Notification that a higher quality tier has finished downloading and is promoted in the timeline.
+    MediaTierPromoted {
+        clip_id: u64,
+        tier: u8,
+        path_or_url: String,
+    },
 }
 
 pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Computes standard HMAC-SHA256 for room passcode verification without external dependencies.
+pub fn compute_auth_hmac(nonce: &[u8; 32], passcode: &str) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut key = [0u8; 64];
+    let pass_bytes = passcode.as_bytes();
+    if pass_bytes.len() > 64 {
+        let hash = Sha256::digest(pass_bytes);
+        key[..32].copy_from_slice(&hash);
+    } else {
+        key[..pass_bytes.len()].copy_from_slice(pass_bytes);
+    }
+    let mut o_key_pad = [0x5cu8; 64];
+    let mut i_key_pad = [0x36u8; 64];
+    for i in 0..64 {
+        o_key_pad[i] ^= key[i];
+        i_key_pad[i] ^= key[i];
+    }
+    let mut inner = Sha256::new();
+    inner.update(&i_key_pad);
+    inner.update(nonce);
+    let inner_hash = inner.finalize();
+
+    let mut outer = Sha256::new();
+    outer.update(&o_key_pad);
+    outer.update(&inner_hash);
+    outer.finalize().into()
+}
 
 #[cfg(test)]
 mod tests {
@@ -190,5 +260,45 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         let decoded: CollabMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(msg, decoded);
+    }
+
+    #[test]
+    fn auth_hmac_computes_deterministically() {
+        let nonce = [42u8; 32];
+        let hmac1 = compute_auth_hmac(&nonce, "secret123");
+        let hmac2 = compute_auth_hmac(&nonce, "secret123");
+        let hmac_wrong = compute_auth_hmac(&nonce, "wrong_pass");
+
+        assert_eq!(hmac1, hmac2, "HMAC must be deterministic");
+        assert_ne!(hmac1, hmac_wrong, "Different passcodes must yield different HMACs");
+    }
+
+    #[test]
+    fn auth_and_media_tier_packets_roundtrip() {
+        let nonce = [7u8; 32];
+        let challenge = CollabMessage::AuthChallenge { nonce };
+        let json = serde_json::to_string(&challenge).unwrap();
+        assert_eq!(challenge, serde_json::from_str(&json).unwrap());
+
+        let hmac = compute_auth_hmac(&nonce, "room_pin_99");
+        let response = CollabMessage::AuthResponse { hmac };
+        let json = serde_json::to_string(&response).unwrap();
+        assert_eq!(response, serde_json::from_str(&json).unwrap());
+
+        let result = CollabMessage::AuthResult { ok: true, reason: None };
+        let json = serde_json::to_string(&result).unwrap();
+        assert_eq!(result, serde_json::from_str(&json).unwrap());
+
+        let tier_offer = CollabMessage::MediaTierOffer {
+            clip_id: 101,
+            filename: "drone_4k.mp4".into(),
+            tier: 1, // 480p proxy
+            sha256: "abc123sha".into(),
+            size_bytes: 5_242_880,
+            duration_ticks: 360_000_000_000,
+            url: Some("https://storage.googleapis.com/filmcraft/drone_480p.mp4".into()),
+        };
+        let json = serde_json::to_string(&tier_offer).unwrap();
+        assert_eq!(tier_offer, serde_json::from_str(&json).unwrap());
     }
 }

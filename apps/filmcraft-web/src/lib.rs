@@ -120,6 +120,28 @@ fn query_flag(name: &str) -> bool {
     web_sys::window().and_then(|w| w.location().search().ok()).and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok()).is_some_and(|p| p.has(name))
 }
 
+fn query_param(name: &str) -> Option<String> {
+    web_sys::window()
+        .and_then(|w| w.location().search().ok())
+        .and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok())
+        .and_then(|p| p.get(name))
+}
+
+fn url_hash_key() -> Option<String> {
+    web_sys::window()
+        .and_then(|w| w.location().hash().ok())
+        .and_then(|h| {
+            let trimmed = h.trim_start_matches('#');
+            if let Some(rest) = trimmed.strip_prefix("key=") {
+                Some(rest.to_string())
+            } else if !trimmed.is_empty() {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        })
+}
+
 /// Entry point (called by the page's bootstrap script once the wasm module is instantiated).
 #[wasm_bindgen]
 pub async fn start(canvas_id: String) -> Result<(), JsValue> {
@@ -192,6 +214,13 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                 let (tx, rx) = std::sync::mpsc::channel();
                 api::set_sender(tx);
                 app = app.with_control(rx);
+                if let Some(room) = query_param("room") {
+                    app.collab_room_input = room;
+                }
+                if let Some(key) = url_hash_key().or_else(|| query_param("key")) {
+                    app.collab_passcode_input = key;
+                    app.collab_passcode_visible = false;
+                }
                 if let Some(t) = toast {
                     app.status(t);
                 }

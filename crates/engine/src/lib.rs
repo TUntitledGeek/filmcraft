@@ -14,6 +14,7 @@ pub mod aaf_omf;
 pub mod autosave;
 pub mod captions;
 pub mod clip_ops;
+pub mod cloud_sync;
 pub mod color;
 pub mod commands;
 pub mod demo;

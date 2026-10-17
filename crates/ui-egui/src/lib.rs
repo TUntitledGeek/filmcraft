@@ -388,6 +388,14 @@ pub struct FilmcraftApp {
     pub collab_port_input: String,
     /// Remote address input in co-op dialog.
     pub collab_addr_input: String,
+    /// Room passcode input in co-op dialog.
+    pub collab_passcode_input: String,
+    /// Whether passcode is shown or masked.
+    pub collab_passcode_visible: bool,
+    /// Active progressive media tier streaming states.
+    pub collab_media_tiers: Vec<CollabMediaTierState>,
+    /// Google Drive cloud hub configuration.
+    pub gdrive_config: filmcraft_engine::cloud_sync::GoogleDriveConfig,
     /// Whether the wakeup callback for collab transport has been attached to egui.
     pub collab_wakeup_registered: bool,
     /// Whether hosting or joining in co-op dialog.
@@ -436,6 +444,16 @@ pub struct GpuState {
     pub broken: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Largest texture side the device accepts.
     pub max_texture: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct CollabMediaTierState {
+    pub clip_id: u64,
+    pub filename: String,
+    pub current_tier: u8,
+    pub target_tier: u8,
+    pub progress_pct: f32,
+    pub status: String,
 }
 
 #[derive(Clone, Debug)]
@@ -648,6 +666,10 @@ impl FilmcraftApp {
             collab_room_input: "ROOM-1".into(),
             collab_port_input: "9090".into(),
             collab_addr_input: "127.0.0.1:9090".into(),
+            collab_passcode_input: String::new(),
+            collab_passcode_visible: false,
+            collab_media_tiers: Vec::new(),
+            gdrive_config: filmcraft_engine::cloud_sync::GoogleDriveConfig::default(),
             collab_wakeup_registered: false,
             collab_is_host: true,
             pending_extension_offer: None,
@@ -1678,7 +1700,7 @@ impl FilmcraftApp {
         self.control_rx = Some(rx);
     }
 
-    pub fn start_collab_host(&mut self, port: u16, user_name: &str, room_code: &str) -> Result<(), String> {
+    pub fn start_collab_host(&mut self, port: u16, user_name: &str, room_code: &str, passcode: Option<&str>) -> Result<(), String> {
         let bind_addr: std::net::SocketAddr = format!("0.0.0.0:{port}").parse().map_err(|e| format!("Invalid bind address: {e}"))?;
         let config = filmcraft_collab::CollabConfig {
             peer_id: 1,
@@ -1686,6 +1708,7 @@ impl FilmcraftApp {
             user_color: [60, 140, 255, 255],
             bind_addr,
             room_code: room_code.to_string(),
+            passcode: passcode.filter(|p| !p.trim().is_empty()).map(|p| p.trim().to_string()),
         };
         let session = std::sync::Arc::new(filmcraft_collab::CollabSession::new(config.clone()));
         let transport = filmcraft_collab::CollabTransport::new(session.clone(), true)
@@ -1714,7 +1737,7 @@ impl FilmcraftApp {
         Ok(())
     }
 
-    pub fn join_collab_room(&mut self, remote_addr_str: &str, user_name: &str, room_code: &str) -> Result<(), String> {
+    pub fn join_collab_room(&mut self, remote_addr_str: &str, user_name: &str, room_code: &str, passcode: Option<&str>) -> Result<(), String> {
         let remote_addr: std::net::SocketAddr = remote_addr_str.parse()
             .map_err(|e| format!("Invalid remote address: {e}"))?;
         let peer_id = (std::process::id() as u16).max(2);
@@ -1724,6 +1747,7 @@ impl FilmcraftApp {
             user_color: [255, 120, 60, 255],
             bind_addr: "0.0.0.0:0".parse().unwrap(),
             room_code: room_code.to_string(),
+            passcode: passcode.filter(|p| !p.trim().is_empty()).map(|p| p.trim().to_string()),
         };
         let session = std::sync::Arc::new(filmcraft_collab::CollabSession::new(config.clone()));
         let transport = filmcraft_collab::CollabTransport::new(session.clone(), false)
@@ -1771,6 +1795,7 @@ impl FilmcraftApp {
         }
         let start = std::time::Instant::now();
         let mut count = 0;
+        let mut should_disconnect = false;
         while let Some(event) = transport.try_recv_event() {
             count += 1;
             match event {
@@ -1841,8 +1866,63 @@ impl FilmcraftApp {
                     self.ui.status = format!("Peer '{}' (ID {}) connected", name, peer_id);
                     ctx.request_repaint();
                 }
-                filmcraft_collab::CollabEvent::PeerDisconnected { peer_id } => {
-                    self.ui.status = format!("Peer {} disconnected", peer_id);
+                filmcraft_collab::CollabEvent::AuthFailed { reason } => {
+                    if self.collab_is_host {
+                        self.ui.status = format!("Peer auth rejected: {reason}");
+                    } else {
+                        self.ui.status = format!("Collab auth error: {reason}");
+                        should_disconnect = true;
+                    }
+                    ctx.request_repaint();
+                    if should_disconnect {
+                        break;
+                    }
+                }
+                filmcraft_collab::CollabEvent::MediaTierOffered { clip_id, filename, tier, .. } => {
+                    let tier_name = match tier {
+                        0 => "Metadata",
+                        1 => "480p Proxy",
+                        2 => "1080p Preview",
+                        _ => "Master 4K",
+                    };
+                    self.ui.status = format!("Streaming tier {tier_name} for '{filename}'");
+                    if let Some(entry) = self.collab_media_tiers.iter_mut().find(|m| m.clip_id == clip_id) {
+                        entry.target_tier = tier;
+                        entry.status = format!("Receiving {tier_name}");
+                    } else {
+                        self.collab_media_tiers.push(CollabMediaTierState {
+                            clip_id,
+                            filename,
+                            current_tier: 0,
+                            target_tier: tier,
+                            progress_pct: 0.0,
+                            status: format!("Receiving {tier_name}"),
+                        });
+                    }
+                    ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::MediaTierProgressed { clip_id, tier, received_bytes, total_bytes } => {
+                    if let Some(entry) = self.collab_media_tiers.iter_mut().find(|m| m.clip_id == clip_id) {
+                        entry.target_tier = tier;
+                        if total_bytes > 0 {
+                            entry.progress_pct = (received_bytes as f32 / total_bytes as f32).clamp(0.0, 1.0);
+                        }
+                    }
+                    ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::MediaTierPromoted { clip_id, tier, path_or_url } => {
+                    let tier_name = match tier {
+                        0 => "Metadata",
+                        1 => "480p Proxy",
+                        2 => "1080p Preview",
+                        _ => "Master 4K",
+                    };
+                    self.ui.status = format!("Promoted clip to {tier_name} ({path_or_url})");
+                    if let Some(entry) = self.collab_media_tiers.iter_mut().find(|m| m.clip_id == clip_id) {
+                        entry.current_tier = tier;
+                        entry.progress_pct = 1.0;
+                        entry.status = format!("{tier_name} Active");
+                    }
                     ctx.request_repaint();
                 }
                 _ => {}
@@ -1851,6 +1931,9 @@ impl FilmcraftApp {
                 ctx.request_repaint();
                 break;
             }
+        }
+        if should_disconnect {
+            self.disconnect_collab();
         }
     }
 
