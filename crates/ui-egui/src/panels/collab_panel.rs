@@ -124,7 +124,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
                     ui.add_space(8.0);
                     let invite_url = format!(
-                        "https://filmcraft.online/editor?room={}&key={}",
+                        "https://tuntitledgeek.github.io/filmcraft/?room={}#key={}",
                         app.collab_room_input.trim(),
                         app.collab_passcode_input.trim()
                     );
