@@ -131,10 +131,38 @@ impl FilmcraftApp {
     }
 
     fn panel_body(&mut self, ui: &mut egui::Ui, panel: PanelKind, content: Rect) {
+        self.visible_panels.push((panel.id(), content));
         self.auto.add(&format!("panel.{}", panel.id()), content, panel.title());
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(content).id_salt(("panel", panel.id())));
         child.set_clip_rect(content.intersect(ui.clip_rect()));
         panels::show(self, &mut child, panel, content);
+
+        // Collaborative presence: render remote collaborator cursors in this active panel!
+        if let Some(collab) = &self.collab {
+            if let Ok(peers) = collab.peers.try_read() {
+                let panel_name = panel.id();
+                // Timeline has dedicated tracks overlay; ProgramPic / SourcePic are handled on monitor pic
+                if panel != PanelKind::Timeline {
+                    for peer in peers.values() {
+                        if peer.panel.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(&panel_name)) {
+                            if let Some([nx, ny]) = peer.cursor_norm {
+                                let cursor_pos = pos2(
+                                    content.min.x + nx * content.width(),
+                                    content.min.y + ny * content.height(),
+                                );
+                                let col = Color32::from_rgba_unmultiplied(
+                                    peer.color_rgba[0],
+                                    peer.color_rgba[1],
+                                    peer.color_rgba[2],
+                                    peer.color_rgba[3],
+                                );
+                                crate::collab_overlay::paint_pointer(&child.painter(), cursor_pos, col, &peer.name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// OS drag positions come from the host cursor hook, so egui pointer capture alone
@@ -177,6 +205,9 @@ impl FilmcraftApp {
     }
 
     pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, body: Rect) {
+        self.visible_panels.clear();
+        self.program_pic_rect = None;
+        self.source_pic_rect = None;
         let t = self.tokens;
         let ctx = ui.ctx().clone();
         if let Some(panel) = self.pending_panel_raise.take()
@@ -213,6 +244,30 @@ impl FilmcraftApp {
         let mut targets = vec![];
         for group in &groups {
             let chrome = dock::draw_group_chrome_details(ui, group, &seqs, &t, &mut self.auto);
+            if let Some(collab) = &self.collab {
+                if let Ok(peers) = collab.peers.try_read() {
+                    for (panel_kind, tab_rect) in &chrome.tabs {
+                        let panel_id = panel_kind.id();
+                        for peer in peers.values() {
+                            let is_on_panel = peer.panel.as_deref().is_some_and(|p| {
+                                p.eq_ignore_ascii_case(&panel_id)
+                                    || (panel_id == "Program" && p.eq_ignore_ascii_case("ProgramPic"))
+                                    || (panel_id == "Source" && p.eq_ignore_ascii_case("SourcePic"))
+                            });
+                            if is_on_panel && tab_rect.width() > 0.0 {
+                                let dot_col = Color32::from_rgba_unmultiplied(
+                                    peer.color_rgba[0],
+                                    peer.color_rgba[1],
+                                    peer.color_rgba[2],
+                                    peer.color_rgba[3],
+                                );
+                                let dot_pos = pos2(tab_rect.max.x - 6.0, tab_rect.min.y + 6.0);
+                                ui.painter().circle_filled(dot_pos, 3.0, dot_col);
+                            }
+                        }
+                    }
+                }
+            }
             if let Some(target) = target(group, chrome.tabs, true) {
                 targets.push(target);
             }
@@ -305,6 +360,30 @@ impl FilmcraftApp {
                 active: floating.active,
             };
             let chrome = dock::draw_group_chrome_details(ui, &group, seqs, &t, &mut self.auto);
+            if let Some(collab) = &self.collab {
+                if let Ok(peers) = collab.peers.try_read() {
+                    for (panel_kind, tab_rect) in &chrome.tabs {
+                        let panel_id = panel_kind.id();
+                        for peer in peers.values() {
+                            let is_on_panel = peer.panel.as_deref().is_some_and(|p| {
+                                p.eq_ignore_ascii_case(&panel_id)
+                                    || (panel_id == "Program" && p.eq_ignore_ascii_case("ProgramPic"))
+                                    || (panel_id == "Source" && p.eq_ignore_ascii_case("SourcePic"))
+                            });
+                            if is_on_panel && tab_rect.width() > 0.0 {
+                                let dot_col = Color32::from_rgba_unmultiplied(
+                                    peer.color_rgba[0],
+                                    peer.color_rgba[1],
+                                    peer.color_rgba[2],
+                                    peer.color_rgba[3],
+                                );
+                                let dot_pos = pos2(tab_rect.max.x - 6.0, tab_rect.min.y + 6.0);
+                                ui.painter().circle_filled(dot_pos, 3.0, dot_col);
+                            }
+                        }
+                    }
+                }
+            }
             actions.extend(chrome.actions);
             if let Some(active) = group.panels.get(group.active).copied() {
                 self.panel_body(ui, active, group.content);

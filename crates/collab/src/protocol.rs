@@ -19,6 +19,8 @@ pub struct PeerPresence {
     pub playhead_tick: Option<Tick>,
     pub cursor_norm: Option<[f32; 2]>,
     pub active_drag: Option<DragGhost>,
+    #[serde(default)]
+    pub selected_clip: Option<u64>,
     pub timestamp_ms: u64,
 }
 
@@ -158,6 +160,7 @@ mod tests {
                 duration_ticks: Tick(500_000),
                 label: "Interview.mp4".into(),
             }),
+            selected_clip: Some(42),
             timestamp_ms: 1_700_000_000,
         };
 

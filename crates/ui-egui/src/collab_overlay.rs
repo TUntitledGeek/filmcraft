@@ -124,12 +124,14 @@ pub fn paint_timeline_presence(
         }
 
         // Remote Cursor in Timeline
-        if let (Some("timeline"), Some([nx, ny])) = (peer.panel.as_deref(), peer.cursor_norm) {
-            let cursor_pos = pos2(
-                content_rect.min.x + nx * content_rect.width(),
-                content_rect.min.y + ny * content_rect.height(),
-            );
-            paint_pointer(painter, cursor_pos, col, &peer.name);
+        if let (Some(panel), Some([nx, ny])) = (peer.panel.as_deref(), peer.cursor_norm) {
+            if panel.eq_ignore_ascii_case("timeline") {
+                let cursor_pos = pos2(
+                    content_rect.min.x + nx * content_rect.width(),
+                    content_rect.min.y + ny * content_rect.height(),
+                );
+                paint_pointer(painter, cursor_pos, col, &peer.name);
+            }
         }
     }
 }
@@ -159,7 +161,7 @@ pub fn paint_pointer(painter: &Painter, pos: Pos2, color: Color32, name: &str) {
 }
 
 /// Paint remote peers' cursors and active transform / drag indicators over the monitor picture.
-pub fn paint_monitor_presence(painter: &Painter, peers: &[PeerPresence], pic: Rect) {
+pub fn paint_monitor_presence(painter: &Painter, peers: &[PeerPresence], pic: Rect, target_panel: &str) {
     for peer in peers {
         let col = Color32::from_rgba_unmultiplied(
             peer.color_rgba[0],
@@ -168,20 +170,38 @@ pub fn paint_monitor_presence(painter: &Painter, peers: &[PeerPresence], pic: Re
             peer.color_rgba[3],
         );
 
-        // Remote cursor on monitor
-        if let (Some("program" | "monitor"), Some([nx, ny])) = (peer.panel.as_deref(), peer.cursor_norm) {
-            let cursor_pos = pos2(
-                pic.min.x + nx * pic.width(),
-                pic.min.y + ny * pic.height(),
-            );
-            if pic.contains(cursor_pos) {
-                paint_pointer(painter, cursor_pos, col, &peer.name);
+        // Remote cursor on monitor picture
+        if let (Some(panel), Some([nx, ny])) = (peer.panel.as_deref(), peer.cursor_norm) {
+            let is_match = if target_panel.eq_ignore_ascii_case("program") {
+                panel.eq_ignore_ascii_case("programpic")
+            } else {
+                panel.eq_ignore_ascii_case("sourcepic")
+            };
+            if is_match {
+                let cursor_pos = pos2(
+                    pic.min.x + nx * pic.width(),
+                    pic.min.y + ny * pic.height(),
+                );
+                if pic.contains(cursor_pos) {
+                    paint_pointer(painter, cursor_pos, col, &peer.name);
+                }
             }
         }
 
         // Remote active drag or transform indicator
         if let Some(ghost) = &peer.active_drag {
-            if peer.panel.as_deref() == Some("program") || peer.panel.as_deref() == Some("monitor") {
+            let is_match = if target_panel.eq_ignore_ascii_case("program") {
+                peer.panel.as_deref().is_some_and(|p| {
+                    p.eq_ignore_ascii_case("programpic")
+                        || p.eq_ignore_ascii_case("program")
+                        || p.eq_ignore_ascii_case("monitor")
+                })
+            } else {
+                peer.panel.as_deref().is_some_and(|p| {
+                    p.eq_ignore_ascii_case("sourcepic") || p.eq_ignore_ascii_case("source")
+                })
+            };
+            if is_match {
                 let ghost_rect = Rect::from_center_size(pic.center(), pic.size() * 0.5);
                 painter.rect_stroke(ghost_rect, 2.0, Stroke::new(1.5, col), egui::StrokeKind::Outside);
                 let badge_pos = ghost_rect.left_top() - vec2(0.0, 18.0);

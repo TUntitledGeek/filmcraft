@@ -103,6 +103,7 @@ fn test_transport_host_and_client_connect_and_sync() {
         playhead_tick: Some(filmcraft_time::Tick(500)),
         cursor_norm: Some([0.25, 0.5]),
         active_drag: None,
+        selected_clip: None,
         timestamp_ms: 12345,
     });
     host_session.msg_tx.send(presence_msg).unwrap();

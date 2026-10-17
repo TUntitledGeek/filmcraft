@@ -396,6 +396,10 @@ pub struct FilmcraftApp {
     pub pending_extension_offer: Option<ExtensionOfferModal>,
     /// Last program monitor picture rect for cursor normalization.
     pub(crate) program_pic_rect: Option<egui::Rect>,
+    /// Last source monitor picture rect for cursor normalization.
+    pub(crate) source_pic_rect: Option<egui::Rect>,
+    /// Currently visible dock panel content rects for context-aware cursor presence.
+    pub(crate) visible_panels: Vec<(String, egui::Rect)>,
     /// Last soft lock leased by the local peer on a track.
     pub(crate) collab_last_lock: Option<(filmcraft_project::TrackKind, usize)>,
     /// Whether a timeline drag was active on the previous frame.
@@ -646,6 +650,8 @@ impl FilmcraftApp {
             collab_is_host: true,
             pending_extension_offer: None,
             program_pic_rect: None,
+            source_pic_rect: None,
+            visible_panels: Vec::new(),
             collab_last_lock: None,
             collab_had_drag: false,
             last_presence_send: std::time::Instant::now(),
@@ -1856,34 +1862,9 @@ impl FilmcraftApp {
 
         // 1. Determine pointer panel and normalized coordinates
         let pos = ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()));
+        let tl_content = self.tl.layout.as_ref().map(|l| l.content);
         let (panel, cursor_norm) = if let Some(p) = pos {
-            if let Some(pic) = self.program_pic_rect {
-                if pic.contains(p) && pic.width() > 1.0 && pic.height() > 1.0 {
-                    let nx = ((p.x - pic.min.x) / pic.width()).clamp(0.0, 1.0);
-                    let ny = ((p.y - pic.min.y) / pic.height()).clamp(0.0, 1.0);
-                    (Some("program".to_string()), Some([nx, ny]))
-                } else if let Some(layout) = &self.tl.layout {
-                    if layout.content.contains(p) && layout.content.width() > 1.0 && layout.content.height() > 1.0 {
-                        let nx = ((p.x - layout.content.min.x) / layout.content.width()).clamp(0.0, 1.0);
-                        let ny = ((p.y - layout.content.min.y) / layout.content.height()).clamp(0.0, 1.0);
-                        (Some("timeline".to_string()), Some([nx, ny]))
-                    } else {
-                        (None, None)
-                    }
-                } else {
-                    (None, None)
-                }
-            } else if let Some(layout) = &self.tl.layout {
-                if layout.content.contains(p) && layout.content.width() > 1.0 && layout.content.height() > 1.0 {
-                    let nx = ((p.x - layout.content.min.x) / layout.content.width()).clamp(0.0, 1.0);
-                    let ny = ((p.y - layout.content.min.y) / layout.content.height()).clamp(0.0, 1.0);
-                    (Some("timeline".to_string()), Some([nx, ny]))
-                } else {
-                    (None, None)
-                }
-            } else {
-                (None, None)
-            }
+            find_panel_coords(p, self.program_pic_rect, self.source_pic_rect, tl_content, &self.visible_panels)
         } else {
             (None, None)
         };
@@ -2102,9 +2083,49 @@ impl FilmcraftApp {
 
         // 4. Send presence update
         let playhead = Some(self.session.playhead());
-        let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag);
+        let selected_clip = self.session.state.selection.first().map(|c| c.0);
+        let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag, selected_clip);
         let _ = collab.msg_tx.send(msg);
     }
+}
+
+/// Helper to resolve pointer coordinates to the specific active panel/monitor with normalized [0..1] coordinates.
+fn find_panel_coords(
+    p: egui::Pos2,
+    program_pic: Option<egui::Rect>,
+    source_pic: Option<egui::Rect>,
+    timeline_content: Option<egui::Rect>,
+    visible_panels: &[(String, egui::Rect)],
+) -> (Option<String>, Option<[f32; 2]>) {
+    if let Some(pic) = program_pic {
+        if pic.contains(p) && pic.width() > 1.0 && pic.height() > 1.0 {
+            let nx = ((p.x - pic.min.x) / pic.width()).clamp(0.0, 1.0);
+            let ny = ((p.y - pic.min.y) / pic.height()).clamp(0.0, 1.0);
+            return (Some("ProgramPic".to_string()), Some([nx, ny]));
+        }
+    }
+    if let Some(pic) = source_pic {
+        if pic.contains(p) && pic.width() > 1.0 && pic.height() > 1.0 {
+            let nx = ((p.x - pic.min.x) / pic.width()).clamp(0.0, 1.0);
+            let ny = ((p.y - pic.min.y) / pic.height()).clamp(0.0, 1.0);
+            return (Some("SourcePic".to_string()), Some([nx, ny]));
+        }
+    }
+    if let Some(tl) = timeline_content {
+        if tl.contains(p) && tl.width() > 1.0 && tl.height() > 1.0 {
+            let nx = ((p.x - tl.min.x) / tl.width()).clamp(0.0, 1.0);
+            let ny = ((p.y - tl.min.y) / tl.height()).clamp(0.0, 1.0);
+            return (Some("Timeline".to_string()), Some([nx, ny]));
+        }
+    }
+    for (name, rect) in visible_panels.iter().rev() {
+        if rect.contains(p) && rect.width() > 1.0 && rect.height() > 1.0 {
+            let nx = ((p.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
+            let ny = ((p.y - rect.min.y) / rect.height()).clamp(0.0, 1.0);
+            return (Some(name.clone()), Some([nx, ny]));
+        }
+    }
+    (None, None)
 }
 
 /// Whether a command mutates shared project/timeline state and must be replicated to peers.
@@ -2643,7 +2664,10 @@ impl eframe::App for FilmcraftApp {
         }
         let ctx = ui.ctx().clone();
         self.last_ui_time = ctx.input(|i| i.time);
-        if self.tl.drag.is_some() || self.collab_had_drag {
+        let peer_has_drag = self.collab.as_ref().map_or(false, |c| {
+            c.peers.try_read().map_or(false, |peers| peers.values().any(|p| p.active_drag.is_some()))
+        });
+        if self.tl.drag.is_some() || self.collab_had_drag || peer_has_drag {
             ctx.request_repaint();
             self.broadcast_collab_presence(&ctx);
         }

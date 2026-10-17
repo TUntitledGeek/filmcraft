@@ -1018,6 +1018,29 @@ fn draw_clip(
         p.rect_stroke(body.shrink(1.0), 0.0, Stroke::new(1.0, Color32::BLACK), StrokeKind::Inside);
         p.rect_stroke(body, 0.0, Stroke::new(2.0, t.clip_selected_border), StrokeKind::Inside);
     }
+    if let Some(collab) = &app.collab {
+        if let Ok(peers) = collab.peers.try_read() {
+            for peer in peers.values() {
+                if peer.selected_clip == Some(it.id.0) {
+                    let col = Color32::from_rgba_unmultiplied(
+                        peer.color_rgba[0],
+                        peer.color_rgba[1],
+                        peer.color_rgba[2],
+                        peer.color_rgba[3],
+                    );
+                    p.rect_stroke(body, 0.0, Stroke::new(2.0, col), StrokeKind::Inside);
+                    let badge_pos = pos2(body.max.x - 4.0, body.min.y + 3.0);
+                    let font_id = egui::FontId::proportional(9.0);
+                    let galley = p.layout_no_wrap(peer.name.clone(), font_id, Color32::WHITE);
+                    if body.width() >= galley.size().x + 14.0 {
+                        let badge_rect = Rect::from_min_size(badge_pos - vec2(galley.size().x + 6.0, 0.0), galley.size() + vec2(6.0, 3.0));
+                        p.rect_filled(badge_rect, 2.0, col);
+                        p.galley(badge_rect.min + vec2(3.0, 1.5), galley, Color32::WHITE);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn draw_waveform(app: &mut FilmcraftApp, p: &egui::Painter, body: Rect, it: &TrackItem, col: Color32) {

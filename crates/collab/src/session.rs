@@ -84,6 +84,7 @@ impl CollabSession {
         playhead: Option<filmcraft_time::Tick>,
         cursor_norm: Option<[f32; 2]>,
         active_drag: Option<crate::protocol::DragGhost>,
+        selected_clip: Option<u64>,
     ) -> CollabMessage {
         CollabMessage::Presence(PeerPresence {
             peer_id: self.config.peer_id,
@@ -93,6 +94,7 @@ impl CollabSession {
             playhead_tick: playhead,
             cursor_norm,
             active_drag,
+            selected_clip,
             timestamp_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()

@@ -308,7 +308,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         if let Some(collab) = &app.collab {
             if let Ok(peers) = collab.peers.try_read() {
                 let peer_list: Vec<_> = peers.values().cloned().collect();
-                crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic);
+                crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic, "program");
             }
         }
     }
@@ -318,6 +318,15 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     ui.set_clip_rect(saved_clip);
     if let Some((top, left)) = ruler_rects {
         monitor_view::rulers(app, ui, which, top, left, video_area, pic, frame_size);
+    }
+    if which == Which::Source && show_picture {
+        app.source_pic_rect = Some(pic);
+        if let Some(collab) = &app.collab {
+            if let Ok(peers) = collab.peers.try_read() {
+                let peer_list: Vec<_> = peers.values().cloned().collect();
+                crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic, "source");
+            }
+        }
     }
     if which == Which::Source && show_picture && pic_resp.drag_started() && app.ui.tool != crate::state::Tool::Hand {
         crate::panels::source_drag::begin(app, ui, true, true);
