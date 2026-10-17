@@ -72,8 +72,45 @@
     const t0 = performance.now();
     const params = new URLSearchParams(location.search);
     try {
+      const s = document.getElementById("status");
+      const wasmUrl = new URL("filmcraft_web_bg.wasm" + v, location.href);
+      const res = await fetch(wasmUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to download WebAssembly engine (${wasmUrl})`);
+      const contentLength = +res.headers.get("Content-Length") || 43900000;
+      let loaded = 0;
+      let trackedResponse = res;
+      if (res.body && typeof ReadableStream !== "undefined") {
+        const stream = new ReadableStream({
+          async start(controller) {
+            const reader = res.body.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                  controller.close();
+                  break;
+                }
+                loaded += value.length;
+                if (s) {
+                  const pct = Math.min(99, Math.round((loaded / contentLength) * 100));
+                  const mb = (loaded / (1024 * 1024)).toFixed(1);
+                  const totalMb = (contentLength / (1024 * 1024)).toFixed(1);
+                  s.textContent = `Loading FilmCraft… ${pct}% (${mb} MB / ${totalMb} MB)`;
+                }
+                controller.enqueue(value);
+              }
+            } catch (err) {
+              controller.error(err);
+            }
+          }
+        });
+        trackedResponse = new Response(stream, {
+          headers: { "Content-Type": "application/wasm" }
+        });
+      }
       const { default: init, start } = await import("./filmcraft_web.js" + v);
-      await init({ module_or_path: new URL("filmcraft_web_bg.wasm" + v, location.href) });
+      if (s) s.textContent = "Starting WebGPU Video Engine…";
+      await init({ module_or_path: trackedResponse });
       window.filmcraftLoad.wasmMs = performance.now() - t0;
       await start("filmcraft_canvas");
       window.filmcraftLoad.readyMs = performance.now() - t0;
