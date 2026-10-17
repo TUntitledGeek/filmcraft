@@ -3045,6 +3045,23 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
             if mods.command {
                 ui.painter().text(r.left_top() + vec2(4.0, -2.0), Align2::LEFT_BOTTOM, tl!("Insert"), Tokens::ui(10.0), Color32::WHITE);
             }
+            let (dest_kind, dest_idx) = if let Some(r) = &row {
+                (r.kind, r.index)
+            } else if let Some((k, _)) = new_track {
+                let idx = if k == TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() };
+                (k, idx)
+            } else {
+                (TrackKind::Video, 0)
+            };
+            let item_name = app.session.project.item(item).map(|i| i.name.clone()).unwrap_or_else(|| "Footage".into());
+            app.collab_drop_ghost = Some(filmcraft_collab::DragGhost {
+                clip_id: 0,
+                track_kind: dest_kind,
+                track_index: dest_idx,
+                start_tick: t,
+                duration_ticks: dur,
+                label: format!("Drop: {item_name}"),
+            });
         }
         let target = match (&row, new_track) {
             (Some(row), _) => Some(match row.kind {

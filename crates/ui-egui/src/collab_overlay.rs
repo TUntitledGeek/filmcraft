@@ -1,6 +1,6 @@
 //! Rendering helpers for remote collaborative peers (presence cursors, ghost drags, and soft locks).
 
-use egui::{pos2, vec2, Align2, Color32, Painter, Pos2, Rect, Stroke};
+use egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 use filmcraft_collab::{PeerPresence, SoftLock};
 use filmcraft_project::TrackKind;
 use filmcraft_time::Tick;
@@ -57,15 +57,13 @@ pub fn paint_timeline_presence(
                 );
 
                 // Remote flag label on the ruler
-                let badge_rect = Rect::from_min_size(pos2(px - 14.0, ruler_rect.min.y + 2.0), vec2(28.0, 14.0));
+                let font_id = egui::FontId::proportional(10.0);
+                let galley = painter.layout_no_wrap(peer.name.clone(), font_id, Color32::WHITE);
+                let badge_w = galley.size().x + 10.0;
+                let badge_h = 16.0;
+                let badge_rect = Rect::from_center_size(pos2(px, ruler_rect.min.y + 10.0), vec2(badge_w, badge_h));
                 painter.rect_filled(badge_rect, 3.0, col);
-                painter.text(
-                    badge_rect.center(),
-                    Align2::CENTER_CENTER,
-                    &peer.name,
-                    egui::FontId::proportional(10.0),
-                    Color32::WHITE,
-                );
+                painter.galley(badge_rect.min + vec2(5.0, 3.0), galley, Color32::WHITE);
             }
         }
 
@@ -130,14 +128,14 @@ pub fn paint_timeline_presence(
                     content_rect.min.x + nx * content_rect.width(),
                     content_rect.min.y + ny * content_rect.height(),
                 );
-                paint_pointer(painter, cursor_pos, col, &peer.name);
+                paint_pointer(painter, cursor_pos, col, &peer.name, peer.in_hand.as_deref());
             }
         }
     }
 }
 
-/// Paint a sleek collaborative pointer with an attached name tag (Figma-style).
-pub fn paint_pointer(painter: &Painter, pos: Pos2, color: Color32, name: &str) {
+/// Paint a sleek collaborative pointer with an attached name tag and optional in-hand item chip (Figma-style).
+pub fn paint_pointer(painter: &Painter, pos: Pos2, color: Color32, name: &str, in_hand: Option<&str>) {
     // Arrow polygon
     let tip = pos;
     let arrow = vec![
@@ -158,6 +156,21 @@ pub fn paint_pointer(painter: &Painter, pos: Pos2, color: Color32, name: &str) {
     let tag_rect = Rect::from_min_size(tag_pos - vec2(3.0, 2.0), galley.size() + vec2(6.0, 4.0));
     painter.rect_filled(tag_rect, 3.0, color);
     painter.galley(tag_pos, galley, Color32::WHITE);
+
+    // In-hand item chip (when dragging footage / media / effects)
+    if let Some(item_name) = in_hand {
+        let chip_text = format!("📄 {item_name}");
+        let chip_galley = painter.layout_no_wrap(
+            chip_text,
+            egui::FontId::proportional(10.0),
+            Color32::WHITE,
+        );
+        let chip_pos = pos2(tag_rect.min.x, tag_rect.max.y + 3.0);
+        let chip_rect = Rect::from_min_size(chip_pos, chip_galley.size() + vec2(8.0, 4.0));
+        painter.rect_filled(chip_rect, 3.0, Color32::from_black_alpha(220));
+        painter.rect_stroke(chip_rect, 3.0, Stroke::new(1.5, color), egui::StrokeKind::Inside);
+        painter.galley(chip_pos + vec2(4.0, 2.0), chip_galley, Color32::WHITE);
+    }
 }
 
 /// Paint remote peers' cursors and active transform / drag indicators over the monitor picture.
@@ -183,7 +196,7 @@ pub fn paint_monitor_presence(painter: &Painter, peers: &[PeerPresence], pic: Re
                     pic.min.y + ny * pic.height(),
                 );
                 if pic.contains(cursor_pos) {
-                    paint_pointer(painter, cursor_pos, col, &peer.name);
+                    paint_pointer(painter, cursor_pos, col, &peer.name, peer.in_hand.as_deref());
                 }
             }
         }

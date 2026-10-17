@@ -21,6 +21,8 @@ pub struct PeerPresence {
     pub active_drag: Option<DragGhost>,
     #[serde(default)]
     pub selected_clip: Option<u64>,
+    #[serde(default)]
+    pub in_hand: Option<String>,
     pub timestamp_ms: u64,
 }
 
@@ -161,6 +163,7 @@ mod tests {
                 label: "Interview.mp4".into(),
             }),
             selected_clip: Some(42),
+            in_hand: Some("Interview.mp4".into()),
             timestamp_ms: 1_700_000_000,
         };
 

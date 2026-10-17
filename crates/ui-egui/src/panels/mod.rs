@@ -180,6 +180,25 @@ pub fn dragged_project_item(ui: &egui::Ui) -> Option<ItemId> {
         _ => None,
     }
 }
+
+pub fn dragged_payload_label(ctx: &egui::Context, project: &filmcraft_project::Project) -> Option<String> {
+    let payload = ctx.data(|d| d.get_temp::<Option<DragPayloadBox>>(payload_id())).flatten().map(|b| b.0)?;
+    match payload {
+        DragPayload::Item(id) => project.item(id).map(|i| i.name.clone()),
+        DragPayload::Source(s) => project.item(s.item).map(|i| {
+            if s.video && s.audio {
+                i.name.clone()
+            } else if s.video {
+                format!("{} (Video)", i.name)
+            } else {
+                format!("{} (Audio)", i.name)
+            }
+        }),
+        DragPayload::Bin(_) => Some("Bin".to_string()),
+        DragPayload::Effect(eff) => Some(eff),
+        DragPayload::Template(_, name) => Some(name),
+    }
+}
 /// The items a drag from the Project panel carries: the whole selection when the dragged item is
 /// one of several selected, otherwise just the dragged item.
 pub fn dragged_selection(app: &FilmcraftApp, item: ItemId) -> Vec<ItemId> {

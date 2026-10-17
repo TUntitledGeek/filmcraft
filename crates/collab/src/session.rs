@@ -85,6 +85,7 @@ impl CollabSession {
         cursor_norm: Option<[f32; 2]>,
         active_drag: Option<crate::protocol::DragGhost>,
         selected_clip: Option<u64>,
+        in_hand: Option<String>,
     ) -> CollabMessage {
         CollabMessage::Presence(PeerPresence {
             peer_id: self.config.peer_id,
@@ -95,6 +96,7 @@ impl CollabSession {
             cursor_norm,
             active_drag,
             selected_clip,
+            in_hand,
             timestamp_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()

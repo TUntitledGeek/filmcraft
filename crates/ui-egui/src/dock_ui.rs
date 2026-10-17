@@ -156,7 +156,7 @@ impl FilmcraftApp {
                                     peer.color_rgba[2],
                                     peer.color_rgba[3],
                                 );
-                                crate::collab_overlay::paint_pointer(&child.painter(), cursor_pos, col, &peer.name);
+                                crate::collab_overlay::paint_pointer(&child.painter(), cursor_pos, col, &peer.name, peer.in_hand.as_deref());
                             }
                         }
                     }
@@ -208,6 +208,7 @@ impl FilmcraftApp {
         self.visible_panels.clear();
         self.program_pic_rect = None;
         self.source_pic_rect = None;
+        self.collab_drop_ghost = None;
         let t = self.tokens;
         let ctx = ui.ctx().clone();
         if let Some(panel) = self.pending_panel_raise.take()

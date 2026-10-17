@@ -402,6 +402,8 @@ pub struct FilmcraftApp {
     pub(crate) visible_panels: Vec<(String, egui::Rect)>,
     /// Last soft lock leased by the local peer on a track.
     pub(crate) collab_last_lock: Option<(filmcraft_project::TrackKind, usize)>,
+    /// Active footage/project item drop preview over the timeline.
+    pub(crate) collab_drop_ghost: Option<filmcraft_collab::DragGhost>,
     /// Whether a timeline drag was active on the previous frame.
     pub(crate) collab_had_drag: bool,
     /// Last timestamp local presence was broadcast.
@@ -653,6 +655,7 @@ impl FilmcraftApp {
             source_pic_rect: None,
             visible_panels: Vec::new(),
             collab_last_lock: None,
+            collab_drop_ghost: None,
             collab_had_drag: false,
             last_presence_send: std::time::Instant::now(),
             gpu: None,
@@ -1853,7 +1856,8 @@ impl FilmcraftApp {
 
     pub fn broadcast_collab_presence(&mut self, ctx: &egui::Context) {
         let Some(collab) = &self.collab else { return };
-        let has_drag = self.tl.drag.is_some();
+        let in_hand = crate::panels::dragged_payload_label(ctx, &self.session.project);
+        let has_drag = self.tl.drag.is_some() || self.collab_drop_ghost.is_some() || in_hand.is_some();
         if !has_drag && !self.collab_had_drag && self.last_presence_send.elapsed() < std::time::Duration::from_millis(33) {
             return;
         }
@@ -2043,6 +2047,7 @@ impl FilmcraftApp {
             }
             _ => None,
         };
+        let active_drag = active_drag.or_else(|| self.collab_drop_ghost.clone());
 
         // 3. Maintain 500-600ms leased soft track lock
         let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
@@ -2084,7 +2089,7 @@ impl FilmcraftApp {
         // 4. Send presence update
         let playhead = Some(self.session.playhead());
         let selected_clip = self.session.state.selection.first().map(|c| c.0);
-        let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag, selected_clip);
+        let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag, selected_clip, in_hand);
         let _ = collab.msg_tx.send(msg);
     }
 }
@@ -2664,10 +2669,11 @@ impl eframe::App for FilmcraftApp {
         }
         let ctx = ui.ctx().clone();
         self.last_ui_time = ctx.input(|i| i.time);
+        let has_local_drag = self.tl.drag.is_some() || self.collab_drop_ghost.is_some() || crate::panels::dragged_payload_label(&ctx, &self.session.project).is_some();
         let peer_has_drag = self.collab.as_ref().map_or(false, |c| {
-            c.peers.try_read().map_or(false, |peers| peers.values().any(|p| p.active_drag.is_some()))
+            c.peers.try_read().map_or(false, |peers| peers.values().any(|p| p.active_drag.is_some() || p.in_hand.is_some()))
         });
-        if self.tl.drag.is_some() || self.collab_had_drag || peer_has_drag {
+        if has_local_drag || self.collab_had_drag || peer_has_drag {
             ctx.request_repaint();
             self.broadcast_collab_presence(&ctx);
         }
