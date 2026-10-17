@@ -1675,6 +1675,9 @@ impl FilmcraftApp {
         let tx = session.msg_tx.clone();
         let peer_id = config.peer_id;
         self.session.on_command = Some(std::sync::Arc::new(move |id, params| {
+            if !is_replicated_collab_command(id) {
+                return;
+            }
             let _ = tx.send(filmcraft_collab::CollabMessage::CommitCommand {
                 peer_id,
                 rev: 0,
@@ -1707,6 +1710,9 @@ impl FilmcraftApp {
 
         let tx = session.msg_tx.clone();
         self.session.on_command = Some(std::sync::Arc::new(move |id, params| {
+            if !is_replicated_collab_command(id) {
+                return;
+            }
             let _ = tx.send(filmcraft_collab::CollabMessage::CommitCommand {
                 peer_id,
                 rev: 0,
@@ -1731,7 +1737,10 @@ impl FilmcraftApp {
 
     pub fn drain_collab(&mut self, ctx: &egui::Context) {
         let Some(transport) = &self.collab_transport else { return };
+        let start = std::time::Instant::now();
+        let mut count = 0;
         while let Some(event) = transport.try_recv_event() {
+            count += 1;
             match event {
                 filmcraft_collab::CollabEvent::CommandReceived { peer_id, rev: _, id, params } => {
                     log::info!("Collab: executing remote command from peer {}: {}", peer_id, id);
@@ -1746,19 +1755,27 @@ impl FilmcraftApp {
                 filmcraft_collab::CollabEvent::SnapshotRequested { peer_id } => {
                     log::info!("Collab: sending project snapshot to peer {}", peer_id);
                     if let Ok(project_json) = serde_json::to_string(&self.session.project) {
+                        let active_sequence = self.session.state.active_sequence.map(|i| i.0);
                         let _ = transport.session.msg_tx.send(filmcraft_collab::CollabMessage::SyncSnapshot {
                             project_json,
                             revision: self.session.revision,
+                            active_sequence,
                         });
                     }
                 }
-                filmcraft_collab::CollabEvent::SnapshotReceived { project_json, revision } => {
+                filmcraft_collab::CollabEvent::SnapshotReceived { project_json, revision, active_sequence } => {
                     log::info!("Collab: received project snapshot (rev {})", revision);
                     match serde_json::from_str::<filmcraft_project::Project>(&project_json) {
                         Ok(proj) => {
                             self.session.project = std::sync::Arc::new(proj);
                             self.session.revision = revision;
                             self.session.saved_revision = revision;
+                            let target_seq = active_sequence.or_else(|| self.session.project.sequences().next().map(|s| s.id.0));
+                            if let Some(seq_id) = target_seq {
+                                self.session.suppress_command_hook = true;
+                                let _ = self.session.execute("sequence.open", serde_json::json!({"item": seq_id}));
+                                self.session.suppress_command_hook = false;
+                            }
                             ctx.request_repaint();
                         }
                         Err(e) => {
@@ -1798,6 +1815,10 @@ impl FilmcraftApp {
                 }
                 _ => {}
             }
+            if count >= 32 || start.elapsed() > std::time::Duration::from_millis(8) {
+                ctx.request_repaint();
+                break;
+            }
         }
     }
 
@@ -1813,6 +1834,41 @@ impl FilmcraftApp {
         let msg = collab.create_presence(playhead, cursor);
         let _ = collab.msg_tx.send(msg);
     }
+}
+
+/// Whether a command mutates shared project/timeline state and must be replicated to peers.
+fn is_replicated_collab_command(id: &str) -> bool {
+    // Pure navigation, local views, personal monitors, zoom, and local preferences are never replicated:
+    if id.starts_with("playhead.")
+        || id.starts_with("source.")
+        || id.starts_with("view.")
+        || id.starts_with("prefs.")
+        || id.starts_with("ui.")
+        || id.starts_with("command.")
+        || id.starts_with("file.export")
+        || id.starts_with("file.openRecent")
+        || id.starts_with("file.recover")
+        || id == "timeline.zoom"
+        || id == "timeline.zoomIn"
+        || id == "timeline.zoomOut"
+        || id == "timeline.zoomToFit"
+        || id == "timeline.zoomToSelection"
+        || id == "timeline.scroll"
+        || id == "project.select"
+        || id == "effects.select"
+        || id == "masks.select"
+        || id.starts_with("sequence.select")
+        || id == "sequence.linkedSelection"
+        || id == "sequence.snapping"
+        || id == "collab.toggleDialog"
+        || id == "app.quit"
+    {
+        return false;
+    }
+    true
+}
+
+impl FilmcraftApp {
 
     /// Capture once the UI shows the current state (`settled`): after a seek the monitor shows the
     /// nearest cached picture until the exact frame is decoded, and an agent must not be handed

@@ -50,6 +50,7 @@ pub enum CollabEvent {
     SnapshotReceived {
         project_json: String,
         revision: u64,
+        active_sequence: Option<u64>,
     },
     AssetReceived {
         category: String,
@@ -430,10 +431,11 @@ async fn handle_peer_stream(
                             let _ = event_tx.send(CollabEvent::SnapshotRequested { peer_id });
                         }
                     }
-                    CollabMessage::SyncSnapshot { project_json, revision } => {
+                    CollabMessage::SyncSnapshot { project_json, revision, active_sequence } => {
                         let _ = event_tx.send(CollabEvent::SnapshotReceived {
                             project_json,
                             revision,
+                            active_sequence,
                         });
                     }
                     CollabMessage::AssetSync { category, filename, sha256, data } => {

@@ -131,6 +131,7 @@ pub enum CollabMessage {
     SyncSnapshot {
         project_json: String,
         revision: u64,
+        active_sequence: Option<u64>,
     },
 }
 
