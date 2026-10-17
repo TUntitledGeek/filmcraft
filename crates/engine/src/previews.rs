@@ -567,8 +567,12 @@ fn default_temp_dir() -> Option<PathBuf> {
 
 /// A fresh per-process folder for an unsaved project's previews under `root`.
 fn untitled_dir(root: &Path) -> PathBuf {
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    root.join(format!("untitled-{}-{nanos:x}", std::process::id()))
+    let nanos = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    #[cfg(not(target_arch = "wasm32"))]
+    let pid = std::process::id();
+    #[cfg(target_arch = "wasm32")]
+    let pid = 0;
+    root.join(format!("untitled-{pid}-{nanos:x}"))
 }
 
 /// The preview folder of a project saved at `project_path`.

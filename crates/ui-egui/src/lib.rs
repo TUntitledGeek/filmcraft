@@ -2133,7 +2133,7 @@ impl FilmcraftApp {
         let active_drag = active_drag.or_else(|| self.collab_drop_ghost.clone());
 
         // 3. Maintain 500-600ms leased soft track lock
-        let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+        let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
         if let Some(ghost) = &active_drag {
             let key = (ghost.track_kind, ghost.track_index);
             if self.collab_last_lock != Some(key) {

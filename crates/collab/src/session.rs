@@ -98,8 +98,8 @@ impl CollabSession {
             active_drag,
             selected_clip,
             in_hand,
-            timestamp_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            timestamp_ms: web_time::SystemTime::now()
+                .duration_since(web_time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as u64,
         })

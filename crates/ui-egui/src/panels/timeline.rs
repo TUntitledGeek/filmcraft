@@ -687,7 +687,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if let Some(collab) = &app.collab {
         if let (Ok(peers_map), Ok(locks_mgr)) = (collab.peers.try_read(), collab.lock_manager.try_read()) {
             let peers: Vec<_> = peers_map.values().cloned().collect();
-            let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+            let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
             // Get all unexpired soft locks
             let mut active_locks = Vec::new();
             for kind in [TrackKind::Video, TrackKind::Audio] {
@@ -2364,7 +2364,7 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                     };
                     let soft_locked = if let Some(collab) = &app.collab {
                         if let Ok(mgr) = collab.lock_manager.try_read() {
-                            let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+                            let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
                             clips.iter().any(|c| {
                                 if let Some((tid, _)) = seq.find_item(*c) {
                                     if let Some((kind, idx)) = seq.video_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Video, i))
@@ -2458,7 +2458,7 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                 if resp.clicked() || resp.drag_started() {
                     let is_locked = if let Some(collab) = &app.collab {
                         if let (Some((tid, _)), Ok(mgr)) = (seq.find_item(clip), collab.lock_manager.try_read()) {
-                            let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+                            let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
                             seq.video_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Video, i))
                                 .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Audio, i)))
                                 .is_some_and(|(kind, idx)| mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms).is_some())
@@ -2691,7 +2691,7 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                 };
                 let soft_locked = if let Some(collab) = &app.collab {
                     if let (Some(c), Ok(mgr)) = (cur_row, collab.lock_manager.try_read()) {
-                        let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+                        let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
                         mgr.is_locked_by_other(collab.config.peer_id, c.kind, c.index, now_ms).is_some()
                     } else {
                         false
