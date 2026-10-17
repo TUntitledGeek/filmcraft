@@ -707,7 +707,19 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 content,
                 ruler,
                 |t| layout_clone.x_of(t),
-                |k, idx| rows_clone.iter().find(|r| r.kind == k && r.index == idx).map(|r| (r.rect.min.y, r.rect.max.y)),
+                |k, idx| {
+                    if let Some(r) = rows_clone.iter().find(|r| r.kind == k && r.index == idx) {
+                        Some((r.rect.min.y, r.rect.max.y))
+                    } else if k == TrackKind::Video {
+                        let vh = rows_clone.first().map(|r| r.rect.height()).unwrap_or(58.0);
+                        let top_row_y = rows_clone.iter().filter(|r| r.kind == TrackKind::Video).map(|r| r.rect.min.y).reduce(f32::min);
+                        top_row_y.map(|y| (y - vh, y))
+                    } else {
+                        let ah = rows_clone.iter().find(|r| r.kind == TrackKind::Audio).map(|r| r.rect.height()).unwrap_or(58.0);
+                        let bot_row_y = rows_clone.iter().filter(|r| r.kind == TrackKind::Audio).map(|r| r.rect.max.y).reduce(f32::max);
+                        bot_row_y.map(|y| (y, y + ah))
+                    }
+                },
             );
         }
     }
@@ -2742,6 +2754,9 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
             }
             !blocked
         });
+        if app.tl.drag.is_some() {
+            ctx.request_repaint();
+        }
         // auto-scroll when dragging near the edges
         if !matches!(app.tl.drag, Some(Drag::Pan { .. }) | Some(Drag::ZoomBar { .. }) | Some(Drag::Volume(_))) {
             let v = &mut app.ui.timeline;

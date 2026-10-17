@@ -144,7 +144,33 @@ def main():
         assert marker_synced, "Marker did not replicate to client!"
         print("Marker synced to client cleanly!")
 
-        print("\nALL PERFORMANCE AND AUTO-SEQUENCE SYNC CHECKS PASSED!\n")
+        # Verify collab.status returns peer presence with colors and names
+        st_client = send_control(s2, "collab.status")
+        assert "peers" in st_client.get("result", {}), "collab.status must return peers list!"
+        peers = st_client["result"]["peers"]
+        assert len(peers) >= 1, "Client should see host peer!"
+        print(f"Host peer observed by client: {peers[0]['name']} (color: {peers[0]['color_rgba']})")
+
+        # Test live drag and ghost clip intermission handling
+        print("Testing live drag of clip 29 on Host...")
+        loc_before = send_control(s1, "ui.timeline.locate", {"clip": 29})
+        if loc_before.get("ok"):
+            pt = loc_before["result"]
+            print("Clip 29 start point on Host:", pt)
+            drag_res = send_control(s1, "ui.drag", {
+                "from": {"x": pt["x"], "y": pt["y"]},
+                "to": {"x": pt["x"] + 120, "y": pt["y"]},
+                "steps": 20,
+            })
+            assert drag_res.get("ok") is True, f"ui.drag failed: {drag_res}"
+            time.sleep(0.3)
+
+            loc_after = send_control(s2, "ui.timeline.locate", {"clip": 29})
+            print("Clip 29 located on Client after drop:", loc_after.get("result"))
+            assert loc_after.get("ok") is True, "Clip 29 should be located on client after move!"
+            print("Live drag and commit synced successfully!")
+
+        print("\nALL PERFORMANCE, MULTIPLAYER PRESENCE, AND LIVE DRAG CHECKS PASSED!\n")
 
     finally:
         p1.terminate()

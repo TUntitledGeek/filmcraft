@@ -75,29 +75,51 @@ pub fn paint_timeline_presence(
                 let x0 = time_to_x(ghost.start_tick);
                 let x1 = time_to_x(ghost.start_tick + ghost.duration_ticks);
 
-                let ghost_rect = Rect::from_min_max(pos2(x0, top_y + 2.0), pos2(x1, bot_y - 2.0));
-                // Translucent fill
-                painter.rect_filled(
-                    ghost_rect,
-                    4.0,
-                    Color32::from_rgba_unmultiplied(peer.color_rgba[0], peer.color_rgba[1], peer.color_rgba[2], 70),
-                );
-                // Dashed / solid colored border
-                painter.rect_stroke(
-                    ghost_rect,
-                    4.0,
-                    Stroke::new(1.5, col),
-                    egui::StrokeKind::Outside,
-                );
+                let min_x = x0.min(x1);
+                let max_x = x0.max(x1).max(min_x + 12.0);
+                let raw_rect = Rect::from_min_max(pos2(min_x, top_y + 2.0), pos2(max_x, bot_y - 2.0));
 
-                // Label of the dragging clip
-                painter.text(
-                    ghost_rect.left_center() + vec2(6.0, 0.0),
-                    Align2::LEFT_CENTER,
-                    format!("{} ({})", ghost.label, peer.name),
-                    egui::FontId::proportional(11.0),
-                    Color32::WHITE,
-                );
+                if raw_rect.intersects(content_rect) {
+                    let ghost_rect = raw_rect.intersect(content_rect);
+                    let p = painter.with_clip_rect(content_rect);
+
+                    // 1. Semi-translucent glowing backdrop (vibrant 130 alpha)
+                    p.rect_filled(
+                        ghost_rect,
+                        4.0,
+                        Color32::from_rgba_unmultiplied(peer.color_rgba[0], peer.color_rgba[1], peer.color_rgba[2], 130),
+                    );
+
+                    // 2. High-contrast border (2.5px solid peer stroke)
+                    p.rect_stroke(
+                        ghost_rect,
+                        4.0,
+                        Stroke::new(2.5, col),
+                        egui::StrokeKind::Inside,
+                    );
+
+                    // 3. Diagonal animated-feel hatch stripes
+                    let mut stripe_x = ghost_rect.min.x;
+                    let stripe_col = Color32::from_rgba_unmultiplied(255, 255, 255, 40);
+                    while stripe_x < ghost_rect.max.x {
+                        p.line_segment(
+                            [pos2(stripe_x, ghost_rect.max.y), pos2((stripe_x + ghost_rect.height() * 0.7).min(ghost_rect.max.x), ghost_rect.min.y)],
+                            Stroke::new(1.5, stripe_col),
+                        );
+                        stripe_x += 18.0;
+                    }
+
+                    // 4. Prominent high-contrast floating tag
+                    let badge_text = format!("{} • {}", peer.name, ghost.label);
+                    let font_id = egui::FontId::proportional(11.0);
+                    let badge_pos = pos2(ghost_rect.min.x + 6.0, ghost_rect.min.y + 4.0);
+
+                    let galley = p.layout_no_wrap(badge_text, font_id, Color32::WHITE);
+                    let badge_bg = Rect::from_min_size(badge_pos - vec2(3.0, 2.0), galley.size() + vec2(6.0, 4.0));
+                    p.rect_filled(badge_bg, 3.0, Color32::from_black_alpha(200));
+                    p.rect_stroke(badge_bg, 3.0, Stroke::new(1.5, col), egui::StrokeKind::Inside);
+                    p.galley(badge_pos, galley, Color32::WHITE);
+                }
             }
         }
 

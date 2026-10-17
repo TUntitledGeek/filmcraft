@@ -484,13 +484,14 @@ pub fn handle(app: &mut FilmcraftApp, ctx: &egui::Context, req: &ControlRequest)
         }
         "collab.status" => {
             if let Some(collab) = &app.collab {
-                let peers_cnt = collab.peers.try_read().map(|p| p.len()).unwrap_or(0);
+                let peers: Vec<_> = collab.peers.try_read().map(|p| p.values().cloned().collect()).unwrap_or_default();
                 ok(json!({
                     "active": true,
                     "is_host": app.collab_is_host,
                     "peer_id": collab.config.peer_id,
                     "room": collab.config.room_code,
-                    "peer_count": peers_cnt,
+                    "peer_count": peers.len(),
+                    "peers": peers,
                 }))
             } else {
                 ok(json!({"active": false}))

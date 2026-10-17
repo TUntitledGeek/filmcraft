@@ -398,6 +398,8 @@ pub struct FilmcraftApp {
     pub(crate) program_pic_rect: Option<egui::Rect>,
     /// Last soft lock leased by the local peer on a track.
     pub(crate) collab_last_lock: Option<(filmcraft_project::TrackKind, usize)>,
+    /// Whether a timeline drag was active on the previous frame.
+    pub(crate) collab_had_drag: bool,
     /// Last timestamp local presence was broadcast.
     last_presence_send: std::time::Instant,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
@@ -645,6 +647,7 @@ impl FilmcraftApp {
             pending_extension_offer: None,
             program_pic_rect: None,
             collab_last_lock: None,
+            collab_had_drag: false,
             last_presence_send: std::time::Instant::now(),
             gpu: None,
             watched_render: None,
@@ -1844,10 +1847,12 @@ impl FilmcraftApp {
 
     pub fn broadcast_collab_presence(&mut self, ctx: &egui::Context) {
         let Some(collab) = &self.collab else { return };
-        if self.last_presence_send.elapsed() < std::time::Duration::from_millis(33) {
+        let has_drag = self.tl.drag.is_some();
+        if !has_drag && !self.collab_had_drag && self.last_presence_send.elapsed() < std::time::Duration::from_millis(33) {
             return;
         }
         self.last_presence_send = std::time::Instant::now();
+        self.collab_had_drag = has_drag;
 
         // 1. Determine pointer panel and normalized coordinates
         let pos = ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()));
@@ -1884,44 +1889,178 @@ impl FilmcraftApp {
         };
 
         // 2. Compute active drag ghost and soft track locks
-        let active_drag = if let Some(crate::panels::timeline::Drag::Move { clips, offset, track_delta, new_track, .. }) = &self.tl.drag {
-            if let Some(first_id) = clips.first() {
+        let active_drag = match &self.tl.drag {
+            Some(crate::panels::timeline::Drag::Move { clips, offset, track_delta, new_track, .. }) => {
+                if let Some(first_id) = clips.first() {
+                    if let Some(seq) = self.session.active_sequence() {
+                        if let Some((track_id, item)) = seq.find_item(*first_id) {
+                            let (orig_kind, orig_idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                                .map(|i| (filmcraft_project::TrackKind::Video, i))
+                                .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                                .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                            let (dest_kind, dest_idx) = if let Some((kind, _)) = new_track {
+                                (*kind, if *kind == filmcraft_project::TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() })
+                            } else {
+                                let total = if orig_kind == filmcraft_project::TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() };
+                                let new_idx = (orig_idx as i32 + track_delta).clamp(0, total.saturating_sub(1) as i32) as usize;
+                                (orig_kind, new_idx)
+                            };
+
+                            let new_start = (item.start.0 as i64 + offset.0 as i64).max(0);
+                            let label = if clips.len() > 1 {
+                                format!("{} (+{} clips)", item.name, clips.len() - 1)
+                            } else {
+                                item.name.clone()
+                            };
+
+                            Some(filmcraft_collab::DragGhost {
+                                clip_id: item.id.0,
+                                track_kind: dest_kind,
+                                track_index: dest_idx,
+                                start_tick: filmcraft_time::Tick(new_start),
+                                duration_ticks: item.duration,
+                                label,
+                            })
+                        } else { None }
+                    } else { None }
+                } else { None }
+            }
+            Some(crate::panels::timeline::Drag::Trim { clip, edge, delta, .. }) => {
                 if let Some(seq) = self.session.active_sequence() {
-                    if let Some((track_id, item)) = seq.find_item(*first_id) {
-                        let (orig_kind, orig_idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                    if let Some((track_id, item)) = seq.find_item(*clip) {
+                        let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
                             .map(|i| (filmcraft_project::TrackKind::Video, i))
                             .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
                             .unwrap_or((filmcraft_project::TrackKind::Video, 0));
 
-                        let (dest_kind, dest_idx) = if let Some((kind, _)) = new_track {
-                            (*kind, if *kind == filmcraft_project::TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() })
+                        let (new_start, new_dur) = if *edge == filmcraft_edit::Edge::In {
+                            let s = (item.start.0 as i64 + delta.0 as i64).max(0);
+                            let d = (item.duration.0 as i64 - delta.0 as i64).max(0);
+                            (s, filmcraft_time::Tick(d))
                         } else {
-                            let total = if orig_kind == filmcraft_project::TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() };
-                            let new_idx = (orig_idx as i32 + track_delta).clamp(0, total.saturating_sub(1) as i32) as usize;
-                            (orig_kind, new_idx)
+                            let d = (item.duration.0 as i64 + delta.0 as i64).max(0);
+                            (item.start.0 as i64, filmcraft_time::Tick(d))
                         };
-
-                        let new_start = (item.start.0 as i64 + offset.0 as i64).max(0);
 
                         Some(filmcraft_collab::DragGhost {
                             clip_id: item.id.0,
-                            track_kind: dest_kind,
-                            track_index: dest_idx,
+                            track_kind: kind,
+                            track_index: idx,
+                            start_tick: filmcraft_time::Tick(new_start),
+                            duration_ticks: new_dur,
+                            label: format!("Trim: {}", item.name),
+                        })
+                    } else { None }
+                } else { None }
+            }
+            Some(crate::panels::timeline::Drag::Stretch { clip, edge, delta, .. }) => {
+                if let Some(seq) = self.session.active_sequence() {
+                    if let Some((track_id, item)) = seq.find_item(*clip) {
+                        let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                            .map(|i| (filmcraft_project::TrackKind::Video, i))
+                            .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                            .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                        let (new_start, new_dur) = if *edge == filmcraft_edit::Edge::In {
+                            let s = (item.start.0 as i64 + delta.0 as i64).max(0);
+                            let d = (item.duration.0 as i64 - delta.0 as i64).max(0);
+                            (s, filmcraft_time::Tick(d))
+                        } else {
+                            let d = (item.duration.0 as i64 + delta.0 as i64).max(0);
+                            (item.start.0 as i64, filmcraft_time::Tick(d))
+                        };
+
+                        Some(filmcraft_collab::DragGhost {
+                            clip_id: item.id.0,
+                            track_kind: kind,
+                            track_index: idx,
+                            start_tick: filmcraft_time::Tick(new_start),
+                            duration_ticks: new_dur,
+                            label: format!("Stretch: {}", item.name),
+                        })
+                    } else { None }
+                } else { None }
+            }
+            Some(crate::panels::timeline::Drag::Slide { clip, delta, .. }) => {
+                if let Some(seq) = self.session.active_sequence() {
+                    if let Some((track_id, item)) = seq.find_item(*clip) {
+                        let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                            .map(|i| (filmcraft_project::TrackKind::Video, i))
+                            .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                            .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                        let new_start = (item.start.0 as i64 + delta.0 as i64).max(0);
+                        Some(filmcraft_collab::DragGhost {
+                            clip_id: item.id.0,
+                            track_kind: kind,
+                            track_index: idx,
                             start_tick: filmcraft_time::Tick(new_start),
                             duration_ticks: item.duration,
-                            label: item.name.clone(),
+                            label: format!("Slide: {}", item.name),
                         })
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
+                    } else { None }
+                } else { None }
             }
-        } else {
-            None
+            Some(crate::panels::timeline::Drag::Slip { clip, .. }) => {
+                if let Some(seq) = self.session.active_sequence() {
+                    if let Some((track_id, item)) = seq.find_item(*clip) {
+                        let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                            .map(|i| (filmcraft_project::TrackKind::Video, i))
+                            .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                            .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                        Some(filmcraft_collab::DragGhost {
+                            clip_id: item.id.0,
+                            track_kind: kind,
+                            track_index: idx,
+                            start_tick: item.start,
+                            duration_ticks: item.duration,
+                            label: format!("Slip: {}", item.name),
+                        })
+                    } else { None }
+                } else { None }
+            }
+            Some(crate::panels::timeline::Drag::Roll { left, delta, .. }) => {
+                if let Some(seq) = self.session.active_sequence() {
+                    if let Some((track_id, item)) = seq.find_item(*left) {
+                        let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                            .map(|i| (filmcraft_project::TrackKind::Video, i))
+                            .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                            .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                        let new_dur = (item.duration.0 as i64 + delta.0 as i64).max(0);
+                        Some(filmcraft_collab::DragGhost {
+                            clip_id: item.id.0,
+                            track_kind: kind,
+                            track_index: idx,
+                            start_tick: item.start,
+                            duration_ticks: filmcraft_time::Tick(new_dur),
+                            label: format!("Roll: {}", item.name),
+                        })
+                    } else { None }
+                } else { None }
+            }
+            Some(crate::panels::timeline::Drag::Transition { id, start, duration, .. }) => {
+                if let Some(seq) = self.session.active_sequence() {
+                    if let Some(tr) = seq.all_tracks().find(|tr| tr.transitions.iter().any(|t| t.id == *id)) {
+                        let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == tr.id)
+                            .map(|i| (filmcraft_project::TrackKind::Video, i))
+                            .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tr.id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                            .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                        Some(filmcraft_collab::DragGhost {
+                            clip_id: id.0,
+                            track_kind: kind,
+                            track_index: idx,
+                            start_tick: *start,
+                            duration_ticks: *duration,
+                            label: "Transition".to_string(),
+                        })
+                    } else { None }
+                } else { None }
+            }
+            _ => None,
         };
 
         // 3. Maintain 500-600ms leased soft track lock
@@ -2504,6 +2643,10 @@ impl eframe::App for FilmcraftApp {
         }
         let ctx = ui.ctx().clone();
         self.last_ui_time = ctx.input(|i| i.time);
+        if self.tl.drag.is_some() || self.collab_had_drag {
+            ctx.request_repaint();
+            self.broadcast_collab_presence(&ctx);
+        }
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
         } else if !self.input_waiters.is_empty() {
