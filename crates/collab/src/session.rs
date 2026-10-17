@@ -84,8 +84,12 @@ impl CollabSession {
         panel: Option<String>,
         playhead: Option<filmcraft_time::Tick>,
         cursor_norm: Option<[f32; 2]>,
+        cursor_tick: Option<filmcraft_time::Tick>,
+        cursor_track: Option<(filmcraft_project::TrackKind, usize)>,
+        cursor_track_y_norm: Option<f32>,
         active_drag: Option<crate::protocol::DragGhost>,
         selected_clip: Option<u64>,
+        selected_clips: Vec<u64>,
         in_hand: Option<String>,
     ) -> CollabMessage {
         CollabMessage::Presence(PeerPresence {
@@ -95,8 +99,12 @@ impl CollabSession {
             panel,
             playhead_tick: playhead,
             cursor_norm,
+            cursor_tick,
+            cursor_track,
+            cursor_track_y_norm,
             active_drag,
             selected_clip,
+            selected_clips,
             in_hand,
             timestamp_ms: web_time::SystemTime::now()
                 .duration_since(web_time::UNIX_EPOCH)

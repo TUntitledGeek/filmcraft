@@ -1021,7 +1021,8 @@ fn draw_clip(
     if let Some(collab) = &app.collab {
         if let Ok(peers) = collab.peers.try_read() {
             for peer in peers.values() {
-                if peer.selected_clip == Some(it.id.0) {
+                let is_selected = peer.selected_clip == Some(it.id.0) || peer.selected_clips.contains(&it.id.0);
+                if is_selected {
                     let col = Color32::from_rgba_unmultiplied(
                         peer.color_rgba[0],
                         peer.color_rgba[1],
@@ -3054,14 +3055,14 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                 (TrackKind::Video, 0)
             };
             let item_name = app.session.project.item(item).map(|i| i.name.clone()).unwrap_or_else(|| "Footage".into());
-            app.collab_drop_ghost = Some(filmcraft_collab::DragGhost {
-                clip_id: 0,
-                track_kind: dest_kind,
-                track_index: dest_idx,
-                start_tick: t,
-                duration_ticks: dur,
-                label: format!("Drop: {item_name}"),
-            });
+            app.collab_drop_ghost = Some(filmcraft_collab::DragGhost::single(
+                0,
+                dest_kind,
+                dest_idx,
+                t,
+                dur,
+                format!("Drop: {item_name}"),
+            ));
         }
         let target = match (&row, new_track) {
             (Some(row), _) => Some(match row.kind {

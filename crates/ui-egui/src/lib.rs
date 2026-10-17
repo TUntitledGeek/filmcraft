@@ -408,8 +408,8 @@ pub struct FilmcraftApp {
     pub(crate) source_pic_rect: Option<egui::Rect>,
     /// Currently visible dock panel content rects for context-aware cursor presence.
     pub(crate) visible_panels: Vec<(String, egui::Rect)>,
-    /// Last soft lock leased by the local peer on a track.
-    pub(crate) collab_last_lock: Option<(filmcraft_project::TrackKind, usize)>,
+    /// Last soft locks leased by the local peer on tracks.
+    pub(crate) collab_last_locks: Vec<(filmcraft_project::TrackKind, usize)>,
     /// Active footage/project item drop preview over the timeline.
     pub(crate) collab_drop_ghost: Option<filmcraft_collab::DragGhost>,
     /// Whether a timeline drag was active on the previous frame.
@@ -676,7 +676,7 @@ impl FilmcraftApp {
             program_pic_rect: None,
             source_pic_rect: None,
             visible_panels: Vec::new(),
-            collab_last_lock: None,
+            collab_last_locks: Vec::new(),
             collab_drop_ghost: None,
             collab_had_drag: false,
             last_presence_send: web_time::Instant::now(),
@@ -1830,7 +1830,7 @@ impl FilmcraftApp {
         self.collab = None;
         self.collab_wakeup_registered = false;
         self.session.on_command = None;
-        self.collab_last_lock = None;
+        self.collab_last_locks.clear();
         #[cfg(target_arch = "wasm32")]
         {
             let _ = js_sys::eval("window.filmcraftCollabBridge && window.filmcraftCollabBridge.disconnect()");
@@ -2003,18 +2003,42 @@ impl FilmcraftApp {
         // 1. Determine pointer panel and normalized coordinates
         let pos = ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()));
         let tl_content = self.tl.layout.as_ref().map(|l| l.content);
+        let is_tl_drag = self.tl.drag.is_some() || self.collab_drop_ghost.is_some();
         let (panel, cursor_norm) = if let Some(p) = pos {
-            find_panel_coords(p, self.program_pic_rect, self.source_pic_rect, tl_content, &self.visible_panels)
+            let (mut pan, norm) = find_panel_coords(p, self.program_pic_rect, self.source_pic_rect, tl_content, &self.visible_panels);
+            if is_tl_drag && pan.is_none() {
+                pan = Some("timeline".to_string());
+            }
+            (pan, norm)
         } else {
             (None, None)
+        };
+
+        // Determine high-precision timeline tick & track under cursor (zoom & window-size independent)
+        let (cursor_tick, cursor_track, cursor_track_y_norm) = if let (Some(l), Some(p)) = (&self.tl.layout, pos) {
+            let is_tl_panel = panel.as_deref().is_some_and(|pan| pan.eq_ignore_ascii_case("timeline"));
+            if is_tl_panel || is_tl_drag || l.content.contains(p) || l.ruler.contains(p) {
+                let tick = l.tick_at(p.x).max(filmcraft_time::Tick::ZERO);
+                if let Some(row) = l.row_at(p.y) {
+                    let y_norm = ((p.y - row.rect.min.y) / row.rect.height().max(1.0)).clamp(0.0, 1.0);
+                    (Some(tick), Some((row.kind, row.index)), Some(y_norm))
+                } else {
+                    (Some(tick), None, None)
+                }
+            } else {
+                (None, None, None)
+            }
+        } else {
+            (None, None, None)
         };
 
         // 2. Compute active drag ghost and soft track locks
         let active_drag = match &self.tl.drag {
             Some(crate::panels::timeline::Drag::Move { clips, offset, track_delta, new_track, .. }) => {
-                if let Some(first_id) = clips.first() {
-                    if let Some(seq) = self.session.active_sequence() {
-                        if let Some((track_id, item)) = seq.find_item(*first_id) {
+                if let Some(seq) = self.session.active_sequence() {
+                    let mut items = Vec::new();
+                    for cid in clips {
+                        if let Some((track_id, item)) = seq.find_item(*cid) {
                             let (orig_kind, orig_idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
                                 .map(|i| (filmcraft_project::TrackKind::Video, i))
                                 .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
@@ -2029,22 +2053,17 @@ impl FilmcraftApp {
                             };
 
                             let new_start = (item.start.0 as i64 + offset.0 as i64).max(0);
-                            let label = if clips.len() > 1 {
-                                format!("{} (+{} clips)", item.name, clips.len() - 1)
-                            } else {
-                                item.name.clone()
-                            };
-
-                            Some(filmcraft_collab::DragGhost {
+                            items.push(filmcraft_collab::GhostClipItem {
                                 clip_id: item.id.0,
                                 track_kind: dest_kind,
                                 track_index: dest_idx,
                                 start_tick: filmcraft_time::Tick(new_start),
                                 duration_ticks: item.duration,
-                                label,
-                            })
-                        } else { None }
-                    } else { None }
+                                label: item.name.clone(),
+                            });
+                        }
+                    }
+                    filmcraft_collab::DragGhost::multiple(items)
                 } else { None }
             }
             Some(crate::panels::timeline::Drag::Trim { clip, edge, delta, .. }) => {
@@ -2064,14 +2083,14 @@ impl FilmcraftApp {
                             (item.start.0 as i64, filmcraft_time::Tick(d))
                         };
 
-                        Some(filmcraft_collab::DragGhost {
-                            clip_id: item.id.0,
-                            track_kind: kind,
-                            track_index: idx,
-                            start_tick: filmcraft_time::Tick(new_start),
-                            duration_ticks: new_dur,
-                            label: format!("Trim: {}", item.name),
-                        })
+                        Some(filmcraft_collab::DragGhost::single(
+                            item.id.0,
+                            kind,
+                            idx,
+                            filmcraft_time::Tick(new_start),
+                            new_dur,
+                            format!("Trim: {}", item.name),
+                        ))
                     } else { None }
                 } else { None }
             }
@@ -2092,14 +2111,14 @@ impl FilmcraftApp {
                             (item.start.0 as i64, filmcraft_time::Tick(d))
                         };
 
-                        Some(filmcraft_collab::DragGhost {
-                            clip_id: item.id.0,
-                            track_kind: kind,
-                            track_index: idx,
-                            start_tick: filmcraft_time::Tick(new_start),
-                            duration_ticks: new_dur,
-                            label: format!("Stretch: {}", item.name),
-                        })
+                        Some(filmcraft_collab::DragGhost::single(
+                            item.id.0,
+                            kind,
+                            idx,
+                            filmcraft_time::Tick(new_start),
+                            new_dur,
+                            format!("Stretch: {}", item.name),
+                        ))
                     } else { None }
                 } else { None }
             }
@@ -2112,14 +2131,14 @@ impl FilmcraftApp {
                             .unwrap_or((filmcraft_project::TrackKind::Video, 0));
 
                         let new_start = (item.start.0 as i64 + delta.0 as i64).max(0);
-                        Some(filmcraft_collab::DragGhost {
-                            clip_id: item.id.0,
-                            track_kind: kind,
-                            track_index: idx,
-                            start_tick: filmcraft_time::Tick(new_start),
-                            duration_ticks: item.duration,
-                            label: format!("Slide: {}", item.name),
-                        })
+                        Some(filmcraft_collab::DragGhost::single(
+                            item.id.0,
+                            kind,
+                            idx,
+                            filmcraft_time::Tick(new_start),
+                            item.duration,
+                            format!("Slide: {}", item.name),
+                        ))
                     } else { None }
                 } else { None }
             }
@@ -2131,18 +2150,18 @@ impl FilmcraftApp {
                             .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
                             .unwrap_or((filmcraft_project::TrackKind::Video, 0));
 
-                        Some(filmcraft_collab::DragGhost {
-                            clip_id: item.id.0,
-                            track_kind: kind,
-                            track_index: idx,
-                            start_tick: item.start,
-                            duration_ticks: item.duration,
-                            label: format!("Slip: {}", item.name),
-                        })
+                        Some(filmcraft_collab::DragGhost::single(
+                            item.id.0,
+                            kind,
+                            idx,
+                            item.start,
+                            item.duration,
+                            format!("Slip: {}", item.name),
+                        ))
                     } else { None }
                 } else { None }
             }
-            Some(crate::panels::timeline::Drag::Roll { left, delta, .. }) => {
+            Some(crate::panels::timeline::Drag::Roll { left, right: _, delta, .. }) => {
                 if let Some(seq) = self.session.active_sequence() {
                     if let Some((track_id, item)) = seq.find_item(*left) {
                         let (kind, idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
@@ -2151,14 +2170,14 @@ impl FilmcraftApp {
                             .unwrap_or((filmcraft_project::TrackKind::Video, 0));
 
                         let new_dur = (item.duration.0 as i64 + delta.0 as i64).max(0);
-                        Some(filmcraft_collab::DragGhost {
-                            clip_id: item.id.0,
-                            track_kind: kind,
-                            track_index: idx,
-                            start_tick: item.start,
-                            duration_ticks: filmcraft_time::Tick(new_dur),
-                            label: format!("Roll: {}", item.name),
-                        })
+                        Some(filmcraft_collab::DragGhost::single(
+                            item.id.0,
+                            kind,
+                            idx,
+                            item.start,
+                            filmcraft_time::Tick(new_dur),
+                            format!("Roll: {}", item.name),
+                        ))
                     } else { None }
                 } else { None }
             }
@@ -2170,14 +2189,14 @@ impl FilmcraftApp {
                             .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tr.id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
                             .unwrap_or((filmcraft_project::TrackKind::Video, 0));
 
-                        Some(filmcraft_collab::DragGhost {
-                            clip_id: id.0,
-                            track_kind: kind,
-                            track_index: idx,
-                            start_tick: *start,
-                            duration_ticks: *duration,
-                            label: "Transition".to_string(),
-                        })
+                        Some(filmcraft_collab::DragGhost::single(
+                            id.0,
+                            kind,
+                            idx,
+                            *start,
+                            *duration,
+                            "Transition".to_string(),
+                        ))
                     } else { None }
                 } else { None }
             }
@@ -2185,47 +2204,65 @@ impl FilmcraftApp {
         };
         let active_drag = active_drag.or_else(|| self.collab_drop_ghost.clone());
 
-        // 3. Maintain 500-600ms leased soft track lock
+        // 3. Maintain 500-600ms leased soft track lock(s)
         let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-        if let Some(ghost) = &active_drag {
-            let key = (ghost.track_kind, ghost.track_index);
-            if self.collab_last_lock != Some(key) {
-                if let Some((prev_kind, prev_idx)) = self.collab_last_lock.take() {
-                    if let Ok(mut mgr) = collab.lock_manager.try_write() {
-                        mgr.release(collab.config.peer_id, prev_kind, prev_idx);
-                    }
-                    let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ReleaseLock {
-                        peer_id: collab.config.peer_id,
-                        track_kind: prev_kind,
-                        track_index: prev_idx,
-                    });
+        let target_tracks: Vec<(filmcraft_project::TrackKind, usize)> = if let Some(ghost) = &active_drag {
+            let mut tracks: Vec<_> = ghost.all_items().iter().map(|it| (it.track_kind, it.track_index)).collect();
+            tracks.dedup();
+            tracks
+        } else {
+            Vec::new()
+        };
+
+        // Release soft locks on tracks that are no longer targeted
+        self.collab_last_locks.retain(|prev| {
+            if !target_tracks.contains(prev) {
+                if let Ok(mut mgr) = collab.lock_manager.try_write() {
+                    mgr.release(collab.config.peer_id, prev.0, prev.1);
                 }
+                let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ReleaseLock {
+                    peer_id: collab.config.peer_id,
+                    track_kind: prev.0,
+                    track_index: prev.1,
+                });
+                false
+            } else {
+                true
             }
-            self.collab_last_lock = Some(key);
+        });
+
+        // Claim soft locks for all targeted tracks
+        for &(kind, idx) in &target_tracks {
             if let Ok(mut mgr) = collab.lock_manager.try_write() {
-                mgr.claim(collab.config.peer_id, ghost.track_kind, ghost.track_index, now_ms, Some(600));
+                mgr.claim(collab.config.peer_id, kind, idx, now_ms, Some(600));
             }
             let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ClaimLock(filmcraft_collab::SoftLock {
                 peer_id: collab.config.peer_id,
-                track_kind: ghost.track_kind,
-                track_index: ghost.track_index,
+                track_kind: kind,
+                track_index: idx,
                 expires_at_ms: now_ms + 600,
             }));
-        } else if let Some((prev_kind, prev_idx)) = self.collab_last_lock.take() {
-            if let Ok(mut mgr) = collab.lock_manager.try_write() {
-                mgr.release(collab.config.peer_id, prev_kind, prev_idx);
+            if !self.collab_last_locks.contains(&(kind, idx)) {
+                self.collab_last_locks.push((kind, idx));
             }
-            let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ReleaseLock {
-                peer_id: collab.config.peer_id,
-                track_kind: prev_kind,
-                track_index: prev_idx,
-            });
         }
 
         // 4. Send presence update
         let playhead = Some(self.session.playhead());
         let selected_clip = self.session.state.selection.first().map(|c| c.0);
-        let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag, selected_clip, in_hand);
+        let selected_clips: Vec<u64> = self.session.state.selection.iter().map(|c| c.0).collect();
+        let msg = collab.create_presence(
+            panel,
+            playhead,
+            cursor_norm,
+            cursor_tick,
+            cursor_track,
+            cursor_track_y_norm,
+            active_drag,
+            selected_clip,
+            selected_clips,
+            in_hand,
+        );
         let _ = collab.msg_tx.send(msg.clone());
         #[cfg(target_arch = "wasm32")]
         {
@@ -2279,6 +2316,7 @@ impl FilmcraftApp {
                             revision: self.session.revision,
                             active_sequence,
                         };
+                        let _ = collab.msg_tx.send(snap.clone());
                         #[cfg(target_arch = "wasm32")]
                         if let Ok(json_str) = serde_json::to_string(&snap) {
                             let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
@@ -2839,7 +2877,6 @@ impl eframe::App for FilmcraftApp {
         let had_synthetic = !self.synthetic.is_empty();
         self.drain_control(ctx);
         self.drain_collab(ctx);
-        self.broadcast_collab_presence(ctx);
         if !self.synthetic.is_empty() && !had_synthetic {
             // Occluded macOS windows stop running `ui`; bring the window forward (without taking
             // keyboard focus) so the input is processed.
@@ -2890,8 +2927,8 @@ impl eframe::App for FilmcraftApp {
         });
         if has_local_drag || self.collab_had_drag || peer_has_drag {
             ctx.request_repaint();
-            self.broadcast_collab_presence(&ctx);
         }
+        self.broadcast_collab_presence(&ctx);
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
         } else if !self.input_waiters.is_empty() {

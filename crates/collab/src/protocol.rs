@@ -18,12 +18,31 @@ pub struct PeerPresence {
     pub panel: Option<String>,
     pub playhead_tick: Option<Tick>,
     pub cursor_norm: Option<[f32; 2]>,
+    #[serde(default)]
+    pub cursor_tick: Option<Tick>,
+    #[serde(default)]
+    pub cursor_track: Option<(TrackKind, usize)>,
+    #[serde(default)]
+    pub cursor_track_y_norm: Option<f32>,
     pub active_drag: Option<DragGhost>,
     #[serde(default)]
     pub selected_clip: Option<u64>,
     #[serde(default)]
+    pub selected_clips: Vec<u64>,
+    #[serde(default)]
     pub in_hand: Option<String>,
     pub timestamp_ms: u64,
+}
+
+/// An individual clip item within a multi-clip ghost drag.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GhostClipItem {
+    pub clip_id: u64,
+    pub track_kind: TrackKind,
+    pub track_index: usize,
+    pub start_tick: Tick,
+    pub duration_ticks: Tick,
+    pub label: String,
 }
 
 /// A ghost representation of a clip or item being dragged across the timeline
@@ -36,6 +55,70 @@ pub struct DragGhost {
     pub start_tick: Tick,
     pub duration_ticks: Tick,
     pub label: String,
+    #[serde(default)]
+    pub items: Vec<GhostClipItem>,
+}
+
+impl DragGhost {
+    pub fn single(
+        clip_id: u64,
+        track_kind: TrackKind,
+        track_index: usize,
+        start_tick: Tick,
+        duration_ticks: Tick,
+        label: String,
+    ) -> Self {
+        let item = GhostClipItem {
+            clip_id,
+            track_kind,
+            track_index,
+            start_tick,
+            duration_ticks,
+            label: label.clone(),
+        };
+        Self {
+            clip_id,
+            track_kind,
+            track_index,
+            start_tick,
+            duration_ticks,
+            label,
+            items: vec![item],
+        }
+    }
+
+    pub fn multiple(items: Vec<GhostClipItem>) -> Option<Self> {
+        let first = items.first()?;
+        let label = if items.len() > 1 {
+            format!("{} (+{} clips)", first.label, items.len() - 1)
+        } else {
+            first.label.clone()
+        };
+        Some(Self {
+            clip_id: first.clip_id,
+            track_kind: first.track_kind,
+            track_index: first.track_index,
+            start_tick: first.start_tick,
+            duration_ticks: first.duration_ticks,
+            label,
+            items,
+        })
+    }
+
+    pub fn all_items(&self) -> Vec<GhostClipItem> {
+        if !self.items.is_empty() {
+            self.items.clone()
+        } else {
+            vec![GhostClipItem {
+                clip_id: self.clip_id,
+                track_kind: self.track_kind,
+                track_index: self.track_index,
+                start_tick: self.start_tick,
+                duration_ticks: self.duration_ticks,
+                label: self.label.clone(),
+            }]
+        }
+    }
 }
 
 /// A soft lock leased by a peer while performing an interactive gesture.
@@ -224,15 +307,19 @@ mod tests {
             panel: Some("timeline".into()),
             playhead_tick: Some(Tick(127_008_000_000)),
             cursor_norm: Some([0.45, 0.62]),
-            active_drag: Some(DragGhost {
-                clip_id: 42,
-                track_kind: TrackKind::Video,
-                track_index: 1,
-                start_tick: Tick(100_000),
-                duration_ticks: Tick(500_000),
-                label: "Interview.mp4".into(),
-            }),
+            cursor_tick: Some(Tick(100_000)),
+            cursor_track: Some((TrackKind::Video, 1)),
+            cursor_track_y_norm: Some(0.5),
+            active_drag: Some(DragGhost::single(
+                42,
+                TrackKind::Video,
+                1,
+                Tick(100_000),
+                Tick(500_000),
+                "Interview.mp4".into(),
+            )),
             selected_clip: Some(42),
+            selected_clips: vec![42],
             in_hand: Some("Interview.mp4".into()),
             timestamp_ms: 1_700_000_000,
         };
@@ -241,6 +328,54 @@ mod tests {
         let json = serde_json::to_string(&msg).expect("serialize");
         let decoded: CollabMessage = serde_json::from_str(&json).expect("deserialize");
 
+        assert_eq!(msg, decoded);
+    }
+
+    #[test]
+    fn multi_clip_drag_ghost_roundtrips() {
+        let items = vec![
+            GhostClipItem {
+                clip_id: 10,
+                track_kind: TrackKind::Video,
+                track_index: 0,
+                start_tick: Tick(100_000),
+                duration_ticks: Tick(50_000),
+                label: "Clip A".into(),
+            },
+            GhostClipItem {
+                clip_id: 11,
+                track_kind: TrackKind::Video,
+                track_index: 1,
+                start_tick: Tick(120_000),
+                duration_ticks: Tick(40_000),
+                label: "Clip B".into(),
+            },
+        ];
+        let ghost = DragGhost::multiple(items).expect("multiple ghost");
+        assert_eq!(ghost.items.len(), 2);
+        assert_eq!(ghost.all_items().len(), 2);
+        assert_eq!(ghost.label, "Clip A (+1 clips)");
+
+        let presence = PeerPresence {
+            peer_id: 2,
+            name: "Bob".into(),
+            color_rgba: [0, 200, 255, 255],
+            panel: Some("timeline".into()),
+            playhead_tick: Some(Tick(200_000)),
+            cursor_norm: None,
+            cursor_tick: Some(Tick(110_000)),
+            cursor_track: Some((TrackKind::Video, 0)),
+            cursor_track_y_norm: Some(0.3),
+            active_drag: Some(ghost),
+            selected_clip: Some(10),
+            selected_clips: vec![10, 11],
+            in_hand: None,
+            timestamp_ms: 1_700_000_001,
+        };
+
+        let msg = CollabMessage::Presence(presence.clone());
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: CollabMessage = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(msg, decoded);
     }
 

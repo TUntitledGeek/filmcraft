@@ -104,8 +104,12 @@ fn test_transport_host_and_client_connect_and_sync() {
         panel: Some("timeline".into()),
         playhead_tick: Some(filmcraft_time::Tick(500)),
         cursor_norm: Some([0.25, 0.5]),
+        cursor_tick: Some(filmcraft_time::Tick(500)),
+        cursor_track: Some((filmcraft_project::TrackKind::Video, 0)),
+        cursor_track_y_norm: Some(0.5),
         active_drag: None,
         selected_clip: None,
+        selected_clips: Vec::new(),
         in_hand: None,
         timestamp_ms: 12345,
     });
