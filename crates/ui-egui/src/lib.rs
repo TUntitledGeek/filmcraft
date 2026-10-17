@@ -1728,19 +1728,45 @@ impl FilmcraftApp {
                 id: id.to_string(),
                 params: params.clone(),
             });
+            #[cfg(target_arch = "wasm32")]
+            {
+                let commit_msg = filmcraft_collab::CollabMessage::CommitCommand {
+                    peer_id,
+                    rev: 0,
+                    id: id.to_string(),
+                    params: params.clone(),
+                };
+                if let Ok(json_str) = serde_json::to_string(&commit_msg) {
+                    let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
+                    let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
+                    let _ = js_sys::eval(&js);
+                }
+            }
         }));
 
         self.collab = Some(session);
         self.collab_transport = Some(transport);
         self.collab_wakeup_registered = false;
         self.collab_is_host = true;
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.init('{}', true, {})", room_code, 1);
+            let _ = js_sys::eval(&js);
+        }
         Ok(())
     }
 
     pub fn join_collab_room(&mut self, remote_addr_str: &str, user_name: &str, room_code: &str, passcode: Option<&str>) -> Result<(), String> {
         let remote_addr: std::net::SocketAddr = remote_addr_str.parse()
             .map_err(|e| format!("Invalid remote address: {e}"))?;
+        #[cfg(not(target_arch = "wasm32"))]
         let peer_id = (std::process::id() as u16).max(2);
+        #[cfg(target_arch = "wasm32")]
+        let peer_id = {
+            let ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis();
+            ((ms % 60000) as u16).max(2)
+        };
         let config = filmcraft_collab::CollabConfig {
             peer_id,
             user_name: user_name.to_string(),
@@ -1765,12 +1791,35 @@ impl FilmcraftApp {
                 id: id.to_string(),
                 params: params.clone(),
             });
+            #[cfg(target_arch = "wasm32")]
+            {
+                let commit_msg = filmcraft_collab::CollabMessage::CommitCommand {
+                    peer_id,
+                    rev: 0,
+                    id: id.to_string(),
+                    params: params.clone(),
+                };
+                if let Ok(json_str) = serde_json::to_string(&commit_msg) {
+                    let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
+                    let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
+                    let _ = js_sys::eval(&js);
+                }
+            }
         }));
 
         self.collab = Some(session);
         self.collab_transport = Some(transport);
         self.collab_wakeup_registered = false;
         self.collab_is_host = false;
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.init('{}', false, {})", room_code, peer_id);
+            let _ = js_sys::eval(&js);
+            let req_snap = "{\"RequestSnapshot\": null}".to_string();
+            let send_js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", req_snap);
+            let _ = js_sys::eval(&send_js);
+        }
         Ok(())
     }
 
@@ -1782,6 +1831,10 @@ impl FilmcraftApp {
         self.collab_wakeup_registered = false;
         self.session.on_command = None;
         self.collab_last_lock = None;
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = js_sys::eval("window.filmcraftCollabBridge && window.filmcraftCollabBridge.disconnect()");
+        }
     }
 
     pub fn drain_collab(&mut self, ctx: &egui::Context) {
@@ -2173,7 +2226,86 @@ impl FilmcraftApp {
         let playhead = Some(self.session.playhead());
         let selected_clip = self.session.state.selection.first().map(|c| c.0);
         let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag, selected_clip, in_hand);
-        let _ = collab.msg_tx.send(msg);
+        let _ = collab.msg_tx.send(msg.clone());
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Ok(json_str) = serde_json::to_string(&msg) {
+                let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
+                let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
+                let _ = js_sys::eval(&js);
+            }
+        }
+    }
+
+    pub fn receive_web_collab_message(&mut self, msg: filmcraft_collab::CollabMessage, ctx: &egui::Context) {
+        let Some(collab) = &self.collab else { return };
+        match msg {
+            filmcraft_collab::CollabMessage::Presence(peer) => {
+                let pid = peer.peer_id;
+                if pid == collab.config.peer_id { return; }
+                if let Ok(mut peers) = collab.peers.try_write() {
+                    peers.insert(pid, peer);
+                }
+                ctx.request_repaint();
+            }
+            filmcraft_collab::CollabMessage::CommitCommand { peer_id, id, params, .. } => {
+                if peer_id == collab.config.peer_id { return; }
+                log::info!("Web Collab: remote command from peer {peer_id}: {id}");
+                self.session.suppress_command_hook = true;
+                let _ = self.session.execute(&id, params);
+                self.session.suppress_command_hook = false;
+                ctx.request_repaint();
+            }
+            filmcraft_collab::CollabMessage::ClaimLock(lock) => {
+                if lock.peer_id == collab.config.peer_id { return; }
+                if let Ok(mut mgr) = collab.lock_manager.try_write() {
+                    mgr.claim(lock.peer_id, lock.track_kind, lock.track_index, lock.expires_at_ms.saturating_sub(600), Some(600));
+                }
+                ctx.request_repaint();
+            }
+            filmcraft_collab::CollabMessage::ReleaseLock { peer_id, track_kind, track_index } => {
+                if peer_id == collab.config.peer_id { return; }
+                if let Ok(mut mgr) = collab.lock_manager.try_write() {
+                    mgr.release(peer_id, track_kind, track_index);
+                }
+                ctx.request_repaint();
+            }
+            filmcraft_collab::CollabMessage::RequestSnapshot => {
+                if self.collab_is_host {
+                    if let Ok(project_json) = serde_json::to_string(&self.session.project) {
+                        let active_sequence = self.session.state.active_sequence.map(|i| i.0);
+                        let snap = filmcraft_collab::CollabMessage::SyncSnapshot {
+                            project_json,
+                            revision: self.session.revision,
+                            active_sequence,
+                        };
+                        #[cfg(target_arch = "wasm32")]
+                        if let Ok(json_str) = serde_json::to_string(&snap) {
+                            let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
+                            let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
+                            let _ = js_sys::eval(&js);
+                        }
+                    }
+                }
+            }
+            filmcraft_collab::CollabMessage::SyncSnapshot { project_json, revision, active_sequence } => {
+                log::info!("Web Collab: received project snapshot (rev {revision})");
+                if let Ok(proj) = serde_json::from_str::<filmcraft_project::Project>(&project_json) {
+                    self.session.project = std::sync::Arc::new(proj);
+                    self.session.revision = revision;
+                    self.session.saved_revision = revision;
+                    let target_seq = active_sequence.or_else(|| self.session.project.sequences().next().map(|s| s.id.0));
+                    if let Some(seq_id) = target_seq {
+                        self.session.suppress_command_hook = true;
+                        let _ = self.session.execute("sequence.open", serde_json::json!({"item": seq_id}));
+                        self.session.suppress_command_hook = false;
+                    }
+                    self.ui.status = format!("Synchronized with host project (rev {revision})");
+                    ctx.request_repaint();
+                }
+            }
+            _ => {}
+        }
     }
 }
 

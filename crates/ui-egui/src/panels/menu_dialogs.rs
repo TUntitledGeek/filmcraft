@@ -140,7 +140,11 @@ pub fn logs_dir(app: &FilmcraftApp) -> std::path::PathBuf {
 fn write_session_log(app: &FilmcraftApp) -> Result<std::path::PathBuf, String> {
     let dir = logs_dir(app);
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let path = dir.join(format!("session-{}.log", std::process::id()));
+    #[cfg(not(target_arch = "wasm32"))]
+    let pid = std::process::id();
+    #[cfg(target_arch = "wasm32")]
+    let pid = 0;
+    let path = dir.join(format!("session-{pid}.log"));
     let mut text = format!("{}\n", system_report(app));
     for (id, p) in app.session.journal.iter().rev().take(2000).collect::<Vec<_>>().into_iter().rev() {
         text.push_str(&format!("{}\n", json!({"command": id, "params": p})));

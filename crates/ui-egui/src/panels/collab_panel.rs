@@ -30,6 +30,20 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                     ui.label(format!("Role: {}", role));
                     let protected = if config.passcode.is_some() { "🔒 Passcode Protected" } else { "Public Room" };
                     ui.label(format!("Security: {}", protected));
+
+                    if app.collab_is_host {
+                        ui.add_space(6.0);
+                        let key_part = config.passcode.as_ref().map(|p| format!("#key={p}")).unwrap_or_default();
+                        let invite_url = format!(
+                            "https://tuntitledgeek.github.io/filmcraft/?room={}{}",
+                            config.room_code.trim(),
+                            key_part
+                        );
+                        if ui.button("📋 Copy 1-Click Invite Link").clicked() {
+                            ctx.copy_text(invite_url);
+                            app.ui.status = "Copied 1-click invite link to clipboard".into();
+                        }
+                    }
                 });
 
                 // Google Drive Cloud Hub Card
@@ -118,15 +132,24 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                 ui.add(egui::TextEdit::singleline(&mut app.collab_passcode_input).password(!app.collab_passcode_visible));
 
                 if app.collab_is_host {
-                    ui.add_space(4.0);
-                    ui.label("Listen Port:");
-                    ui.text_edit_singleline(&mut app.collab_port_input);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.add_space(4.0);
+                        ui.label("Listen Port:");
+                        ui.text_edit_singleline(&mut app.collab_port_input);
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        ui.add_space(4.0);
+                        ui.label(RichText::new("🌐 Web Hosting Mode: Direct P2P & Cloud Sync").weak());
+                    }
 
                     ui.add_space(8.0);
+                    let key_suffix = if app.collab_passcode_input.trim().is_empty() { String::new() } else { format!("#key={}", app.collab_passcode_input.trim()) };
                     let invite_url = format!(
-                        "https://tuntitledgeek.github.io/filmcraft/?room={}#key={}",
+                        "https://tuntitledgeek.github.io/filmcraft/?room={}{}",
                         app.collab_room_input.trim(),
-                        app.collab_passcode_input.trim()
+                        key_suffix
                     );
                     if ui.button("📋 Copy 1-Click Protected Invite Link").clicked() {
                         ctx.copy_text(invite_url);
@@ -141,7 +164,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                         let passcode = if app.collab_passcode_input.trim().is_empty() { None } else { Some(app.collab_passcode_input.clone()) };
                         match app.start_collab_host(port, &name, &room, passcode.as_deref()) {
                             Ok(()) => {
-                                app.ui.status = format!("Hosting co-op room '{room}' on port {port}");
+                                app.ui.status = format!("Hosting co-op room '{room}'");
                             }
                             Err(e) => {
                                 app.ui.status = format!("Failed to host: {e}");
@@ -149,19 +172,28 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                         }
                     }
                 } else {
-                    ui.add_space(4.0);
-                    ui.label("Host Address (IP:Port):");
-                    ui.text_edit_singleline(&mut app.collab_addr_input);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.add_space(4.0);
+                        ui.label("Host Address (IP:Port):");
+                        ui.text_edit_singleline(&mut app.collab_addr_input);
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        ui.add_space(6.0);
+                        ui.label(RichText::new("🌐 Web Peer Sync: Connecting via Room Code").weak());
+                    }
 
                     ui.add_space(12.0);
-                    if ui.button(RichText::new("Connect to Host").strong()).clicked() {
-                        let addr = app.collab_addr_input.trim().to_string();
+                    let join_label = if cfg!(target_arch = "wasm32") { "Join Room Session" } else { "Connect to Host" };
+                    if ui.button(RichText::new(join_label).strong()).clicked() {
+                        let addr = if cfg!(target_arch = "wasm32") { "127.0.0.1:9090".to_string() } else { app.collab_addr_input.trim().to_string() };
                         let name = if app.collab_name_input.trim().is_empty() { "Editor".into() } else { app.collab_name_input.clone() };
                         let room = if app.collab_room_input.trim().is_empty() { "ROOM-1".into() } else { app.collab_room_input.clone() };
                         let passcode = if app.collab_passcode_input.trim().is_empty() { None } else { Some(app.collab_passcode_input.clone()) };
                         match app.join_collab_room(&addr, &name, &room, passcode.as_deref()) {
                             Ok(()) => {
-                                app.ui.status = format!("Connecting to '{addr}'...");
+                                app.ui.status = format!("Connected to room '{room}'");
                             }
                             Err(e) => {
                                 app.ui.status = format!("Failed to connect: {e}");

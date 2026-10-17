@@ -214,6 +214,15 @@ pub fn install() -> Result<(), JsValue> {
     )?;
     let w = web_sys::window().ok_or("no window")?;
     js_sys::Reflect::set(&w, &"filmcraft".into(), &obj)?;
+
+    let receive_closure = Closure::<dyn Fn(String)>::new(|json_str: String| {
+        if let Ok(msg) = serde_json::from_str::<filmcraft_collab::CollabMessage>(&json_str) {
+            crate::post(move |web_app, ctx| {
+                web_app.app.receive_web_collab_message(msg, ctx);
+            });
+        }
+    });
+    js_sys::Reflect::set(&w, &"filmcraftCollabReceiveWasm".into(), &receive_closure.into_js_value())?;
     Ok(())
 }
 

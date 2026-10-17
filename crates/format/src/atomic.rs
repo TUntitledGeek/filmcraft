@@ -13,7 +13,11 @@ fn temp_path(path: &Path) -> PathBuf {
     let dir = parent_dir(path);
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "project".into());
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    dir.join(format!(".{name}.{}-{n}.tmp", std::process::id()))
+    #[cfg(not(target_arch = "wasm32"))]
+    let pid = std::process::id();
+    #[cfg(target_arch = "wasm32")]
+    let pid = 0;
+    dir.join(format!(".{name}.{pid}-{n}.tmp"))
 }
 
 fn parent_dir(path: &Path) -> PathBuf {

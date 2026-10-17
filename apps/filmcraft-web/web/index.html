@@ -64,6 +64,100 @@
     addEventListener("error", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.error || ev.message)) window.filmcraftFatal(ev.error || ev.message); });
     addEventListener("unhandledrejection", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.reason)) window.filmcraftFatal(ev.reason); });
   </script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script>
+    window.filmcraftCollabBridge = {
+      room: null,
+      isHost: false,
+      peerId: null,
+      channel: null,
+      peer: null,
+      connections: new Map(),
+
+      init(room, isHost, peerId) {
+        this.room = room;
+        this.isHost = isHost;
+        this.peerId = peerId;
+
+        // 1. BroadcastChannel for local cross-tab sync
+        try {
+          if (this.channel) this.channel.close();
+          this.channel = new BroadcastChannel("fc-collab-" + room);
+          this.channel.onmessage = (ev) => {
+            if (ev.data && typeof ev.data === "string") {
+              if (window.filmcraftCollabReceiveWasm) {
+                window.filmcraftCollabReceiveWasm(ev.data);
+              }
+            }
+          };
+        } catch (e) {
+          console.warn("[Collab] BroadcastChannel error:", e);
+        }
+
+        // 2. WebRTC DataChannel via PeerJS for internet multiplayer
+        if (typeof Peer !== "undefined") {
+          try {
+            if (this.peer) this.peer.destroy();
+            const hostPeerId = "fc-room-" + room.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const myPeerStr = isHost ? hostPeerId : (hostPeerId + "-" + peerId);
+            this.peer = new Peer(myPeerStr);
+
+            this.peer.on("open", (id) => {
+              console.log("[Collab WebRTC] Ready as peer ID:", id);
+              if (!isHost) {
+                const conn = this.peer.connect(hostPeerId, { reliable: true });
+                this._wireConn(conn);
+              }
+            });
+
+            this.peer.on("connection", (conn) => {
+              console.log("[Collab WebRTC] Connected to peer:", conn.peer);
+              this._wireConn(conn);
+            });
+            this.peer.on("error", (err) => console.warn("[Collab WebRTC] Error:", err));
+          } catch (e) {
+            console.warn("[Collab WebRTC] PeerJS init failed:", e);
+          }
+        }
+      },
+
+      _wireConn(conn) {
+        conn.on("open", () => {
+          this.connections.set(conn.peer, conn);
+        });
+        conn.on("data", (data) => {
+          if (typeof data === "string" && window.filmcraftCollabReceiveWasm) {
+            window.filmcraftCollabReceiveWasm(data);
+          }
+        });
+        conn.on("close", () => this.connections.delete(conn.peer));
+        conn.on("error", () => this.connections.delete(conn.peer));
+      },
+
+      send(jsonStr) {
+        if (this.channel) {
+          try { this.channel.postMessage(jsonStr); } catch (e) {}
+        }
+        for (const conn of this.connections.values()) {
+          if (conn.open) {
+            try { conn.send(jsonStr); } catch (e) {}
+          }
+        }
+      },
+
+      disconnect() {
+        if (this.channel) {
+          this.channel.close();
+          this.channel = null;
+        }
+        if (this.peer) {
+          this.peer.destroy();
+          this.peer = null;
+        }
+        this.connections.clear();
+      }
+    };
+  </script>
   <script type="module">
     // `__FC_BUILD__` is replaced by `cargo xtask web` with a hash of the build: the glue and the
     // wasm are cached as immutable, so their URLs must change with every build.

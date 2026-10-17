@@ -704,7 +704,10 @@ impl Persistence {
         let root = recovery_root(&cfg.data_dir);
         fs::create_dir_all(&root)?;
         let started = unix_now();
+        #[cfg(not(target_arch = "wasm32"))]
         let pid = std::process::id();
+        #[cfg(target_arch = "wasm32")]
+        let pid = 0;
         // Unique even for several sessions in one process within a second (tests, future multi-window).
         static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

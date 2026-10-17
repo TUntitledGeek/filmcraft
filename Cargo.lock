@@ -2359,7 +2359,9 @@ dependencies = [
  "filmcraft-text",
  "filmcraft-time",
  "filmcraft-tts",
+ "getrandom 0.3.4",
  "image",
+ "js-sys",
  "log",
  "pollster 0.4.0",
  "rayon",
@@ -2368,6 +2370,7 @@ dependencies = [
  "serde_json",
  "toml 1.1.6+spec-1.1.0",
  "unicode-bidi",
+ "web-sys",
  "web-time",
 ]
 
@@ -2394,6 +2397,7 @@ dependencies = [
  "eframe",
  "egui",
  "filmcraft-codecs",
+ "filmcraft-collab",
  "filmcraft-color",
  "filmcraft-engine",
  "filmcraft-format",
