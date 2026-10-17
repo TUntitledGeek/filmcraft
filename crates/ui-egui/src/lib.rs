@@ -415,7 +415,7 @@ pub struct FilmcraftApp {
     /// Whether a timeline drag was active on the previous frame.
     pub(crate) collab_had_drag: bool,
     /// Last timestamp local presence was broadcast.
-    last_presence_send: std::time::Instant,
+    last_presence_send: web_time::Instant,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
     pub gpu: Option<GpuState>,
     /// Preview render job being watched (job id, where to start playing when it completes).
@@ -679,7 +679,7 @@ impl FilmcraftApp {
             collab_last_lock: None,
             collab_drop_ghost: None,
             collab_had_drag: false,
-            last_presence_send: std::time::Instant::now(),
+            last_presence_send: web_time::Instant::now(),
             gpu: None,
             watched_render: None,
             applied_prefs: None,
@@ -1793,7 +1793,7 @@ impl FilmcraftApp {
                 c.request_repaint();
             }));
         }
-        let start = std::time::Instant::now();
+        let start = web_time::Instant::now();
         let mut count = 0;
         let mut should_disconnect = false;
         while let Some(event) = transport.try_recv_event() {
@@ -1944,7 +1944,7 @@ impl FilmcraftApp {
         if !has_drag && !self.collab_had_drag && self.last_presence_send.elapsed() < std::time::Duration::from_millis(33) {
             return;
         }
-        self.last_presence_send = std::time::Instant::now();
+        self.last_presence_send = web_time::Instant::now();
         self.collab_had_drag = has_drag;
 
         // 1. Determine pointer panel and normalized coordinates
