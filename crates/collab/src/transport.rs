@@ -440,9 +440,25 @@ async fn handle_peer_stream(
                             lock.expires_at_ms,
                             None,
                         );
+                        if !is_client {
+                            let peer_map = peers.read().await;
+                            for (pid, conn) in peer_map.iter() {
+                                if *pid != lock.peer_id {
+                                    let _ = conn.sender.send(CollabMessage::ClaimLock(lock.clone()));
+                                }
+                            }
+                        }
                     }
                     CollabMessage::ReleaseLock { peer_id, track_kind, track_index } => {
                         session.lock_manager.write().await.release(peer_id, track_kind, track_index);
+                        if !is_client {
+                            let peer_map = peers.read().await;
+                            for (pid, conn) in peer_map.iter() {
+                                if *pid != peer_id {
+                                    let _ = conn.sender.send(CollabMessage::ReleaseLock { peer_id, track_kind, track_index });
+                                }
+                            }
+                        }
                     }
                     CollabMessage::CommitCommand { peer_id, rev, id, params } => {
                         let mut cur = session.current_rev.write().await;

@@ -2327,7 +2327,28 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                     } else {
                         filmcraft_engine::commands::with_links(&app.session, &[clip])
                     };
-                    move_is_locked(seq, &clips, 0)
+                    let soft_locked = if let Some(collab) = &app.collab {
+                        if let Ok(mgr) = collab.lock_manager.try_read() {
+                            let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+                            clips.iter().any(|c| {
+                                if let Some((tid, _)) = seq.find_item(*c) {
+                                    if let Some((kind, idx)) = seq.video_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Video, i))
+                                        .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Audio, i))) {
+                                        mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms).is_some()
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    false
+                                }
+                            })
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    move_is_locked(seq, &clips, 0) || soft_locked
                 }
                 _ => false,
             };
@@ -2400,6 +2421,22 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
             }
             (Tool::Razor, Grab::Other(Hit::Clip { clip, .. })) => {
                 if resp.clicked() || resp.drag_started() {
+                    let is_locked = if let Some(collab) = &app.collab {
+                        if let (Some((tid, _)), Ok(mgr)) = (seq.find_item(clip), collab.lock_manager.try_read()) {
+                            let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+                            seq.video_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Video, i))
+                                .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Audio, i)))
+                                .is_some_and(|(kind, idx)| mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms).is_some())
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    if is_locked {
+                        app.ui.status = "Track is currently being edited by a collaborator".into();
+                        return;
+                    }
                     let tt = snap(app, seq, layout, rate.snap_nearest(t), &[]);
                     let r = if mods.shift {
                         app.session.execute("timeline.razor", json!({"time": tt.0}))
@@ -2617,7 +2654,17 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                     (Some(c), Some(s)) if c.kind == s.kind => c.index as i32 - s.index as i32,
                     _ => 0,
                 };
-                if move_is_locked(seq, &clips, track_delta) {
+                let soft_locked = if let Some(collab) = &app.collab {
+                    if let (Some(c), Ok(mgr)) = (cur_row, collab.lock_manager.try_read()) {
+                        let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+                        mgr.is_locked_by_other(collab.config.peer_id, c.kind, c.index, now_ms).is_some()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                if move_is_locked(seq, &clips, track_delta) || soft_locked {
                     ctx.set_cursor_icon(CursorIcon::NotAllowed);
                     Some(Drag::Move { clips, grab_tick, start_track, offset: Tick::ZERO, track_delta: 0, new_track: None, copy: mods.alt })
                 } else {

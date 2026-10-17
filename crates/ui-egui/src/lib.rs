@@ -394,6 +394,10 @@ pub struct FilmcraftApp {
     pub collab_is_host: bool,
     /// Pending extension offer prompt from a peer.
     pub pending_extension_offer: Option<ExtensionOfferModal>,
+    /// Last program monitor picture rect for cursor normalization.
+    pub(crate) program_pic_rect: Option<egui::Rect>,
+    /// Last soft lock leased by the local peer on a track.
+    pub(crate) collab_last_lock: Option<(filmcraft_project::TrackKind, usize)>,
     /// Last timestamp local presence was broadcast.
     last_presence_send: std::time::Instant,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
@@ -639,6 +643,8 @@ impl FilmcraftApp {
             collab_wakeup_registered: false,
             collab_is_host: true,
             pending_extension_offer: None,
+            program_pic_rect: None,
+            collab_last_lock: None,
             last_presence_send: std::time::Instant::now(),
             gpu: None,
             watched_render: None,
@@ -1739,6 +1745,7 @@ impl FilmcraftApp {
         self.collab = None;
         self.collab_wakeup_registered = false;
         self.session.on_command = None;
+        self.collab_last_lock = None;
     }
 
     pub fn drain_collab(&mut self, ctx: &egui::Context) {
@@ -1842,9 +1849,121 @@ impl FilmcraftApp {
         }
         self.last_presence_send = std::time::Instant::now();
 
+        // 1. Determine pointer panel and normalized coordinates
+        let pos = ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()));
+        let (panel, cursor_norm) = if let Some(p) = pos {
+            if let Some(pic) = self.program_pic_rect {
+                if pic.contains(p) && pic.width() > 1.0 && pic.height() > 1.0 {
+                    let nx = ((p.x - pic.min.x) / pic.width()).clamp(0.0, 1.0);
+                    let ny = ((p.y - pic.min.y) / pic.height()).clamp(0.0, 1.0);
+                    (Some("program".to_string()), Some([nx, ny]))
+                } else if let Some(layout) = &self.tl.layout {
+                    if layout.content.contains(p) && layout.content.width() > 1.0 && layout.content.height() > 1.0 {
+                        let nx = ((p.x - layout.content.min.x) / layout.content.width()).clamp(0.0, 1.0);
+                        let ny = ((p.y - layout.content.min.y) / layout.content.height()).clamp(0.0, 1.0);
+                        (Some("timeline".to_string()), Some([nx, ny]))
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            } else if let Some(layout) = &self.tl.layout {
+                if layout.content.contains(p) && layout.content.width() > 1.0 && layout.content.height() > 1.0 {
+                    let nx = ((p.x - layout.content.min.x) / layout.content.width()).clamp(0.0, 1.0);
+                    let ny = ((p.y - layout.content.min.y) / layout.content.height()).clamp(0.0, 1.0);
+                    (Some("timeline".to_string()), Some([nx, ny]))
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        // 2. Compute active drag ghost and soft track locks
+        let active_drag = if let Some(crate::panels::timeline::Drag::Move { clips, offset, track_delta, new_track, .. }) = &self.tl.drag {
+            if let Some(first_id) = clips.first() {
+                if let Some(seq) = self.session.active_sequence() {
+                    if let Some((track_id, item)) = seq.find_item(*first_id) {
+                        let (orig_kind, orig_idx) = seq.video_tracks.iter().position(|t| t.id == track_id)
+                            .map(|i| (filmcraft_project::TrackKind::Video, i))
+                            .or_else(|| seq.audio_tracks.iter().position(|t| t.id == track_id).map(|i| (filmcraft_project::TrackKind::Audio, i)))
+                            .unwrap_or((filmcraft_project::TrackKind::Video, 0));
+
+                        let (dest_kind, dest_idx) = if let Some((kind, _)) = new_track {
+                            (*kind, if *kind == filmcraft_project::TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() })
+                        } else {
+                            let total = if orig_kind == filmcraft_project::TrackKind::Video { seq.video_tracks.len() } else { seq.audio_tracks.len() };
+                            let new_idx = (orig_idx as i32 + track_delta).clamp(0, total.saturating_sub(1) as i32) as usize;
+                            (orig_kind, new_idx)
+                        };
+
+                        let new_start = (item.start.0 as i64 + offset.0 as i64).max(0);
+
+                        Some(filmcraft_collab::DragGhost {
+                            clip_id: item.id.0,
+                            track_kind: dest_kind,
+                            track_index: dest_idx,
+                            start_tick: filmcraft_time::Tick(new_start),
+                            duration_ticks: item.duration,
+                            label: item.name.clone(),
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // 3. Maintain 500-600ms leased soft track lock
+        let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+        if let Some(ghost) = &active_drag {
+            let key = (ghost.track_kind, ghost.track_index);
+            if self.collab_last_lock != Some(key) {
+                if let Some((prev_kind, prev_idx)) = self.collab_last_lock.take() {
+                    if let Ok(mut mgr) = collab.lock_manager.try_write() {
+                        mgr.release(collab.config.peer_id, prev_kind, prev_idx);
+                    }
+                    let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ReleaseLock {
+                        peer_id: collab.config.peer_id,
+                        track_kind: prev_kind,
+                        track_index: prev_idx,
+                    });
+                }
+            }
+            self.collab_last_lock = Some(key);
+            if let Ok(mut mgr) = collab.lock_manager.try_write() {
+                mgr.claim(collab.config.peer_id, ghost.track_kind, ghost.track_index, now_ms, Some(600));
+            }
+            let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ClaimLock(filmcraft_collab::SoftLock {
+                peer_id: collab.config.peer_id,
+                track_kind: ghost.track_kind,
+                track_index: ghost.track_index,
+                expires_at_ms: now_ms + 600,
+            }));
+        } else if let Some((prev_kind, prev_idx)) = self.collab_last_lock.take() {
+            if let Ok(mut mgr) = collab.lock_manager.try_write() {
+                mgr.release(collab.config.peer_id, prev_kind, prev_idx);
+            }
+            let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::ReleaseLock {
+                peer_id: collab.config.peer_id,
+                track_kind: prev_kind,
+                track_index: prev_idx,
+            });
+        }
+
+        // 4. Send presence update
         let playhead = Some(self.session.playhead());
-        let cursor = ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos())).map(|p| [p.x, p.y]);
-        let msg = collab.create_presence(playhead, cursor);
+        let msg = collab.create_presence(panel, playhead, cursor_norm, active_drag);
         let _ = collab.msg_tx.send(msg);
     }
 }

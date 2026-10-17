@@ -295,6 +295,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         monitor_view::zoom_pan_input(app, ui, which, video_area, pic, display_w, ppp);
     }
     if which == Which::Program && show_picture {
+        app.program_pic_rect = Some(pic);
         // an armed eyedropper owns clicks on the picture: the overlays would sit on top and take
         // them (the selected clip's transform handles cover it, #1023)
         if app.ui.eyedropper.is_some() {

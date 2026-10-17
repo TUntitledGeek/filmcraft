@@ -729,7 +729,7 @@ impl Session {
         self.sync_persistence();
         // playback reads the newest snapshot (mixer moves, mutes… are heard while playing)
         self.previews.live.publish_project(self.project.clone());
-        if r.is_ok() && spec.journal {
+        if r.is_ok() && (spec.journal || id == "effects.select") {
             if self.exec_depth == 0 && !self.suppress_command_hook {
                 if let Some(hook) = &self.on_command {
                     let mut p = params.clone();
@@ -739,9 +739,11 @@ impl Session {
                     hook(id, &p);
                 }
             }
-            self.journal.push((id.to_string(), params));
-            if self.journal.len() > 10_000 {
-                self.journal.drain(..1000);
+            if spec.journal {
+                self.journal.push((id.to_string(), params));
+                if self.journal.len() > 10_000 {
+                    self.journal.drain(..1000);
+                }
             }
         }
         r

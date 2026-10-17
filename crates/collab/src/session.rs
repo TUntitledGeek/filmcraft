@@ -78,15 +78,21 @@ impl CollabSession {
     }
 
     /// Generate an ephemeral presence message for the local user.
-    pub fn create_presence(&self, playhead: Option<filmcraft_time::Tick>, cursor: Option<[f32; 2]>) -> CollabMessage {
+    pub fn create_presence(
+        &self,
+        panel: Option<String>,
+        playhead: Option<filmcraft_time::Tick>,
+        cursor_norm: Option<[f32; 2]>,
+        active_drag: Option<crate::protocol::DragGhost>,
+    ) -> CollabMessage {
         CollabMessage::Presence(PeerPresence {
             peer_id: self.config.peer_id,
             name: self.config.user_name.clone(),
             color_rgba: self.config.user_color,
-            panel: Some("timeline".into()),
+            panel,
             playhead_tick: playhead,
-            cursor_norm: cursor,
-            active_drag: None,
+            cursor_norm,
+            active_drag,
             timestamp_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
