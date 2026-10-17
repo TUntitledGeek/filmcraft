@@ -732,7 +732,11 @@ impl Session {
         if r.is_ok() && spec.journal {
             if self.exec_depth == 0 && !self.suppress_command_hook {
                 if let Some(hook) = &self.on_command {
-                    hook(id, &params);
+                    let mut p = params.clone();
+                    if p.is_object() && p.get("time").is_none() {
+                        p["time"] = serde_json::json!(self.playhead().0);
+                    }
+                    hook(id, &p);
                 }
             }
             self.journal.push((id.to_string(), params));

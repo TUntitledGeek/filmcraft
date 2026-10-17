@@ -1868,8 +1868,6 @@ fn is_replicated_collab_command(id: &str) -> bool {
         || id == "timeline.zoomToSelection"
         || id == "timeline.scroll"
         || id == "project.select"
-        || id == "effects.select"
-        || id == "masks.select"
         || id.starts_with("sequence.select")
         || id == "sequence.linkedSelection"
         || id == "sequence.snapping"
