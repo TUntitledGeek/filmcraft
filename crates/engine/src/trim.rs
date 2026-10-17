@@ -526,6 +526,7 @@ fn apply_dynamic(s: &mut Session, offset: Tick) -> Result<Tick> {
         }
     };
     s.history.undo.truncate(undo_len);
+    s.history.undo_meta.truncate(undo_len);
     s.history.limit = limit;
     s.history.redo = redo;
     s.journal.truncate(journal_len);
@@ -564,11 +565,17 @@ pub fn commit(s: &mut Session) -> Value {
         Some(TrimKind::Ripple) => "Dynamic Ripple Trim",
         _ => "Dynamic Trim",
     };
+    let meta = s.current_edit_author();
     s.history.undo.push((label.to_string(), d.before));
+    s.history.undo_meta.push(meta);
     if s.history.undo.len() > s.history.limit {
         s.history.undo.remove(0);
+        if !s.history.undo_meta.is_empty() {
+            s.history.undo_meta.remove(0);
+        }
     }
     s.history.redo.clear();
+    s.history.redo_meta.clear();
     json!({"committed": true, "label": label, "offsetFrames": rate.frame_at(d.offset), "offset": d.offset.0})
 }
 

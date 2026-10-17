@@ -198,11 +198,23 @@ impl Services for FsServices {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UndoMark(Option<usize>);
 
+/// Attribution and timestamp metadata for an edit in the undo history.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HistoryMetadata {
+    pub author_id: Option<u16>,
+    pub author_name: Option<String>,
+    pub author_color: Option<[u8; 4]>,
+    pub timestamp_ms: u64,
+    pub rev: u64,
+}
+
 /// Undo history of whole-project snapshots.
 #[derive(Clone, Default)]
 pub struct History {
     pub undo: Vec<(String, Arc<Project>)>,
     pub redo: Vec<(String, Arc<Project>)>,
+    pub undo_meta: Vec<HistoryMetadata>,
+    pub redo_meta: Vec<HistoryMetadata>,
     /// Labels of all applied states, oldest first (History panel).
     pub limit: usize,
     /// Key of the last [`Session::edit_merged`] step: a continuous gesture (a fader drag) with the
@@ -452,6 +464,8 @@ pub struct Session {
     pub media_stamps: std::collections::HashMap<String, media_watch::Stamp>,
     /// The stamps being taken on a worker thread ([`Session::start_media_scan`]).
     pub media_scan: Option<media_watch::MediaScan>,
+    /// Author metadata for the edit currently executing.
+    pub edit_author: Option<HistoryMetadata>,
 }
 
 /// An export advanced a batch at a time on the host's thread ([`Session::pump_jobs`]).
@@ -546,7 +560,30 @@ impl Session {
             on_command: None,
             media_stamps: Default::default(),
             media_scan: None,
+            edit_author: None,
         }
+    }
+
+    /// Set the author attribution for edits executed on this session.
+    pub fn set_edit_author(&mut self, id: Option<u16>, name: Option<String>, color: Option<[u8; 4]>) {
+        self.edit_author = Some(HistoryMetadata {
+            author_id: id,
+            author_name: name,
+            author_color: color,
+            timestamp_ms: web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
+            rev: self.revision,
+        });
+    }
+
+    /// The author metadata for an edit.
+    pub fn current_edit_author(&self) -> HistoryMetadata {
+        self.edit_author.clone().unwrap_or_else(|| HistoryMetadata {
+            author_id: None,
+            author_name: None,
+            author_color: None,
+            timestamp_ms: web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
+            rev: self.revision,
+        })
     }
 
     /// Advance stepped jobs ([`SteppedJob`]) for up to `budget` (at least one step). Returns
@@ -855,12 +892,18 @@ impl Session {
         let mut st = self.state.clone();
         let r = f(&mut p, &mut st)?;
         self.refuse_self_nesting(&p)?;
+        let meta = self.current_edit_author();
         let old = std::mem::replace(&mut self.project, Arc::new(p));
         self.history.undo.push((label.to_string(), old));
+        self.history.undo_meta.push(meta);
         if self.history.undo.len() > self.history.limit {
             self.history.undo.remove(0);
+            if !self.history.undo_meta.is_empty() {
+                self.history.undo_meta.remove(0);
+            }
         }
         self.history.redo.clear();
+        self.history.redo_meta.clear();
         self.history.merge_key = None;
         self.state = st;
         self.drop_stale_gap();
@@ -891,8 +934,15 @@ impl Session {
     /// Run several undoable edits as one undo step labelled `label`. If `f` fails, every edit it made
     /// is rolled back and the history is as before.
     pub fn edit_group<R>(&mut self, label: &str, f: impl FnOnce(&mut Session) -> Result<R>) -> Result<R> {
-        let (project, state, undo, redo, limit) =
-            (self.project.clone(), self.state.clone(), self.history.undo.len(), self.history.redo.clone(), self.history.limit);
+        let (project, state, undo, redo, limit, undo_meta, redo_meta) = (
+            self.project.clone(),
+            self.state.clone(),
+            self.history.undo.len(),
+            self.history.redo.clone(),
+            self.history.limit,
+            self.history.undo_meta.len(),
+            self.history.redo_meta.clone(),
+        );
         // keep every step the group makes, however many, so the first one can be found afterwards
         self.history.limit = usize::MAX;
         // a panic inside the group must not leave the history unlimited: restore, then let it go on
@@ -901,7 +951,9 @@ impl Session {
         let first = self.history.undo.get(undo).map(|e| e.1.clone());
         let rolled_back = |s: &mut Session| {
             s.history.undo.truncate(undo);
+            s.history.undo_meta.truncate(undo_meta);
             s.history.redo = redo.clone();
+            s.history.redo_meta = redo_meta.clone();
             s.history.merge_key = None;
             s.project = project.clone();
             s.state = state.clone();
@@ -909,10 +961,16 @@ impl Session {
         };
         match (r, first) {
             (Ok(Ok(v)), Some(first)) => {
+                let meta = self.current_edit_author();
                 self.history.undo.truncate(undo);
+                self.history.undo_meta.truncate(undo_meta);
                 self.history.undo.push((label.to_string(), first));
+                self.history.undo_meta.push(meta);
                 if self.history.undo.len() > limit {
                     self.history.undo.remove(0);
+                    if !self.history.undo_meta.is_empty() {
+                        self.history.undo_meta.remove(0);
+                    }
                 }
                 self.history.merge_key = None;
                 Ok(v)
@@ -947,6 +1005,7 @@ impl Session {
         let mut n = 0;
         while self.undo_mark() != mark {
             let Some((_, prev)) = self.history.undo.pop() else { break };
+            self.history.undo_meta.pop();
             earliest = Some(prev);
             n += 1;
         }
@@ -1000,9 +1059,11 @@ impl Session {
 
     pub fn undo(&mut self) -> Option<String> {
         let (label, prev) = self.history.undo.pop()?;
+        let meta = self.history.undo_meta.pop().unwrap_or_else(|| self.current_edit_author());
         self.history.merge_key = None;
         let cur = std::mem::replace(&mut self.project, prev);
         self.history.redo.push((label.clone(), cur));
+        self.history.redo_meta.push(meta);
         self.fix_state();
         self.bump();
         Some(label)
@@ -1010,9 +1071,11 @@ impl Session {
 
     pub fn redo(&mut self) -> Option<String> {
         let (label, next) = self.history.redo.pop()?;
+        let meta = self.history.redo_meta.pop().unwrap_or_else(|| self.current_edit_author());
         self.history.merge_key = None;
         let cur = std::mem::replace(&mut self.project, next);
         self.history.undo.push((label.clone(), cur));
+        self.history.undo_meta.push(meta);
         self.fix_state();
         self.bump();
         Some(label)

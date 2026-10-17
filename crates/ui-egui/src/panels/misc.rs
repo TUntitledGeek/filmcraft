@@ -9,44 +9,137 @@ use crate::theme::Tokens;
 pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(6.0)));
-    let undo: Vec<String> = app.session.history.undo.iter().map(|h| h.0.clone()).collect();
-    let redo: Vec<String> = app.session.history.redo.iter().rev().map(|h| h.0.clone()).collect();
+    let undo = app.session.history.undo.clone();
+    let undo_meta = app.session.history.undo_meta.clone();
+    let redo: Vec<(String, std::sync::Arc<filmcraft_project::Project>)> = app.session.history.redo.iter().rev().cloned().collect();
+    let redo_meta: Vec<filmcraft_engine::HistoryMetadata> = app.session.history.redo_meta.iter().rev().cloned().collect();
+
+    let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let is_collab = app.collab.is_some();
     let mut target: Option<i64> = None;
-    egui::ScrollArea::vertical().auto_shrink([false, false]).show(&mut child, |ui| {
-        let row = |ui: &mut egui::Ui, label: &str, current: bool, dim: bool| -> bool {
-            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::click());
-            if current {
-                ui.painter().rect_filled(r, 0.0, t.row_selected);
-            } else if resp.hovered() {
-                ui.painter().rect_filled(r, 0.0, t.hover);
+
+    // Header bar with co-op indicator and total actions count
+    child.horizontal(|ui| {
+        let total = undo.len() + redo.len();
+        ui.label(egui::RichText::new(format!("Action History ({total})")).strong().size(12.0).color(t.text));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if is_collab {
+                let (r, resp) = ui.allocate_exact_size(vec2(78.0, 18.0), Sense::hover());
+                ui.painter().rect_filled(r, 4.0, Color32::from_rgb(25, 75, 45));
+                ui.painter().text(r.center(), Align2::CENTER_CENTER, "● Co-op Live", Tokens::ui(10.5), Color32::from_rgb(180, 255, 200));
+                resp.on_hover_text("Real-time collaborative history. Clicking any checkpoint safely rolls back all peers in lockstep.");
+            } else {
+                let (_, resp) = ui.allocate_exact_size(vec2(16.0, 18.0), Sense::hover());
+                resp.on_hover_text("Click any previous action to roll back to that state.");
             }
-            ui.painter().text(pos2(r.min.x + 8.0, r.center().y), Align2::LEFT_CENTER, label, Tokens::ui(12.0), if dim { t.text_faint } else { t.text });
+        });
+    });
+    child.add_space(4.0);
+
+    egui::ScrollArea::vertical().auto_shrink([false, false]).show(&mut child, |ui| {
+        let row = |ui: &mut egui::Ui,
+                  label: &str,
+                  meta: Option<&filmcraft_engine::HistoryMetadata>,
+                  current: bool,
+                  dim: bool|
+         -> bool {
+            let row_h = 24.0;
+            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), row_h), Sense::click());
+            if current {
+                ui.painter().rect_filled(r, 3.0, t.row_selected);
+                // Vertical accent bar on the left edge
+                ui.painter().rect_filled(Rect::from_min_size(r.min, vec2(3.0, row_h)), 1.5, t.accent);
+            } else if resp.hovered() {
+                ui.painter().rect_filled(r, 3.0, t.hover);
+            }
+
+            let mut x = r.min.x + 8.0;
+
+            // Peer avatar dot / badge
+            let author_color = meta
+                .and_then(|m| m.author_color)
+                .map(|c| Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]))
+                .unwrap_or(if current { t.accent } else { t.text_faint });
+
+            let dot_center = pos2(x + 4.0, r.center().y);
+            ui.painter().circle_filled(dot_center, 4.0, author_color);
+            x += 14.0;
+
+            // Author name tag (if in collab or metadata present)
+            if let Some(author) = meta.and_then(|m| m.author_name.as_deref()) {
+                let author_text = format!("[{}]", author);
+                let gal = ui.painter().layout_no_wrap(author_text, Tokens::ui(11.0), author_color);
+                ui.painter().galley(pos2(x, r.center().y - gal.size().y * 0.5), gal, author_color);
+                x += 65.0; // Fixed spacing for aligned action labels
+            }
+
+            // Command / Action Label
+            let text_color = if dim {
+                t.text_faint
+            } else if current {
+                t.text
+            } else {
+                t.text_dim
+            };
+            ui.painter().text(pos2(x, r.center().y), Align2::LEFT_CENTER, label, Tokens::ui(12.0), text_color);
+
+            // Right side: Current badge or timestamp
+            if current {
+                let badge_r = Rect::from_min_size(pos2(r.max.x - 52.0, r.center().y - 7.0), vec2(46.0, 14.0));
+                ui.painter().rect_filled(badge_r, 3.0, t.accent.gamma_multiply(0.25));
+                ui.painter().text(badge_r.center(), Align2::CENTER_CENTER, "CURRENT", Tokens::ui(9.0), t.accent);
+            } else if let Some(ts) = meta.map(|m| m.timestamp_ms).filter(|&t| t > 0) {
+                if now_ms >= ts {
+                    let secs = (now_ms - ts) / 1000;
+                    let time_str = if secs < 5 {
+                        "just now".to_string()
+                    } else if secs < 60 {
+                        format!("{secs}s ago")
+                    } else if secs < 3600 {
+                        format!("{}m ago", secs / 60)
+                    } else {
+                        format!("{}h ago", secs / 3600)
+                    };
+                    ui.painter().text(pos2(r.max.x - 6.0, r.center().y), Align2::RIGHT_CENTER, time_str, Tokens::ui(10.5), t.text_faint);
+                }
+            }
+
+            let resp = resp.on_hover_text(if current {
+                "Active project state".to_string()
+            } else if dim {
+                format!("Redo: {}", label)
+            } else {
+                format!("Click to roll back to: {}", label)
+            });
+
             resp.clicked()
         };
-        if row(ui, tl!("Open"), undo.is_empty(), false) {
+
+        // Initial "Open" state
+        if row(ui, &tl!("Open"), None, undo.is_empty(), false) {
             target = Some(-(undo.len() as i64));
         }
-        for (i, l) in undo.iter().enumerate() {
-            if row(ui, crate::i18n::t(l), i + 1 == undo.len(), false) {
+
+        // Undoable past states
+        for (i, (l, _)) in undo.iter().enumerate() {
+            let meta = undo_meta.get(i);
+            let is_cur = i + 1 == undo.len();
+            if row(ui, &crate::i18n::t(l), meta, is_cur, false) {
                 target = Some(i as i64 + 1 - undo.len() as i64);
             }
         }
-        for (i, l) in redo.iter().enumerate() {
-            if row(ui, crate::i18n::t(l), false, true) {
+
+        // Redoable future states
+        for (i, (l, _)) in redo.iter().enumerate() {
+            let meta = redo_meta.get(i);
+            if row(ui, &crate::i18n::t(l), meta, false, true) {
                 target = Some(i as i64 + 1);
             }
         }
     });
+
     if let Some(n) = target {
-        if n < 0 {
-            for _ in 0..-n {
-                app.session.undo();
-            }
-        } else {
-            for _ in 0..n {
-                app.session.redo();
-            }
-        }
+        app.rollback_to_history(n);
     }
 }
 

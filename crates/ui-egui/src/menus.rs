@@ -592,6 +592,9 @@ pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params:
     if let Err(e) = &r {
         app.ui.status = e.clone();
     }
+    if r.is_ok() && matches!(id, "edit.undo" | "edit.redo") && app.collab.is_some() {
+        app.broadcast_rollback(if id == "edit.undo" { "Undo" } else { "Redo" });
+    }
     if r.is_ok() && matches!(id, "playhead.start" | "playhead.end") {
         crate::panels::timeline::reveal_playhead(app, ctx);
     }

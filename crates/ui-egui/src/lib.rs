@@ -1744,6 +1744,7 @@ impl FilmcraftApp {
             }
         }));
 
+        self.session.set_edit_author(Some(config.peer_id), Some(config.user_name.clone()), Some(config.user_color));
         self.collab = Some(session);
         self.collab_transport = Some(transport);
         self.collab_wakeup_registered = false;
@@ -1807,6 +1808,7 @@ impl FilmcraftApp {
             }
         }));
 
+        self.session.set_edit_author(Some(config.peer_id), Some(config.user_name.clone()), Some(config.user_color));
         self.collab = Some(session);
         self.collab_transport = Some(transport);
         self.collab_wakeup_registered = false;
@@ -1830,6 +1832,7 @@ impl FilmcraftApp {
         self.collab = None;
         self.collab_wakeup_registered = false;
         self.session.on_command = None;
+        self.session.set_edit_author(None, None, None);
         self.collab_last_locks.clear();
         #[cfg(target_arch = "wasm32")]
         {
@@ -1854,13 +1857,48 @@ impl FilmcraftApp {
             match event {
                 filmcraft_collab::CollabEvent::CommandReceived { peer_id, rev: _, id, params } => {
                     log::info!("Collab: executing remote command from peer {}: {}", peer_id, id);
+                    let peer_info = self.collab.as_ref().and_then(|c| {
+                        c.peers.try_read().ok().and_then(|peers| {
+                            peers.get(&peer_id).map(|p| (p.name.clone(), p.color_rgba))
+                        })
+                    });
+                    let (pname, pcolor) = peer_info.unwrap_or_else(|| (format!("Peer {peer_id}"), [180, 180, 180, 255]));
+                    let local_author = self.session.edit_author.clone();
+                    self.session.set_edit_author(Some(peer_id), Some(pname), Some(pcolor));
                     self.session.suppress_command_hook = true;
                     let r = self.session.execute(&id, params);
                     self.session.suppress_command_hook = false;
+                    self.session.edit_author = local_author;
                     if let Err(e) = r {
                         log::warn!("Collab: command {} execution error: {}", id, e);
                     }
                     ctx.request_repaint();
+                }
+                filmcraft_collab::CollabEvent::RollbackReceived { peer_id, revision, label, project_json, active_sequence } => {
+                    log::info!("Collab: received rollback to checkpoint '{}' (rev {}) from peer {}", label, revision, peer_id);
+                    match serde_json::from_str::<filmcraft_project::Project>(&project_json) {
+                        Ok(proj) => {
+                            self.session.project = std::sync::Arc::new(proj);
+                            self.session.revision = revision;
+                            self.session.saved_revision = revision;
+                            self.session.history.merge_key = None;
+                            self.session.fix_state();
+                            let peer_name = self.collab.as_ref()
+                                .and_then(|c| c.peers.try_read().ok().and_then(|p| p.get(&peer_id).map(|pr| pr.name.clone())))
+                                .unwrap_or_else(|| format!("Peer {peer_id}"));
+                            self.ui.status = format!("{peer_name} rolled back project to: '{label}'");
+                            let target_seq = active_sequence.or_else(|| self.session.project.sequences().next().map(|s| s.id.0));
+                            if let Some(seq_id) = target_seq {
+                                self.session.suppress_command_hook = true;
+                                let _ = self.session.execute("sequence.open", serde_json::json!({"item": seq_id}));
+                                self.session.suppress_command_hook = false;
+                            }
+                            ctx.request_repaint();
+                        }
+                        Err(e) => {
+                            log::error!("Collab: failed to parse rollback project snapshot: {}", e);
+                        }
+                    }
                 }
                 filmcraft_collab::CollabEvent::SnapshotRequested { peer_id } => {
                     log::info!("Collab: sending project snapshot to peer {}", peer_id);
@@ -2288,10 +2326,37 @@ impl FilmcraftApp {
             filmcraft_collab::CollabMessage::CommitCommand { peer_id, id, params, .. } => {
                 if peer_id == collab.config.peer_id { return; }
                 log::info!("Web Collab: remote command from peer {peer_id}: {id}");
+                let peer_info = collab.peers.try_read().ok().and_then(|peers| {
+                    peers.get(&peer_id).map(|p| (p.name.clone(), p.color_rgba))
+                });
+                let (pname, pcolor) = peer_info.unwrap_or_else(|| (format!("Peer {peer_id}"), [180, 180, 180, 255]));
+                let local_author = self.session.edit_author.clone();
+                self.session.set_edit_author(Some(peer_id), Some(pname), Some(pcolor));
                 self.session.suppress_command_hook = true;
                 let _ = self.session.execute(&id, params);
                 self.session.suppress_command_hook = false;
+                self.session.edit_author = local_author;
                 ctx.request_repaint();
+            }
+            filmcraft_collab::CollabMessage::RollbackToCheckpoint { peer_id, revision, label, project_json, active_sequence } => {
+                if peer_id == collab.config.peer_id { return; }
+                log::info!("Web Collab: received rollback to checkpoint '{}' (rev {}) from peer {}", label, revision, peer_id);
+                if let Ok(proj) = serde_json::from_str::<filmcraft_project::Project>(&project_json) {
+                    self.session.project = std::sync::Arc::new(proj);
+                    self.session.revision = revision;
+                    self.session.saved_revision = revision;
+                    self.session.history.merge_key = None;
+                    self.session.fix_state();
+                    let peer_name = collab.peers.try_read().ok().and_then(|p| p.get(&peer_id).map(|pr| pr.name.clone())).unwrap_or_else(|| format!("Peer {peer_id}"));
+                    self.ui.status = format!("{peer_name} rolled back project to: '{label}'");
+                    let target_seq = active_sequence.or_else(|| self.session.project.sequences().next().map(|s| s.id.0));
+                    if let Some(seq_id) = target_seq {
+                        self.session.suppress_command_hook = true;
+                        let _ = self.session.execute("sequence.open", serde_json::json!({"item": seq_id}));
+                        self.session.suppress_command_hook = false;
+                    }
+                    ctx.request_repaint();
+                }
             }
             filmcraft_collab::CollabMessage::ClaimLock(lock) => {
                 if lock.peer_id == collab.config.peer_id { return; }
@@ -2410,6 +2475,8 @@ fn is_replicated_collab_command(id: &str) -> bool {
         || id == "sequence.snapping"
         || id == "collab.toggleDialog"
         || id == "app.quit"
+        || id == "edit.undo"
+        || id == "edit.redo"
     {
         return false;
     }
@@ -2417,6 +2484,55 @@ fn is_replicated_collab_command(id: &str) -> bool {
 }
 
 impl FilmcraftApp {
+    /// Rollback or redo historical project steps, synchronizing with peers when collaborating.
+    pub fn rollback_to_history(&mut self, target_steps: i64) {
+        let label = if target_steps < 0 {
+            let mut last_label = String::new();
+            for _ in 0..-target_steps {
+                if let Some(l) = self.session.undo() {
+                    last_label = l;
+                }
+            }
+            if last_label.is_empty() { "Undo".to_string() } else { format!("Undo: {}", last_label) }
+        } else if target_steps > 0 {
+            let mut last_label = String::new();
+            for _ in 0..target_steps {
+                if let Some(l) = self.session.redo() {
+                    last_label = l;
+                }
+            }
+            if last_label.is_empty() { "Redo".to_string() } else { format!("Redo: {}", last_label) }
+        } else {
+            return;
+        };
+
+        if self.collab.is_some() {
+            self.broadcast_rollback(&label);
+        }
+        self.ui.status = format!("Restored checkpoint ({label})");
+    }
+
+    /// Broadcast a project rollback to all peers to guarantee deterministic state synchronization.
+    pub fn broadcast_rollback(&mut self, label: &str) {
+        let Some(collab) = &self.collab else { return };
+        if let Ok(project_json) = serde_json::to_string(&self.session.project) {
+            let active_sequence = self.session.state.active_sequence.map(|i| i.0);
+            let msg = filmcraft_collab::CollabMessage::RollbackToCheckpoint {
+                peer_id: collab.config.peer_id,
+                revision: self.session.revision,
+                label: label.to_string(),
+                project_json: project_json.clone(),
+                active_sequence,
+            };
+            let _ = collab.msg_tx.send(msg.clone());
+            #[cfg(target_arch = "wasm32")]
+            if let Ok(json_str) = serde_json::to_string(&msg) {
+                let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
+                let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
+                let _ = js_sys::eval(&js);
+            }
+        }
+    }
 
     /// Capture once the UI shows the current state (`settled`): after a seek the monitor shows the
     /// nearest cached picture until the exact frame is decoded, and an agent must not be handed

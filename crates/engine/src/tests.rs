@@ -94,6 +94,24 @@ fn add_edit_undo_redo() {
 }
 
 #[test]
+fn history_author_metadata_tracking() {
+    let mut s = demo();
+    s.execute("playhead.set", json!({"seconds": 2.0})).unwrap();
+    s.set_edit_author(Some(42), Some("Alice".to_string()), Some([255, 100, 50, 255]));
+    s.execute("sequence.addEditAllTracks", json!({})).unwrap();
+    assert_eq!(s.history.undo_meta.last().unwrap().author_id, Some(42));
+    assert_eq!(s.history.undo_meta.last().unwrap().author_name.as_deref(), Some("Alice"));
+    assert_eq!(s.history.undo_meta.last().unwrap().author_color, Some([255, 100, 50, 255]));
+
+    s.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(s.history.redo_meta.last().unwrap().author_id, Some(42));
+    assert_eq!(s.history.redo_meta.last().unwrap().author_name.as_deref(), Some("Alice"));
+
+    s.execute("edit.redo", json!({})).unwrap();
+    assert_eq!(s.history.undo_meta.last().unwrap().author_id, Some(42));
+}
+
+#[test]
 fn source_insert_three_point() {
     let mut s = demo();
     let item = s

@@ -221,6 +221,15 @@ pub enum CollabMessage {
         active_sequence: Option<u64>,
     },
 
+    /// Rollback or time-travel to a specific checkpoint snapshot.
+    RollbackToCheckpoint {
+        peer_id: PeerId,
+        revision: u64,
+        label: String,
+        project_json: String,
+        active_sequence: Option<u64>,
+    },
+
     /// Authentication challenge sent from host to connecting peer when passcode is set.
     AuthChallenge {
         nonce: [u8; 32],

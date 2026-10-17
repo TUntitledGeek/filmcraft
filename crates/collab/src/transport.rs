@@ -62,6 +62,13 @@ pub enum CollabEvent {
         revision: u64,
         active_sequence: Option<u64>,
     },
+    RollbackReceived {
+        peer_id: PeerId,
+        revision: u64,
+        label: String,
+        project_json: String,
+        active_sequence: Option<u64>,
+    },
     AssetReceived {
         category: String,
         filename: String,
@@ -650,6 +657,15 @@ async fn handle_peer_stream(
                         let _ = event_tx.send(CollabEvent::SnapshotReceived {
                             project_json,
                             revision,
+                            active_sequence,
+                        });
+                    }
+                    CollabMessage::RollbackToCheckpoint { peer_id, revision, label, project_json, active_sequence } => {
+                        let _ = event_tx.send(CollabEvent::RollbackReceived {
+                            peer_id,
+                            revision,
+                            label,
+                            project_json,
                             active_sequence,
                         });
                     }
