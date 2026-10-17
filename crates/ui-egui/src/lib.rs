@@ -388,6 +388,8 @@ pub struct FilmcraftApp {
     pub collab_port_input: String,
     /// Remote address input in co-op dialog.
     pub collab_addr_input: String,
+    /// Whether the wakeup callback for collab transport has been attached to egui.
+    pub collab_wakeup_registered: bool,
     /// Whether hosting or joining in co-op dialog.
     pub collab_is_host: bool,
     /// Pending extension offer prompt from a peer.
@@ -634,6 +636,7 @@ impl FilmcraftApp {
             collab_room_input: "ROOM-1".into(),
             collab_port_input: "9090".into(),
             collab_addr_input: "127.0.0.1:9090".into(),
+            collab_wakeup_registered: false,
             collab_is_host: true,
             pending_extension_offer: None,
             last_presence_send: std::time::Instant::now(),
@@ -1688,6 +1691,7 @@ impl FilmcraftApp {
 
         self.collab = Some(session);
         self.collab_transport = Some(transport);
+        self.collab_wakeup_registered = false;
         self.collab_is_host = true;
         Ok(())
     }
@@ -1723,6 +1727,7 @@ impl FilmcraftApp {
 
         self.collab = Some(session);
         self.collab_transport = Some(transport);
+        self.collab_wakeup_registered = false;
         self.collab_is_host = false;
         Ok(())
     }
@@ -1732,11 +1737,19 @@ impl FilmcraftApp {
             transport.shutdown();
         }
         self.collab = None;
+        self.collab_wakeup_registered = false;
         self.session.on_command = None;
     }
 
     pub fn drain_collab(&mut self, ctx: &egui::Context) {
         let Some(transport) = &self.collab_transport else { return };
+        if !self.collab_wakeup_registered {
+            self.collab_wakeup_registered = true;
+            let c = ctx.clone();
+            transport.set_wakeup(std::sync::Arc::new(move || {
+                c.request_repaint();
+            }));
+        }
         let start = std::time::Instant::now();
         let mut count = 0;
         while let Some(event) = transport.try_recv_event() {
@@ -1830,7 +1843,7 @@ impl FilmcraftApp {
         self.last_presence_send = std::time::Instant::now();
 
         let playhead = Some(self.session.playhead());
-        let cursor = ctx.input(|i| i.pointer.hover_pos()).map(|p| [p.x, p.y]);
+        let cursor = ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos())).map(|p| [p.x, p.y]);
         let msg = collab.create_presence(playhead, cursor);
         let _ = collab.msg_tx.send(msg);
     }

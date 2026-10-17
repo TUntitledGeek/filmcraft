@@ -115,6 +115,8 @@ struct PeerConnection {
     last_seen: Arc<RwLock<Instant>>,
 }
 
+pub type WakeupCallback = Arc<dyn Fn() + Send + Sync + 'static>;
+
 /// Collaborative Network Transport Controller.
 pub struct CollabTransport {
     pub session: Arc<CollabSession>,
@@ -124,6 +126,7 @@ pub struct CollabTransport {
     peers: Arc<RwLock<HashMap<PeerId, PeerConnection>>>,
     shutdown_tx: watch::Sender<bool>,
     pub is_host: bool,
+    wakeup: Arc<std::sync::Mutex<Option<WakeupCallback>>>,
 }
 
 impl CollabTransport {
@@ -145,12 +148,20 @@ impl CollabTransport {
             peers: Arc::new(RwLock::new(HashMap::new())),
             shutdown_tx,
             is_host,
+            wakeup: Arc::new(std::sync::Mutex::new(None)),
         };
 
         transport.spawn_broadcast_forwarder();
         transport.spawn_heartbeat_worker();
 
         Ok(transport)
+    }
+
+    /// Set a callback invoked immediately when any network message arrives to wake up the UI.
+    pub fn set_wakeup(&self, wakeup: WakeupCallback) {
+        if let Ok(mut lock) = self.wakeup.lock() {
+            *lock = Some(wakeup);
+        }
     }
 
     /// Try to receive the next event queued for the UI thread without blocking.
@@ -163,6 +174,7 @@ impl CollabTransport {
         let session = self.session.clone();
         let event_tx = self.event_tx.clone();
         let peers = self.peers.clone();
+        let wakeup = self.wakeup.clone();
         let mut shutdown_rx = self.shutdown_tx.subscribe();
 
         self.runtime.spawn(async move {
@@ -182,12 +194,14 @@ impl CollabTransport {
                     accept_res = listener.accept() => {
                         match accept_res {
                             Ok((stream, addr)) => {
+                                let _ = stream.set_nodelay(true);
                                 info!("Incoming peer connection from {}", addr);
                                 let session = session.clone();
                                 let event_tx = event_tx.clone();
                                 let peers = peers.clone();
+                                let wakeup = wakeup.clone();
                                 tokio::spawn(async move {
-                                    handle_peer_stream(stream, session, event_tx, peers, false).await;
+                                    handle_peer_stream(stream, session, event_tx, peers, wakeup, false).await;
                                 });
                             }
                             Err(e) => {
@@ -211,13 +225,15 @@ impl CollabTransport {
         let session = self.session.clone();
         let event_tx = self.event_tx.clone();
         let peers = self.peers.clone();
+        let wakeup = self.wakeup.clone();
 
         self.runtime.spawn(async move {
             info!("Connecting to collab host at {}...", remote_addr);
             match TcpStream::connect(remote_addr).await {
                 Ok(stream) => {
+                    let _ = stream.set_nodelay(true);
                     info!("Connected to collab host at {}", remote_addr);
-                    handle_peer_stream(stream, session, event_tx, peers, true).await;
+                    handle_peer_stream(stream, session, event_tx, peers, wakeup, true).await;
                 }
                 Err(e) => {
                     error!("Failed to connect to host {}: {}", remote_addr, e);
@@ -334,6 +350,7 @@ async fn handle_peer_stream(
     session: Arc<CollabSession>,
     event_tx: StdSender<CollabEvent>,
     peers: Arc<RwLock<HashMap<PeerId, PeerConnection>>>,
+    wakeup: Arc<std::sync::Mutex<Option<WakeupCallback>>>,
     is_client: bool,
 ) {
     let (mut reader, mut writer) = stream.into_split();
@@ -377,6 +394,11 @@ async fn handle_peer_stream(
         match read_framed(&mut reader).await {
             Ok(msg) => {
                 *last_seen.write().await = Instant::now();
+                if let Ok(guard) = wakeup.lock() {
+                    if let Some(w) = guard.as_ref() {
+                        w();
+                    }
+                }
 
                 match msg {
                     CollabMessage::Hello { peer_id, name, color_rgba, protocol_version, .. } => {
@@ -400,7 +422,15 @@ async fn handle_peer_stream(
                     }
                     CollabMessage::Presence(presence) => {
                         let id = presence.peer_id;
-                        session.peers.write().await.insert(id, presence);
+                        session.peers.write().await.insert(id, presence.clone());
+                        if !is_client {
+                            let peer_map = peers.read().await;
+                            for (pid, conn) in peer_map.iter() {
+                                if *pid != id {
+                                    let _ = conn.sender.send(CollabMessage::Presence(presence.clone()));
+                                }
+                            }
+                        }
                     }
                     CollabMessage::ClaimLock(lock) => {
                         session.lock_manager.write().await.claim(
@@ -422,9 +452,22 @@ async fn handle_peer_stream(
                         let _ = event_tx.send(CollabEvent::CommandReceived {
                             peer_id,
                             rev,
-                            id,
-                            params,
+                            id: id.clone(),
+                            params: params.clone(),
                         });
+                        if !is_client {
+                            let peer_map = peers.read().await;
+                            for (pid, conn) in peer_map.iter() {
+                                if *pid != peer_id {
+                                    let _ = conn.sender.send(CollabMessage::CommitCommand {
+                                        peer_id,
+                                        rev,
+                                        id: id.clone(),
+                                        params: params.clone(),
+                                    });
+                                }
+                            }
+                        }
                     }
                     CollabMessage::RequestSnapshot => {
                         if let Some(peer_id) = registered_peer_id {

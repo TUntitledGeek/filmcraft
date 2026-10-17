@@ -13,4 +13,4 @@ pub use id_allocator::CollabIdAllocator;
 pub use lock_manager::LockManager;
 pub use protocol::{CollabMessage, DragGhost, PeerId, PeerPresence, SoftLock, PROTOCOL_VERSION};
 pub use session::{CollabConfig, CollabSession};
-pub use transport::{CollabEvent, CollabTransport};
+pub use transport::{CollabEvent, CollabTransport, WakeupCallback};
