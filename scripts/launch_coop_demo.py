@@ -62,7 +62,7 @@ def main():
     p2 = subprocess.Popen([
         binary,
         "--control", str(client_ctrl_port),
-        "--empty",
+        "--demo",
         "--no-recover",
         "--data-dir", dir_client,
     ])

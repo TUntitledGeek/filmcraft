@@ -475,6 +475,9 @@ async fn handle_peer_stream(
                                 color_rgba,
                             });
                             info!("Peer {} ('{}') successfully registered", peer_id, name);
+                            if is_client {
+                                let _ = outgoing_tx.send(CollabMessage::RequestSnapshot);
+                            }
                         } else {
                             pending_peer_hello = Some((peer_id, name, color_rgba));
                         }

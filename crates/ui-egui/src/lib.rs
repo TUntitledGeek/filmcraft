@@ -1918,12 +1918,15 @@ impl FilmcraftApp {
                             self.session.project = std::sync::Arc::new(proj);
                             self.session.revision = revision;
                             self.session.saved_revision = revision;
+                            self.session.history.merge_key = None;
+                            self.session.fix_state();
                             let target_seq = active_sequence.or_else(|| self.session.project.sequences().next().map(|s| s.id.0));
                             if let Some(seq_id) = target_seq {
                                 self.session.suppress_command_hook = true;
                                 let _ = self.session.execute("sequence.open", serde_json::json!({"item": seq_id}));
                                 self.session.suppress_command_hook = false;
                             }
+                            self.ui.status = format!("Synchronized project snapshot (rev {revision})");
                             ctx.request_repaint();
                         }
                         Err(e) => {
@@ -1955,6 +1958,17 @@ impl FilmcraftApp {
                 }
                 filmcraft_collab::CollabEvent::PeerConnected { peer_id, name, .. } => {
                     self.ui.status = format!("Peer '{}' (ID {}) connected", name, peer_id);
+                    if self.collab_is_host {
+                        log::info!("Collab: new peer {} connected, broadcasting project snapshot", peer_id);
+                        if let Ok(project_json) = serde_json::to_string(&self.session.project) {
+                            let active_sequence = self.session.state.active_sequence.map(|i| i.0);
+                            let _ = transport.session.msg_tx.send(filmcraft_collab::CollabMessage::SyncSnapshot {
+                                project_json,
+                                revision: self.session.revision,
+                                active_sequence,
+                            });
+                        }
+                    }
                     ctx.request_repaint();
                 }
                 filmcraft_collab::CollabEvent::AuthFailed { reason } => {
