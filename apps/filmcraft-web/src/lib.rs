@@ -102,7 +102,7 @@ impl eframe::App for WebApp {
         self.app.logic(ctx, frame);
         api::poll_replies();
         // exports advance between frames (no threads)
-        if self.app.session.pump_jobs(std::time::Duration::from_millis(30)) {
+        if self.app.session.pump_jobs(std::time::Duration::from_millis(6)) {
             ctx.request_repaint();
         }
         if let Some(a) = &self.audio {

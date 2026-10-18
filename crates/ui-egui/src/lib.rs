@@ -2046,7 +2046,12 @@ impl FilmcraftApp {
         let Some(collab) = &self.collab else { return };
         let in_hand = crate::panels::dragged_payload_label(ctx, &self.session.project);
         let has_drag = self.tl.drag.is_some() || self.collab_drop_ghost.is_some() || in_hand.is_some();
-        if !has_drag && !self.collab_had_drag && self.last_presence_send.elapsed() < std::time::Duration::from_millis(33) {
+        let min_interval = if has_drag || self.collab_had_drag {
+            std::time::Duration::from_millis(16)
+        } else {
+            std::time::Duration::from_millis(33)
+        };
+        if self.last_presence_send.elapsed() < min_interval {
             return;
         }
         self.last_presence_send = web_time::Instant::now();
@@ -3035,9 +3040,10 @@ impl eframe::App for FilmcraftApp {
             ui.ctx().request_repaint();
             return;
         }
-        // No frame worker threads on the web: render queued frames here, within a time budget
-        // that leaves room for the UI pass (a no-op where workers run).
-        self.frames.pump(std::time::Duration::from_millis(if self.playback.playing { 24 } else { 40 }));
+        let is_interacting = ui.input(|i| i.pointer.any_down() || i.pointer.any_pressed() || i.pointer.delta().length_sq() > 0.0)
+            || self.tl.drag.is_some()
+            || self.collab_drop_ghost.is_some();
+
         // A panic in one panel must not close the app (losing unsaved work) or leave a blank
         // window: catch it, keep the session, and say what happened.
         if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.frame(ui))).is_err() {
@@ -3049,14 +3055,30 @@ impl eframe::App for FilmcraftApp {
             // a broken notice must not take the session down: drop it
             self.graphics_notice = None;
         }
+
+        // No frame worker threads on the web (wasm32 single-thread): render queued frames here,
+        // cooperatively yielding to the browser event loop so UI input and rendering maintain 60 FPS.
+        // During active user interaction (scrubbing, dragging), prioritize monitor jobs (prio <= 10)
+        // with a minimal 2ms slice. Background thumbnails (prio 40-50) wait for idle.
+        let (budget, max_prio) = if is_interacting {
+            (std::time::Duration::from_millis(2), Some(10))
+        } else if self.playback.playing {
+            (std::time::Duration::from_millis(8), Some(10))
+        } else {
+            (std::time::Duration::from_millis(4), None)
+        };
+        self.frames.pump_cooperative(budget, max_prio);
+
         let ctx = ui.ctx().clone();
         self.last_ui_time = ctx.input(|i| i.time);
         let has_local_drag = self.tl.drag.is_some() || self.collab_drop_ghost.is_some() || crate::panels::dragged_payload_label(&ctx, &self.session.project).is_some();
         let peer_has_drag = self.collab.as_ref().map_or(false, |c| {
             c.peers.try_read().map_or(false, |peers| peers.values().any(|p| p.active_drag.is_some() || p.in_hand.is_some()))
         });
-        if has_local_drag || self.collab_had_drag || peer_has_drag {
+        if (has_local_drag || self.collab_had_drag || peer_has_drag) && cfg!(not(target_arch = "wasm32")) {
             ctx.request_repaint();
+        } else if has_local_drag || self.collab_had_drag || peer_has_drag {
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
         self.broadcast_collab_presence(&ctx);
         if !self.synthetic.is_empty() {
@@ -3068,7 +3090,12 @@ impl eframe::App for FilmcraftApp {
             }
         }
         if self.frames.queue_len() > 0 {
-            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            let delay = if is_interacting {
+                std::time::Duration::from_millis(32)
+            } else {
+                std::time::Duration::from_millis(16)
+            };
+            ctx.request_repaint_after(delay);
         }
     }
 }

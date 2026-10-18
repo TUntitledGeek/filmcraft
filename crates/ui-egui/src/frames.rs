@@ -654,6 +654,12 @@ impl FrameServer {
     /// priority first, until `budget` has passed (at least one job). Jobs whose media is still
     /// loading go back to the queue. Returns the number of jobs finished. A no-op with workers.
     pub fn pump(&self, budget: Duration) -> usize {
+        self.pump_cooperative(budget, None)
+    }
+
+    /// Cooperative pump on wasm32: respects a maximum priority threshold and budget to keep
+    /// UI interaction, drag latency, and input processing at 60 FPS without jank.
+    pub fn pump_cooperative(&self, budget: Duration, max_prio: Option<u32>) -> usize {
         if cfg!(not(target_arch = "wasm32")) {
             return 0;
         }
@@ -667,6 +673,13 @@ impl FrameServer {
                     break;
                 }
                 let best = q.iter().enumerate().min_by_key(|(i, j)| (j.prio, *i)).map(|(i, _)| i).unwrap_or(0);
+                if let Some(limit) = max_prio {
+                    if let Some(j) = q.get(best) {
+                        if j.prio > limit {
+                            break;
+                        }
+                    }
+                }
                 match q.remove(best) {
                     Some(job) => job,
                     None => break,

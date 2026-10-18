@@ -29,11 +29,13 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Install wasm-bindgen-cli
+      - name: Install wasm-bindgen-cli and binaryen
         run: |
           curl -sL https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /tmp
           sudo cp /tmp/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl/wasm-bindgen /usr/local/bin/
           wasm-bindgen --version
+          sudo apt-get update && sudo apt-get install -y binaryen
+          wasm-opt --version
 
       - name: Build Web App
         run: |
