@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.png" type="image/png">
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1c1f; }
-    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
     #loading {
       position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px;
       align-items: center; justify-content: center; color: #c9c9cc;
@@ -159,9 +159,9 @@
     };
   </script>
   <script type="module">
-    // `44881d3d599d61a0` is replaced by `cargo xtask web` with a hash of the build: the glue and the
+    // `50a7fcd534adafea` is replaced by `cargo xtask web` with a hash of the build: the glue and the
     // wasm are cached as immutable, so their URLs must change with every build.
-    const build = "44881d3d599d61a0";
+    const build = "50a7fcd534adafea";
     const v = build.startsWith("__") ? "" : "?v=" + build;
     const t0 = performance.now();
     const params = new URLSearchParams(location.search);
