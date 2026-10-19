@@ -400,6 +400,12 @@ pub struct FilmcraftApp {
     pub collab_wakeup_registered: bool,
     /// Whether hosting or joining in co-op dialog.
     pub collab_is_host: bool,
+    /// Whether initial snapshot sync has been confirmed from host.
+    pub collab_synced: bool,
+    /// Last instant snapshot request was sent.
+    pub collab_last_sync_request: web_time::Instant,
+    /// Number of snapshot request attempts made.
+    pub collab_sync_attempts: u32,
     /// Pending extension offer prompt from a peer.
     pub pending_extension_offer: Option<ExtensionOfferModal>,
     /// Last program monitor picture rect for cursor normalization.
@@ -507,6 +513,37 @@ pub fn gpu_compositor_unsupported(adapter: &eframe::wgpu::Adapter) -> Option<Str
         return Some(format!("max texture size {max} < 4096"));
     }
     None
+}
+
+/// Generate a clean, random 6-character room code (e.g. "FC-78K2").
+pub fn generate_random_room_code() -> String {
+    let now = web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let chars = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let n = chars.len() as u128;
+    let c1 = chars[((now / 1) % n) as usize] as char;
+    let c2 = chars[((now / 29) % n) as usize] as char;
+    let c3 = chars[((now / 997) % n) as usize] as char;
+    let c4 = chars[((now / 31337) % n) as usize] as char;
+    format!("FC-{c1}{c2}{c3}{c4}")
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn web_collab_send(json_str: &str) {
+    use wasm_bindgen::JsCast;
+    if let Some(w) = web_sys::window() {
+        if let Ok(bridge) = js_sys::Reflect::get(&w, &"filmcraftCollabBridge".into()) {
+            if !bridge.is_undefined() {
+                if let Ok(send_fn) = js_sys::Reflect::get(&bridge, &"send".into()) {
+                    if let Ok(func) = send_fn.dyn_into::<js_sys::Function>() {
+                        let _ = func.call1(&bridge, &wasm_bindgen::JsValue::from_str(json_str));
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl FilmcraftApp {
@@ -663,7 +700,7 @@ impl FilmcraftApp {
             collab_transport: None,
             collab_dialog_open: false,
             collab_name_input: "Editor".into(),
-            collab_room_input: "ROOM-1".into(),
+            collab_room_input: generate_random_room_code(),
             collab_port_input: "9090".into(),
             collab_addr_input: "127.0.0.1:9090".into(),
             collab_passcode_input: String::new(),
@@ -672,6 +709,9 @@ impl FilmcraftApp {
             gdrive_config: filmcraft_engine::cloud_sync::GoogleDriveConfig::default(),
             collab_wakeup_registered: false,
             collab_is_host: true,
+            collab_synced: false,
+            collab_last_sync_request: web_time::Instant::now(),
+            collab_sync_attempts: 0,
             pending_extension_offer: None,
             program_pic_rect: None,
             source_pic_rect: None,
@@ -1737,9 +1777,7 @@ impl FilmcraftApp {
                     params: params.clone(),
                 };
                 if let Ok(json_str) = serde_json::to_string(&commit_msg) {
-                    let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
-                    let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
-                    let _ = js_sys::eval(&js);
+                    web_collab_send(&json_str);
                 }
             }
         }));
@@ -1749,6 +1787,7 @@ impl FilmcraftApp {
         self.collab_transport = Some(transport);
         self.collab_wakeup_registered = false;
         self.collab_is_host = true;
+        self.collab_synced = true;
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -1801,9 +1840,7 @@ impl FilmcraftApp {
                     params: params.clone(),
                 };
                 if let Ok(json_str) = serde_json::to_string(&commit_msg) {
-                    let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
-                    let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
-                    let _ = js_sys::eval(&js);
+                    web_collab_send(&json_str);
                 }
             }
         }));
@@ -1813,14 +1850,17 @@ impl FilmcraftApp {
         self.collab_transport = Some(transport);
         self.collab_wakeup_registered = false;
         self.collab_is_host = false;
+        self.collab_synced = false;
+        self.collab_sync_attempts = 0;
+        self.collab_last_sync_request = web_time::Instant::now();
 
         #[cfg(target_arch = "wasm32")]
         {
             let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.init('{}', false, {})", room_code, peer_id);
             let _ = js_sys::eval(&js);
-            let req_snap = "{\"RequestSnapshot\": null}".to_string();
-            let send_js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", req_snap);
-            let _ = js_sys::eval(&send_js);
+            if let Ok(req_snap) = serde_json::to_string(&filmcraft_collab::CollabMessage::RequestSnapshot) {
+                web_collab_send(&req_snap);
+            }
         }
         Ok(())
     }
@@ -1831,6 +1871,8 @@ impl FilmcraftApp {
         }
         self.collab = None;
         self.collab_wakeup_registered = false;
+        self.collab_synced = false;
+        self.collab_sync_attempts = 0;
         self.session.on_command = None;
         self.session.set_edit_author(None, None, None);
         self.collab_last_locks.clear();
@@ -2324,9 +2366,7 @@ impl FilmcraftApp {
         #[cfg(target_arch = "wasm32")]
         {
             if let Ok(json_str) = serde_json::to_string(&msg) {
-                let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
-                let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
-                let _ = js_sys::eval(&js);
+                web_collab_send(&json_str);
             }
         }
     }
@@ -2403,9 +2443,7 @@ impl FilmcraftApp {
                         let _ = collab.msg_tx.send(snap.clone());
                         #[cfg(target_arch = "wasm32")]
                         if let Ok(json_str) = serde_json::to_string(&snap) {
-                            let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
-                            let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
-                            let _ = js_sys::eval(&js);
+                            web_collab_send(&json_str);
                         }
                     }
                 }
@@ -2416,6 +2454,9 @@ impl FilmcraftApp {
                     self.session.project = std::sync::Arc::new(proj);
                     self.session.revision = revision;
                     self.session.saved_revision = revision;
+                    self.session.history.merge_key = None;
+                    self.session.fix_state();
+                    self.collab_synced = true;
                     let target_seq = active_sequence.or_else(|| self.session.project.sequences().next().map(|s| s.id.0));
                     if let Some(seq_id) = target_seq {
                         self.session.suppress_command_hook = true;
@@ -2546,9 +2587,7 @@ impl FilmcraftApp {
             let _ = collab.msg_tx.send(msg.clone());
             #[cfg(target_arch = "wasm32")]
             if let Ok(json_str) = serde_json::to_string(&msg) {
-                let escaped = json_str.replace('\\', "\\\\").replace('\'', "\\'");
-                let js = format!("window.filmcraftCollabBridge && window.filmcraftCollabBridge.send('{}')", escaped);
-                let _ = js_sys::eval(&js);
+                web_collab_send(&json_str);
             }
         }
     }
@@ -3081,6 +3120,20 @@ impl eframe::App for FilmcraftApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
         self.broadcast_collab_presence(&ctx);
+        if let Some(collab) = &self.collab {
+            if !self.collab_is_host && !self.collab_synced && self.collab_sync_attempts < 10 {
+                if self.collab_last_sync_request.elapsed() >= std::time::Duration::from_millis(1500) {
+                    self.collab_last_sync_request = web_time::Instant::now();
+                    self.collab_sync_attempts += 1;
+                    let _ = collab.msg_tx.send(filmcraft_collab::CollabMessage::RequestSnapshot);
+                    #[cfg(target_arch = "wasm32")]
+                    if let Ok(req_snap) = serde_json::to_string(&filmcraft_collab::CollabMessage::RequestSnapshot) {
+                        web_collab_send(&req_snap);
+                    }
+                }
+                ctx.request_repaint_after(std::time::Duration::from_millis(500));
+            }
+        }
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
         } else if !self.input_waiters.is_empty() {

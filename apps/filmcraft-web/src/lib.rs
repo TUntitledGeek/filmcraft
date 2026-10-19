@@ -214,12 +214,49 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                 let (tx, rx) = std::sync::mpsc::channel();
                 api::set_sender(tx);
                 app = app.with_control(rx);
-                if let Some(room) = query_param("room") {
-                    app.collab_room_input = room;
-                }
-                if let Some(key) = url_hash_key().or_else(|| query_param("key")) {
-                    app.collab_passcode_input = key;
-                    app.collab_passcode_visible = false;
+                if let Some(r) = query_param("room") {
+                    let room = r.trim().to_string();
+                    if !room.is_empty() {
+                        app.collab_room_input = room.clone();
+                        let key = url_hash_key().or_else(|| query_param("key")).map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
+                        if let Some(ref k) = key {
+                            app.collab_passcode_input = k.clone();
+                            app.collab_passcode_visible = false;
+                        }
+                        let is_host = query_flag("host");
+                        let auto_join = !query_flag("noautojoin") && query_param("autojoin").as_deref() != Some("0");
+                        if auto_join && !is_host {
+                            let name = query_param("name")
+                                .or_else(|| {
+                                    web_sys::window()
+                                        .and_then(|w| w.local_storage().ok().flatten())
+                                        .and_then(|s| s.get_item("filmcraft_collab_name").ok().flatten())
+                                        .filter(|s| !s.trim().is_empty())
+                                })
+                                .unwrap_or_else(|| {
+                                    let rand_suffix = (web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() % 1000) as u16;
+                                    format!("Editor-{rand_suffix:03}")
+                                });
+                            app.collab_name_input = name.clone();
+                            if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                                let _ = storage.set_item("filmcraft_collab_name", &name);
+                            }
+                            log::info!("1-Click Auto-Join: joining room '{room}' as '{name}'");
+                            match app.join_collab_room("127.0.0.1:9090", &name, &room, key.as_deref()) {
+                                Ok(()) => {
+                                    app.collab_dialog_open = false;
+                                    toast = Some(format!("Joined Room '{room}' as '{name}' via 1-click invite link"));
+                                }
+                                Err(e) => {
+                                    log::error!("1-Click Auto-Join failed: {e}");
+                                    app.collab_dialog_open = true;
+                                    toast = Some(format!("Failed to auto-join room '{room}': {e}"));
+                                }
+                            }
+                        } else if is_host {
+                            app.collab_is_host = true;
+                        }
+                    }
                 }
                 if let Some(t) = toast {
                     app.status(t);
