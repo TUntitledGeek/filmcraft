@@ -177,7 +177,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         let playing = if which == Which::Program { app.playback.playing } else { app.source_playback.clock.playing };
         let active_scrub = app.is_scrubbing();
         let in_motion = playing || active_scrub;
-        let res = mv.effective_res(in_motion);
+        let res = if active_scrub {
+            PlaybackRes::Quarter
+        } else {
+            mv.effective_res(in_motion)
+        };
         // frame pixels per screen pixel along the axis that needs the most of them
         let screen_scale = (pic.width() * ppp / frame_size.0.max(1) as f32).max(pic.height() * ppp / frame_size.1.max(1) as f32).min(1.0);
         let scale = quantize_scale(res.scale().min(screen_scale.max(1.0 / 32.0)));
@@ -508,7 +512,10 @@ fn cpu_texture(
         .frames
         .get(&key)
         .map(|img| (key, img))
-        .or_else(|| (1..=6).map(|d| FrameKey { frame: key.frame.saturating_sub(d), ..key }).find_map(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| (1..=8).map(|d| FrameKey { frame: key.frame.saturating_sub(d), ..key }).find_map(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| (1..=8).map(|d| FrameKey { frame: key.frame.saturating_add(d), ..key }).find_map(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| key.draft.then(|| FrameKey { draft: false, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| (!key.draft).then(|| FrameKey { draft: true, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
         .or_else(|| asked.iter().find_map(|k| app.frames.get(k).map(|img| (*k, img))));
     match found {
         Some((k, img)) => {
@@ -781,6 +788,9 @@ fn mini_timeline(
     // a time off a zoomed ruler is not drawn (past either end of it all, it sits at that end)
     let shows = |tk: Tick| (tk >= shown.0 || shown.0 <= origin) && (tk <= shown.1 || shown.1 >= end);
     let resp = ui.interact(bar, egui::Id::new((which as u8, "scrub")), Sense::click_and_drag());
+    if resp.is_pointer_button_down_on() && (resp.dragged() || resp.clicked()) {
+        app.monitor_scrubbing = true;
+    }
     app.auto.add(if which == Which::Program { "program.scrubBar" } else { "source.scrubBar" }, bar, "scrub bar");
     let interaction = crate::panels::source_range::interact(app, ui, bar, which, shown);
     let p = ui.painter();
@@ -879,6 +889,7 @@ fn mini_timeline(
     }
     let scrub = interaction.scrub.or_else(|| {
         if !interaction.handled && (resp.dragged() || resp.clicked()) {
+            app.monitor_scrubbing = true;
             resp.interact_pointer_pos().map(|pos| {
                 let f = ((pos.x - bar.min.x) / bar.width().max(1.0)).clamp(0.0, 1.0) as f64;
                 rate.snap(shown.0 + Tick((f * dur) as i64))

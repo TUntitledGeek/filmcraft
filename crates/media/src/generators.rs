@@ -6,6 +6,7 @@
 
 use std::f32::consts::{PI, TAU};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use filmcraft_color::ColorInfo;
 use filmcraft_frame::{AudioBuffer, VideoFrame};
@@ -81,7 +82,7 @@ impl Generator {
 pub struct GeneratorSource {
     pub generator: Generator,
     info: MediaInfo,
-    cache: FrameCache<(i64, u16)>,
+    cache: FrameCache<(i64, u16, bool)>,
 }
 
 impl GeneratorSource {
@@ -141,15 +142,25 @@ impl MediaSource for GeneratorSource {
     }
 
     fn video_frame(&self, req: FrameRequest) -> Result<Arc<VideoFrame>> {
+        if crate::cancel::cancelled() {
+            return Err(MediaError::NoStream("cancelled"));
+        }
         let v = self.info.video.as_ref().ok_or(MediaError::NoStream("video"))?;
         let rate = v.frame_rate;
         let frame = rate.frame_at(req.time.max(Tick::ZERO));
-        let scale = req.scale.clamp(1.0 / 64.0, 1.0);
+        let is_draft = crate::cancel::draft();
+        let scale = if is_draft {
+            req.scale.min(0.25).clamp(1.0 / 64.0, 1.0)
+        } else if cfg!(target_arch = "wasm32") {
+            req.scale.min(0.5).clamp(1.0 / 64.0, 1.0)
+        } else {
+            req.scale.clamp(1.0 / 64.0, 1.0)
+        };
         let bucket = (scale * 64.0).round() as u16;
         let s = bucket as f32 / 64.0;
         let (w, h) = (((v.width as f32 * s).round() as u32).max(2), ((v.height as f32 * s).round() as u32).max(2));
         let t = rate.tick_of(frame).seconds() as f32;
-        self.cache.get_or_insert_with((frame, bucket), || {
+        self.cache.get_or_insert_with((frame, bucket, is_draft), || {
             let px = render(&self.generator, w, h, t, frame, rate);
             Ok(Arc::new(VideoFrame::rgba8(w, h, px).with_pts(rate.tick_of(frame))))
         })
@@ -300,11 +311,20 @@ pub fn render(g: &Generator, w: u32, h: u32, t: f32, frame: i64, rate: FrameRate
         Generator::CountingLeader => leader(&mut px, wu, hu, t, frame, rate),
         Generator::Demo(scene) => {
             let scene = *scene;
+            let is_draft = crate::cancel::draft();
+            let cancelled = AtomicBool::new(false);
             px.par_chunks_mut(wu * 4).enumerate().for_each(|(y, row)| {
+                if cancelled.load(Ordering::Relaxed) {
+                    return;
+                }
+                if (y & 15) == 0 && crate::cancel::cancelled() {
+                    cancelled.store(true, Ordering::Relaxed);
+                    return;
+                }
                 let v = y as f32 / hu as f32;
                 for x in 0..wu {
                     let u = x as f32 / wu as f32;
-                    let c = demo_pixel(scene, u, v, wu as f32 / hu as f32, t);
+                    let c = demo_pixel(scene, u, v, wu as f32 / hu as f32, t, is_draft);
                     row[x * 4..x * 4 + 4].copy_from_slice(&to8(c));
                 }
             });
@@ -403,7 +423,7 @@ fn leader(px: &mut [u8], w: usize, h: usize, t: f32, _frame: i64, _rate: FrameRa
     draw_text(px, w, h, (w as i32 - tw) / 2, (h as i32 - dh) / 2, dh, &s, [20, 20, 20, 255]);
 }
 
-fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3] {
+fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: bool) -> [f32; 3] {
     match scene {
         DemoScene::OceanSunset => {
             let horizon = 0.58;
@@ -421,13 +441,15 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3]
                     c = [1.0, 0.95, 0.82];
                 }
                 // wispy clouds
-                let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, 4);
+                let oct = if is_draft { 2 } else { 4 };
+                let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, oct);
                 let cm = smoothstep(0.15, 0.45, cl) * smoothstep(0.1, 0.45, v) * (1.0 - smoothstep(0.45, 0.55, v));
                 lerp3(c, [0.55, 0.28, 0.35], cm * 0.55)
             } else {
                 let k = (v - horizon) / (1.0 - horizon);
                 let mut c = lerp3([0.35, 0.18, 0.28], [0.03, 0.05, 0.12], k.powf(0.7));
-                let wave = fbm(u * 18.0 * (1.0 - k * 0.6) + t * 0.3, (v - horizon) * 90.0 / (0.3 + k) - t * 1.4, 3);
+                let oct = if is_draft { 1 } else { 3 };
+                let wave = fbm(u * 18.0 * (1.0 - k * 0.6) + t * 0.3, (v - horizon) * 90.0 / (0.3 + k) - t * 1.4, oct);
                 let dx = (u - sun[0]) * aspect;
                 let path = (-dx * dx * 160.0 / (0.2 + k * 2.0)).exp();
                 let sparkle = smoothstep(0.05, 0.4, wave) * path;
@@ -438,24 +460,29 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3]
         DemoScene::Aurora => {
             let mut c = lerp3([0.01, 0.02, 0.08], [0.02, 0.1, 0.18], v);
             // stars
-            let sx = (u * 900.0).floor();
-            let sy = (v * 500.0).floor();
-            let st = hash((sx as i64) * 7919 + sy as i64 * 104_729);
-            if st > 0.994 && v < 0.7 {
-                let tw = 0.6 + 0.4 * (t * 3.0 + st * 100.0).sin();
-                c = lerp3(c, [0.9, 0.95, 1.0], tw);
+            if !is_draft {
+                let sx = (u * 900.0).floor();
+                let sy = (v * 500.0).floor();
+                let st = hash((sx as i64) * 7919 + sy as i64 * 104_729);
+                if st > 0.994 && v < 0.7 {
+                    let tw = 0.6 + 0.4 * (t * 3.0 + st * 100.0).sin();
+                    c = lerp3(c, [0.9, 0.95, 1.0], tw);
+                }
             }
             // aurora curtains
+            let oct1 = if is_draft { 1 } else { 3 };
+            let oct2 = if is_draft { 1 } else { 2 };
             for (i, col) in [[0.2, 1.0, 0.55], [0.55, 0.3, 1.0], [0.1, 0.9, 0.8]].iter().enumerate() {
                 let fi = i as f32;
-                let base = 0.28 + 0.08 * fi + 0.06 * (u * 3.0 + t * 0.15 + fi).sin() + 0.05 * fbm(u * 3.0 + t * 0.05, fi, 3);
+                let base = 0.28 + 0.08 * fi + 0.06 * (u * 3.0 + t * 0.15 + fi).sin() + 0.05 * fbm(u * 3.0 + t * 0.05, fi, oct1);
                 let dy = v - base;
-                let ray = 0.5 + 0.5 * fbm(u * 40.0 + t * 0.4 + fi * 10.0, fi, 2);
+                let ray = 0.5 + 0.5 * fbm(u * 40.0 + t * 0.4 + fi * 10.0, fi, oct2);
                 let a = (-dy * dy * 90.0).exp() * if dy > 0.0 { 1.0 } else { (dy * 12.0).exp() } * ray;
                 c = lerp3(c, *col, (a * 0.8).min(1.0));
             }
             // mountains
-            let m = 0.72 + 0.08 * fbm(u * 3.0, 3.3, 5) + 0.05 * (u * 5.0).sin();
+            let m_oct = if is_draft { 2 } else { 5 };
+            let m = 0.72 + 0.08 * fbm(u * 3.0, 3.3, m_oct) + 0.05 * (u * 5.0).sin();
             if v > m {
                 let snow = smoothstep(0.02, 0.0, v - m) * 0.3;
                 c = lerp3([0.02, 0.03, 0.05], [0.4, 0.5, 0.6], snow);
@@ -469,7 +496,8 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3]
         DemoScene::CityNight => {
             let mut c = lerp3([0.05, 0.02, 0.15], [0.55, 0.2, 0.35], v.powf(2.2));
             let layers = [(0.15, 0.55, [0.12, 0.08, 0.2], 0.02), (0.28, 0.62, [0.07, 0.05, 0.12], 0.05), (0.45, 0.7, [0.03, 0.02, 0.06], 0.12)];
-            for (li, (bw, base, col, speed)) in layers.iter().enumerate() {
+            let max_l = if is_draft { 2 } else { layers.len() };
+            for (li, (bw, base, col, speed)) in layers[..max_l].iter().enumerate() {
                 let x = u * aspect / bw + t * speed;
                 let bi = x.floor();
                 let hgt = base - 0.32 * (0.5 + 0.5 * hash(bi as i64 * 31 + li as i64));
@@ -501,10 +529,11 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3]
             let mut c = lerp3([0.35, 0.6, 0.9], [0.98, 0.85, 0.65], smoothstep(0.0, 0.5, v));
             let sun_d = ((u - 0.75) * aspect).hypot(v - 0.22);
             c = lerp3(c, [1.0, 0.97, 0.85], (-sun_d * 14.0).exp());
+            let oct = if is_draft { 1 } else { 3 };
             for k in 0..4 {
                 let fk = k as f32;
                 let x = u * (1.0 + fk * 0.6) + t * 0.01 * (fk + 1.0);
-                let ridge = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, 3);
+                let ridge = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, oct);
                 if v > ridge {
                     let shade = 0.5 + 0.5 * ((x * 6.0 + fk).cos());
                     let base = lerp3([0.78, 0.45, 0.22], [0.98, 0.72, 0.45], shade);
@@ -523,7 +552,8 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3]
         DemoScene::Forest => {
             let mut c = lerp3([0.75, 0.82, 0.8], [0.35, 0.45, 0.4], v);
             // god rays
-            let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, 2);
+            let oct1 = if is_draft { 1 } else { 2 };
+            let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, oct1);
             c = lerp3(c, [1.0, 0.97, 0.85], ray * (1.0 - v) * 0.35);
             for k in 0..5 {
                 let fk = k as f32;
@@ -538,7 +568,8 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3]
                     c = lerp3(c, dark, 0.85);
                 }
             }
-            let mist = smoothstep(0.55, 1.0, v) * (0.6 + 0.4 * fbm(u * 3.0 + t * 0.1, v * 5.0, 3));
+            let oct2 = if is_draft { 1 } else { 3 };
+            let mist = smoothstep(0.55, 1.0, v) * (0.6 + 0.4 * fbm(u * 3.0 + t * 0.1, v * 5.0, oct2));
             lerp3(c, [0.85, 0.88, 0.86], mist * 0.6)
         }
     }
@@ -555,6 +586,17 @@ mod tests {
         assert_eq!((a.width, a.height), (480, 270));
         let b = render(&Generator::Demo(DemoScene::OceanSunset), 480, 270, FrameRate::FPS_23_976.tick_of(23).seconds() as f32, 23, FrameRate::FPS_23_976);
         assert_eq!(a.to_rgba8(), b);
+    }
+
+    #[test]
+    fn draft_mode_scales_and_renders() {
+        let g = GeneratorSource::demo(DemoScene::OceanSunset);
+        let a = crate::cancel::with_draft(true, || {
+            g.video_frame(FrameRequest { time: Tick(TICKS_PER_SECOND), scale: 0.5 }).unwrap()
+        });
+        // Draft clamp downsamples to 0.25 max for instant responsive scrubbing
+        assert_eq!((a.width, a.height), (480, 270));
+        assert_eq!(a.to_rgba8().len(), 480 * 270 * 4);
     }
 
     #[test]

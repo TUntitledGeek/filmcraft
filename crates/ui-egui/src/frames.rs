@@ -685,10 +685,16 @@ impl FrameServer {
                     None => break,
                 }
             };
+            if job.cancel.load(Ordering::Relaxed) {
+                continue;
+            }
             if run_job(&self.shared, &job, &self.pool, &self.services, &self.previews) {
                 done += 1;
             } else {
                 retry.push(job);
+            }
+            if max_prio.is_some() && done >= 1 {
+                break;
             }
             if t0.elapsed() >= budget {
                 break;

@@ -428,6 +428,7 @@ pub struct FilmcraftApp {
     pub(crate) collab_drop_ghost: Option<filmcraft_collab::DragGhost>,
     /// Whether a timeline drag was active on the previous frame.
     pub(crate) collab_had_drag: bool,
+    pub monitor_scrubbing: bool,
     /// Last timestamp local presence was broadcast.
     last_presence_send: web_time::Instant,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
@@ -728,6 +729,7 @@ impl FilmcraftApp {
             collab_last_locks: Vec::new(),
             collab_drop_ghost: None,
             collab_had_drag: false,
+            monitor_scrubbing: false,
             last_presence_send: web_time::Instant::now(),
             gpu: None,
             watched_render: None,
@@ -1914,7 +1916,7 @@ impl FilmcraftApp {
     }
 
     pub fn is_scrubbing(&self) -> bool {
-        matches!(self.tl.drag, Some(crate::panels::timeline::Drag::Scrub { .. }))
+        matches!(self.tl.drag, Some(crate::panels::timeline::Drag::Scrub { .. })) || self.monitor_scrubbing
     }
 
     pub fn drain_collab(&mut self, ctx: &egui::Context) {
@@ -3114,8 +3116,12 @@ impl eframe::App for FilmcraftApp {
             ui.ctx().request_repaint();
             return;
         }
+        if ui.input(|i| !i.pointer.any_down() && !i.pointer.any_pressed()) {
+            self.monitor_scrubbing = false;
+        }
         let is_interacting = ui.input(|i| i.pointer.any_down() || i.pointer.any_pressed() || i.pointer.delta().length_sq() > 0.0)
             || self.tl.drag.is_some()
+            || self.monitor_scrubbing
             || self.collab_drop_ghost.is_some();
 
         // A panic in one panel must not close the app (losing unsaved work) or leave a blank
@@ -3145,7 +3151,7 @@ impl eframe::App for FilmcraftApp {
 
         let ctx = ui.ctx().clone();
         self.last_ui_time = ctx.input(|i| i.time);
-        let has_local_drag = self.tl.drag.is_some() || self.collab_drop_ghost.is_some() || crate::panels::dragged_payload_label(&ctx, &self.session.project).is_some();
+        let has_local_drag = self.tl.drag.is_some() || self.monitor_scrubbing || self.collab_drop_ghost.is_some() || crate::panels::dragged_payload_label(&ctx, &self.session.project).is_some();
         let peer_has_drag = self.collab.as_ref().map_or(false, |c| {
             c.peers.try_read().map_or(false, |peers| peers.values().any(|p| p.active_drag.is_some() || p.in_hand.is_some()))
         });
@@ -3176,12 +3182,11 @@ impl eframe::App for FilmcraftApp {
             }
         }
         if self.frames.queue_len() > 0 {
-            let delay = if is_interacting {
-                std::time::Duration::from_millis(32)
+            if is_interacting {
+                ctx.request_repaint();
             } else {
-                std::time::Duration::from_millis(16)
-            };
-            ctx.request_repaint_after(delay);
+                ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            }
         }
     }
 }

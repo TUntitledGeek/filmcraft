@@ -356,14 +356,14 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             v.scroll += (v.target_scroll - v.scroll) * k;
             app.tl.zoom_anchor = None;
         }
-        if (v.pps - v.target_pps).abs() > 1e-6 || (v.scroll - v.target_scroll).abs() > 1e-6 {
-            ctx.request_repaint();
-        }
-        if (v.pps - v.target_pps).abs() / v.target_pps < 0.0005 {
+        if (v.pps - v.target_pps).abs() / v.target_pps < 0.001 || (v.pps - v.target_pps).abs() < 0.01 {
             v.pps = v.target_pps;
         }
-        if (v.scroll - v.target_scroll).abs() * v.pps < 0.05 {
+        if (v.scroll - v.target_scroll).abs() * v.pps < 0.1 || (v.scroll - v.target_scroll).abs() < 0.001 {
             v.scroll = v.target_scroll;
+        }
+        if (v.pps - v.target_pps).abs() > 1e-6 || (v.scroll - v.target_scroll).abs() > 1e-6 {
+            ctx.request_repaint();
         }
     }
     // follow playhead while playing (Settings ▸ Timeline ▸ Timeline Playback Auto-Scrolling)
