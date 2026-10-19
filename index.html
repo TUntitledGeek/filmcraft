@@ -124,14 +124,28 @@
       _wireConn(conn) {
         conn.on("open", () => {
           this.connections.set(conn.peer, conn);
+          console.log("[Collab WebRTC] Data connection opened with:", conn.peer);
+          if (!this.isHost) {
+            try {
+              conn.send(JSON.stringify({ type: "RequestSnapshot" }));
+            } catch (e) {
+              console.warn("[Collab WebRTC] Failed to send RequestSnapshot:", e);
+            }
+          }
         });
         conn.on("data", (data) => {
           if (typeof data === "string" && window.filmcraftCollabReceiveWasm) {
             window.filmcraftCollabReceiveWasm(data);
           }
         });
-        conn.on("close", () => this.connections.delete(conn.peer));
-        conn.on("error", () => this.connections.delete(conn.peer));
+        conn.on("close", () => {
+          this.connections.delete(conn.peer);
+          console.log("[Collab WebRTC] Connection closed:", conn.peer);
+        });
+        conn.on("error", (err) => {
+          this.connections.delete(conn.peer);
+          console.warn("[Collab WebRTC] Connection error:", conn.peer, err);
+        });
       },
 
       send(jsonStr) {
@@ -159,9 +173,9 @@
     };
   </script>
   <script type="module">
-    // `50a7fcd534adafea` is replaced by `cargo xtask web` with a hash of the build: the glue and the
+    // `187a30c555ce45a1` is replaced by `cargo xtask web` with a hash of the build: the glue and the
     // wasm are cached as immutable, so their URLs must change with every build.
-    const build = "50a7fcd534adafea";
+    const build = "187a30c555ce45a1";
     const v = build.startsWith("__") ? "" : "?v=" + build;
     const t0 = performance.now();
     const params = new URLSearchParams(location.search);
