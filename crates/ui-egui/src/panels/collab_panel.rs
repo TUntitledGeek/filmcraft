@@ -46,8 +46,8 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
         .resizable(false)
         .default_size(vec2(420.0, 460.0))
         .show(ctx, |ui| {
-            let collab_state = app.collab.as_ref().map(|c| (c.config.clone(), c.peers.clone()));
-            if let Some((config, peers_lock)) = collab_state {
+            let collab_state = app.collab.as_ref().map(|c| (c.config.clone(), c.user_name(), c.peers.clone()));
+            if let Some((config, current_user_name, peers_lock)) = collab_state {
                 // ==========================================
                 // 1. CONNECTED STATE (Active Session)
                 // ==========================================
@@ -74,7 +74,19 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                         };
                         ui.label(sec_text);
                     });
-                    ui.label(RichText::new(format!("Editing as: {}", config.user_name)).weak());
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Your Display Name:").strong());
+                        let name_resp = ui.add(egui::TextEdit::singleline(&mut app.collab_name_input).desired_width(140.0));
+                        let enter_hit = name_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let update_clicked = ui.button("Update").clicked();
+                        if (enter_hit || update_clicked) && !app.collab_name_input.trim().is_empty() {
+                            let new_name = app.collab_name_input.trim().to_string();
+                            app.update_collab_user_name(&new_name);
+                            app.ui.status = format!("Updated display name to '{new_name}'");
+                        }
+                    });
+                    ui.label(RichText::new("Edits and timeline cursors will immediately show this name.").size(10.5).weak());
                 });
 
                 ui.add_space(8.0);
@@ -107,7 +119,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new("●").color(local_color));
                         let me_role = if app.collab_is_host { " (Host, You)" } else { " (You)" };
-                        ui.label(format!("{}{}", config.user_name, me_role));
+                        ui.label(format!("{}{}", current_user_name, me_role));
                     });
 
                     if let Ok(peers) = peers_lock.try_read() {
@@ -397,5 +409,89 @@ pub fn show_extension_offer_modal(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
     if close {
         app.pending_extension_offer = None;
+    }
+}
+
+pub fn show_collab_join_prompt(app: &mut FilmcraftApp, ctx: &egui::Context) {
+    let Some(prompt) = app.collab_join_prompt.clone() else { return };
+
+    let mut open = true;
+    let mut enter_room = false;
+
+    egui::Window::new("Join Live Co-op Session")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .default_size(vec2(400.0, 220.0))
+        .show(ctx, |ui| {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("🎬").size(24.0));
+                ui.vertical(|ui| {
+                    ui.heading("Live Co-op Editing");
+                    ui.label(RichText::new(format!("You've been invited to room: {}", prompt.room_code)).strong().color(Color32::from_rgb(100, 180, 255)));
+                });
+            });
+
+            ui.add_space(10.0);
+            ui.label(RichText::new("Designate your display name for this session:").strong());
+            ui.add_space(2.0);
+
+            let edit_resp = ui.add(
+                egui::TextEdit::singleline(&mut app.collab_name_input)
+                    .hint_text("Enter your name (e.g. Alex, Sam, Editor)")
+                    .desired_width(ui.available_width())
+            );
+
+            // Give the input field initial focus
+            if ui.memory(|m| m.focused().is_none()) {
+                edit_resp.request_focus();
+            }
+
+            if edit_resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                enter_room = true;
+            }
+
+            ui.add_space(12.0);
+            let join_btn = egui::Button::new(
+                RichText::new("🚀 Join Room & Start Editing").size(14.0).strong().color(Color32::WHITE)
+            )
+            .fill(Color32::from_rgb(32, 140, 60));
+
+            if ui.add_sized([ui.available_width(), 36.0], join_btn).clicked() {
+                enter_room = true;
+            }
+
+            ui.add_space(4.0);
+            ui.label(RichText::new("Your edits and timeline cursor will be attributed to this name.").size(10.5).weak());
+        });
+
+    if !open {
+        app.collab_join_prompt = None;
+    } else if enter_room {
+        let name = if app.collab_name_input.trim().is_empty() {
+            "Editor".to_string()
+        } else {
+            app.collab_name_input.trim().to_string()
+        };
+        app.collab_name_input = name.clone();
+        #[cfg(target_arch = "wasm32")]
+        if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+            let _ = storage.set_item("filmcraft_collab_name", &name);
+        }
+
+        let addr = if cfg!(target_arch = "wasm32") { "127.0.0.1:9090".to_string() } else { app.collab_addr_input.trim().to_string() };
+        match app.join_collab_room(&addr, &name, &prompt.room_code, prompt.passcode.as_deref()) {
+            Ok(()) => {
+                app.ui.status = format!("Joined room '{}' as '{}'!", prompt.room_code, name);
+                app.collab_dialog_open = false;
+            }
+            Err(e) => {
+                app.ui.status = format!("Failed to join room: {e}");
+                app.collab_dialog_open = true;
+            }
+        }
+        app.collab_join_prompt = None;
     }
 }

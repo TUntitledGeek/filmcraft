@@ -225,36 +225,43 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                         }
                         let is_host = query_flag("host");
                         let auto_join = !query_flag("noautojoin") && query_param("autojoin").as_deref() != Some("0");
-                        if auto_join && !is_host {
-                            let name = query_param("name")
-                                .or_else(|| {
-                                    web_sys::window()
-                                        .and_then(|w| w.local_storage().ok().flatten())
-                                        .and_then(|s| s.get_item("filmcraft_collab_name").ok().flatten())
-                                        .filter(|s| !s.trim().is_empty())
-                                })
-                                .unwrap_or_else(|| {
-                                    let rand_suffix = (web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() % 1000) as u16;
-                                    format!("Editor-{rand_suffix:03}")
-                                });
-                            app.collab_name_input = name.clone();
-                            if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
-                                let _ = storage.set_item("filmcraft_collab_name", &name);
-                            }
-                            log::info!("1-Click Auto-Join: joining room '{room}' as '{name}'");
-                            match app.join_collab_room("127.0.0.1:9090", &name, &room, key.as_deref()) {
-                                Ok(()) => {
-                                    app.collab_dialog_open = false;
-                                    toast = Some(format!("Joined Room '{room}' as '{name}' via 1-click invite link"));
-                                }
-                                Err(e) => {
-                                    log::error!("1-Click Auto-Join failed: {e}");
-                                    app.collab_dialog_open = true;
-                                    toast = Some(format!("Failed to auto-join room '{room}': {e}"));
-                                }
-                            }
-                        } else if is_host {
+                        if is_host {
                             app.collab_is_host = true;
+                        } else if auto_join {
+                            let explicit_query_name = query_param("name").filter(|n| !n.trim().is_empty());
+                            let saved_custom_name = web_sys::window()
+                                .and_then(|w| w.local_storage().ok().flatten())
+                                .and_then(|s| s.get_item("filmcraft_collab_name").ok().flatten())
+                                .filter(|s| {
+                                    let t = s.trim();
+                                    !t.is_empty() && t != "Editor" && !t.starts_with("Editor-")
+                                });
+
+                            if let Some(name) = explicit_query_name.or(saved_custom_name) {
+                                app.collab_name_input = name.clone();
+                                if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                                    let _ = storage.set_item("filmcraft_collab_name", &name);
+                                }
+                                log::info!("1-Click Auto-Join: joining room '{room}' as '{name}'");
+                                match app.join_collab_room("127.0.0.1:9090", &name, &room, key.as_deref()) {
+                                    Ok(()) => {
+                                        app.collab_dialog_open = false;
+                                        toast = Some(format!("Joined Room '{room}' as '{name}' via 1-click invite link"));
+                                    }
+                                    Err(e) => {
+                                        log::error!("1-Click Auto-Join failed: {e}");
+                                        app.collab_dialog_open = true;
+                                        toast = Some(format!("Failed to auto-join room '{room}': {e}"));
+                                    }
+                                }
+                            } else {
+                                let rand_suffix = (web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() % 1000) as u16;
+                                app.collab_name_input = format!("Editor-{rand_suffix:03}");
+                                app.collab_join_prompt = Some(filmcraft_ui_egui::CollabJoinPrompt {
+                                    room_code: room.clone(),
+                                    passcode: key.clone(),
+                                });
+                            }
                         }
                     }
                 }

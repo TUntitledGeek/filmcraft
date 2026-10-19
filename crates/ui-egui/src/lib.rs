@@ -194,6 +194,12 @@ pub struct RelinkHint {
     pub params: serde_json::Value,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CollabJoinPrompt {
+    pub room_code: String,
+    pub passcode: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dialog {
     About,
@@ -408,6 +414,8 @@ pub struct FilmcraftApp {
     pub collab_sync_attempts: u32,
     /// Pending extension offer prompt from a peer.
     pub pending_extension_offer: Option<ExtensionOfferModal>,
+    /// Pending join prompt for designating name upon invite link open.
+    pub collab_join_prompt: Option<CollabJoinPrompt>,
     /// Last program monitor picture rect for cursor normalization.
     pub(crate) program_pic_rect: Option<egui::Rect>,
     /// Last source monitor picture rect for cursor normalization.
@@ -713,6 +721,7 @@ impl FilmcraftApp {
             collab_last_sync_request: web_time::Instant::now(),
             collab_sync_attempts: 0,
             pending_extension_offer: None,
+            collab_join_prompt: None,
             program_pic_rect: None,
             source_pic_rect: None,
             visible_panels: Vec::new(),
@@ -1880,6 +1889,32 @@ impl FilmcraftApp {
         {
             let _ = js_sys::eval("window.filmcraftCollabBridge && window.filmcraftCollabBridge.disconnect()");
         }
+    }
+
+    pub fn update_collab_user_name(&mut self, new_name: &str) {
+        let trimmed = new_name.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        self.collab_name_input = trimmed.to_string();
+        if let Some(collab) = &self.collab {
+            collab.set_user_name(trimmed.to_string());
+            self.session.set_edit_author(
+                Some(collab.config.peer_id),
+                Some(trimmed.to_string()),
+                Some(collab.config.user_color),
+            );
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                let _ = storage.set_item("filmcraft_collab_name", trimmed);
+            }
+        }
+    }
+
+    pub fn is_scrubbing(&self) -> bool {
+        matches!(self.tl.drag, Some(crate::panels::timeline::Drag::Scrub { .. }))
     }
 
     pub fn drain_collab(&mut self, ctx: &egui::Context) {
@@ -3114,10 +3149,8 @@ impl eframe::App for FilmcraftApp {
         let peer_has_drag = self.collab.as_ref().map_or(false, |c| {
             c.peers.try_read().map_or(false, |peers| peers.values().any(|p| p.active_drag.is_some() || p.in_hand.is_some()))
         });
-        if (has_local_drag || self.collab_had_drag || peer_has_drag) && cfg!(not(target_arch = "wasm32")) {
+        if has_local_drag || self.collab_had_drag || peer_has_drag {
             ctx.request_repaint();
-        } else if has_local_drag || self.collab_had_drag || peer_has_drag {
-            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
         self.broadcast_collab_presence(&ctx);
         if let Some(collab) = &self.collab {

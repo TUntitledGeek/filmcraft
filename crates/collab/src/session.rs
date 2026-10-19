@@ -23,6 +23,7 @@ pub struct CollabConfig {
 /// State of an active collaborative session.
 pub struct CollabSession {
     pub config: CollabConfig,
+    pub user_name: Arc<std::sync::RwLock<String>>,
     pub id_allocator: Arc<RwLock<CollabIdAllocator>>,
     pub lock_manager: Arc<RwLock<LockManager>>,
     pub peers: Arc<RwLock<HashMap<PeerId, PeerPresence>>>,
@@ -34,14 +35,28 @@ impl CollabSession {
     pub fn new(config: CollabConfig) -> Self {
         let (msg_tx, _) = broadcast::channel(1024);
         let id_allocator = Arc::new(RwLock::new(CollabIdAllocator::new(config.peer_id)));
+        let user_name = Arc::new(std::sync::RwLock::new(config.user_name.clone()));
 
         Self {
             config,
+            user_name,
             id_allocator,
             lock_manager: Arc::new(RwLock::new(LockManager::new())),
             peers: Arc::new(RwLock::new(HashMap::new())),
             current_rev: Arc::new(RwLock::new(0)),
             msg_tx,
+        }
+    }
+
+    pub fn user_name(&self) -> String {
+        self.user_name.read().map(|n| n.clone()).unwrap_or_else(|e| e.into_inner().clone())
+    }
+
+    pub fn set_user_name(&self, name: String) {
+        if let Ok(mut lock) = self.user_name.write() {
+            *lock = name;
+        } else if let Err(e) = self.user_name.write() {
+            *e.into_inner() = name;
         }
     }
 
@@ -94,7 +109,7 @@ impl CollabSession {
     ) -> CollabMessage {
         CollabMessage::Presence(PeerPresence {
             peer_id: self.config.peer_id,
-            name: self.config.user_name.clone(),
+            name: self.user_name(),
             color_rgba: self.config.user_color,
             panel,
             playhead_tick: playhead,

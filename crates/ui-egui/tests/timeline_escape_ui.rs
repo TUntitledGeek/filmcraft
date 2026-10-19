@@ -68,6 +68,10 @@ impl Driver {
         self.harness.state()
     }
 
+    fn app_mut(&mut self) -> &mut FilmcraftApp {
+        self.harness.state_mut()
+    }
+
     fn send(&mut self, e: egui::Event) {
         self.harness.input_mut().events.push(e);
         self.frames(1);
@@ -212,4 +216,43 @@ fn escape_cancels_marquee_selection() {
     d.frames(2);
 
     assert_eq!(d.app().session.state.selection, vec![v2.id], "original selection is preserved");
+}
+
+#[test]
+fn ruler_press_scrubs_immediately_with_zero_deadzone() {
+    let mut d = Driver::demo();
+    let initial_playhead = d.app().session.playhead();
+    let layout = d.app().tl.layout.as_ref().expect("layout").clone();
+    let from = pos2(layout.x_of(initial_playhead), layout.ruler.center().y);
+
+    d.send(egui::Event::PointerMoved(from));
+    d.send(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
+
+    // Scrub is immediately initiated on press without needing to move 4px!
+    assert!(matches!(d.app().tl.drag, Some(Drag::Scrub { .. })), "ruler scrub must be active on primary press");
+    assert!(d.app().is_scrubbing(), "app.is_scrubbing() must be true");
+
+    // Move only 1.0 pixel (well below egui's 4.0 pixel drag threshold)
+    let p_tiny = pos2(from.x + 5.0, from.y);
+    d.send(egui::Event::PointerMoved(p_tiny));
+    assert!(matches!(d.app().tl.drag, Some(Drag::Scrub { .. })), "drag remains active on tiny move");
+
+    // Release mouse
+    d.send(egui::Event::PointerButton { pos: p_tiny, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
+    d.frames(2);
+    assert!(d.app().tl.drag.is_none(), "drag is cleared on release");
+    assert!(!d.app().is_scrubbing(), "app.is_scrubbing() must be false when released");
+}
+
+#[test]
+fn update_collab_user_name_updates_session_and_author() {
+    let mut d = Driver::demo();
+    d.app_mut().start_collab_host(19876, "Original Name", "FC-TEST", None).unwrap();
+    assert_eq!(d.app().collab.as_ref().unwrap().user_name(), "Original Name");
+    assert_eq!(d.app().session.edit_author.as_ref().unwrap().author_name.as_deref(), Some("Original Name"));
+
+    d.app_mut().update_collab_user_name("Zayan Director");
+    assert_eq!(d.app().collab_name_input, "Zayan Director");
+    assert_eq!(d.app().collab.as_ref().unwrap().user_name(), "Zayan Director");
+    assert_eq!(d.app().session.edit_author.as_ref().unwrap().author_name.as_deref(), Some("Zayan Director"));
 }

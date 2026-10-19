@@ -175,7 +175,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     if show_picture {
         ui.painter().rect_filled(pic, 0.0, t.monitor_bg);
         let playing = if which == Which::Program { app.playback.playing } else { app.source_playback.clock.playing };
-        let res = mv.effective_res(playing);
+        let active_scrub = app.is_scrubbing();
+        let in_motion = playing || active_scrub;
+        let res = mv.effective_res(in_motion);
         // frame pixels per screen pixel along the axis that needs the most of them
         let screen_scale = (pic.width() * ppp / frame_size.0.max(1) as f32).max(pic.height() * ppp / frame_size.1.max(1) as f32).min(1.0);
         let scale = quantize_scale(res.scale().min(screen_scale.max(1.0 / 32.0)));
@@ -192,8 +194,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             (true, Target::Sequence(s)) => Target::SequencePlan(s),
             (_, t) => t,
         };
-        // Draft decoding (opt-in): only while playing at 1/2 resolution or lower.
-        let draft = crate::frames::draft_playback(playing, scale, app.session.prefs.playback.draft_decode);
+        // Draft decoding (opt-in or while scrubbing): only while in motion at 1/2 resolution or lower.
+        let draft = crate::frames::draft_playback(in_motion, scale, app.session.prefs.playback.draft_decode || active_scrub);
         let key = FrameKey { target, frame, size: size_key, revision: rev, draft };
         let project = app.session.project.clone();
         if playing {
