@@ -391,7 +391,7 @@ pub(crate) fn sample_wrap(img: &Image, x: f32, y: f32) -> [f32; 4] {
 /// Average a per-pixel scene over `n` time samples spread over `shutter` (in progress units)
 /// around `p` (motion blur). `n = 1` or `shutter = 0` evaluates once at `p`.
 pub(crate) fn temporal(x: f32, y: f32, p: f32, shutter: f32, n: usize, f: &(impl Fn(f32, f32, f32) -> [f32; 4] + Sync)) -> [f32; 4] {
-    if n <= 1 || shutter <= 1e-5 {
+    if n <= 1 || shutter <= 1e-5 || filmcraft_media::cancel::draft() {
         return f(x, y, p);
     }
     let mut acc = [0.0; 4];
@@ -407,5 +407,10 @@ pub(crate) fn temporal(x: f32, y: f32, p: f32, shutter: f32, n: usize, f: &(impl
 /// Motion-blur settings from the `motion_blur` param: (shutter in progress units, samples).
 pub(crate) fn shutter(t: &Tx, max: f32) -> (f32, usize) {
     let mb = t.frac("motion_blur").clamp(0.0, 1.0);
-    if mb <= 0.0 { (0.0, 1) } else { (max * mb, ((mb * 12.0).ceil() as usize).clamp(2, 12)) }
+    if mb <= 0.0 || filmcraft_media::cancel::draft() {
+        (0.0, 1)
+    } else {
+        let max_samples = if cfg!(target_arch = "wasm32") { 3 } else { 12 };
+        (max * mb, ((mb * 12.0).ceil() as usize).clamp(2, max_samples))
+    }
 }

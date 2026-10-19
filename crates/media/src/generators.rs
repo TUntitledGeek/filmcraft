@@ -555,7 +555,8 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
             let oct1 = if is_draft { 1 } else { 2 };
             let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, oct1);
             c = lerp3(c, [1.0, 0.97, 0.85], ray * (1.0 - v) * 0.35);
-            for k in 0..5 {
+            let trunk_count = if is_draft { 2 } else { 5 };
+            for k in 0..trunk_count {
                 let fk = k as f32;
                 let depth = 1.0 - fk / 5.0;
                 let spacing = 0.12 + fk * 0.03;

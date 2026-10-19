@@ -75,6 +75,12 @@ pub(crate) fn composite(layers: &[Layer], eye: V3, x: f32, y: f32) -> [f32; 4] {
             nh += 1;
         }
     }
+    if nh == 0 {
+        return [0.0; 4];
+    }
+    if nh == 1 {
+        return hits[0].1;
+    }
     let hits = &mut hits[..nh];
     hits.sort_by(|a, b| b.0.total_cmp(&a.0));
     hits.iter().fold([0.0; 4], |acc, (_, c)| over(acc, *c))
@@ -90,6 +96,10 @@ fn scene<'a>(t: &Tx<'a>, focal: f32, blur: (f32, usize), build: impl Fn(f32) -> 
     let qs: Vec<f32> = if n <= 1 || sh <= 0.0 { vec![t.p] } else { (0..n).map(|i| (t.p + (i as f32 / (n - 1) as f32 - 0.5) * sh).clamp(0.0, 1.0)).collect() };
     let scenes: Vec<Vec<Layer>> = qs.iter().map(|&q| build(q)).collect();
     let e = eye(t.wf, t.hf, focal);
+    if scenes.len() == 1 {
+        let s = &scenes[0];
+        return paint(t.w, t.h, |x, y| composite(s, e, x, y));
+    }
     let inv = 1.0 / scenes.len() as f32;
     paint(t.w, t.h, |x, y| {
         let mut acc = [0.0; 4];

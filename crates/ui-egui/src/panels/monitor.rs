@@ -198,8 +198,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             (true, Target::Sequence(s)) => Target::SequencePlan(s),
             (_, t) => t,
         };
-        // Draft decoding (opt-in or while scrubbing): only while in motion at 1/2 resolution or lower.
-        let draft = crate::frames::draft_playback(in_motion, scale, app.session.prefs.playback.draft_decode || active_scrub);
+        // Draft decoding (opt-in, while scrubbing, or always on single-threaded wasm32): only while in motion at 1/2 resolution or lower.
+        let draft = crate::frames::draft_playback(in_motion, scale, app.session.prefs.playback.draft_decode || active_scrub || cfg!(target_arch = "wasm32"));
         let key = FrameKey { target, frame, size: size_key, revision: rev, draft };
         let project = app.session.project.clone();
         if playing {

@@ -62,10 +62,27 @@ impl Card {
         self.map(move |p| add(c, r(sub(p, c))), r)
     }
 
+    /// Whether the card is aligned with the screen plane (flat at z = 0 with identity orientation).
+    #[inline]
+    pub fn is_flat_2d(&self) -> bool {
+        self.origin[2].abs() < 1e-6
+            && (self.ex[0] - 1.0).abs() < 1e-6
+            && self.ex[1].abs() < 1e-6
+            && self.ex[2].abs() < 1e-6
+            && self.ey[0].abs() < 1e-6
+            && (self.ey[1] - 1.0).abs() < 1e-6
+            && self.ey[2].abs() < 1e-6
+    }
+
     /// Intersect the eye ray through screen point (x, y): local image coords, depth along the
     /// ray, and whether the front face (the side with the normal towards the eye) is seen.
     #[inline]
     pub fn hit(&self, eye: V3, x: f32, y: f32) -> Option<(f32, f32, f32, bool)> {
+        if self.is_flat_2d() {
+            let lx = x - self.origin[0];
+            let ly = y - self.origin[1];
+            return Some((lx, ly, 1.0, true));
+        }
         let d = sub([x, y, 0.0], eye);
         // eye + t·d = origin + lx·ex + ly·ey  →  lx·ex + ly·ey − t·d = eye − origin
         let rhs = sub(eye, self.origin);
