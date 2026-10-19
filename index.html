@@ -173,9 +173,9 @@
     };
   </script>
   <script type="module">
-    // `187a30c555ce45a1` is replaced by `cargo xtask web` with a hash of the build: the glue and the
+    // `6416897e36353f6b` is replaced by `cargo xtask web` with a hash of the build: the glue and the
     // wasm are cached as immutable, so their URLs must change with every build.
-    const build = "187a30c555ce45a1";
+    const build = "6416897e36353f6b";
     const v = build.startsWith("__") ? "" : "?v=" + build;
     const t0 = performance.now();
     const params = new URLSearchParams(location.search);
