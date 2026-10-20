@@ -186,6 +186,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         // frame pixels per screen pixel along the axis that needs the most of them
         let screen_scale = (pic.width() * ppp / frame_size.0.max(1) as f32).max(pic.height() * ppp / frame_size.1.max(1) as f32).min(1.0);
         let scale = quantize_scale(res.scale().min(screen_scale.max(1.0 / 32.0)));
+        let scale = if cfg!(target_arch = "wasm32") && in_motion { scale.min(0.5) } else { scale };
         let frame = rate.frame_at(time);
         let rev = match target {
             Target::Item(i) => app.item_revision(i),

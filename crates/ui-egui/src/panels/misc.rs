@@ -9,10 +9,9 @@ use crate::theme::Tokens;
 pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(6.0)));
-    let undo = app.session.history.undo.clone();
-    let undo_meta = app.session.history.undo_meta.clone();
-    let redo: Vec<(String, std::sync::Arc<filmcraft_project::Project>)> = app.session.history.redo.iter().rev().cloned().collect();
-    let redo_meta: Vec<filmcraft_engine::HistoryMetadata> = app.session.history.redo_meta.iter().rev().cloned().collect();
+    let hist = &app.session.history;
+    let undo = &hist.undo;
+    let undo_meta = &hist.undo_meta;
 
     let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
     let is_collab = app.collab.is_some();
@@ -20,7 +19,7 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // Header bar with co-op indicator and total actions count
     child.horizontal(|ui| {
-        let total = undo.len() + redo.len();
+        let total = undo.len() + hist.redo.len();
         ui.label(egui::RichText::new(format!("Action History ({total})")).strong().size(12.0).color(t.text));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if is_collab {
@@ -130,8 +129,12 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         }
 
         // Redoable future states
-        for (i, (l, _)) in redo.iter().enumerate() {
-            let meta = redo_meta.get(i);
+        for (i, (l, _)) in hist.redo.iter().rev().enumerate() {
+            let meta = if i < hist.redo_meta.len() {
+                hist.redo_meta.get(hist.redo_meta.len() - 1 - i)
+            } else {
+                None
+            };
             if row(ui, &crate::i18n::t(l), meta, false, true) {
                 target = Some(i as i64 + 1);
             }

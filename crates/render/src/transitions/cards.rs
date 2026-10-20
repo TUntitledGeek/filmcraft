@@ -26,15 +26,26 @@ pub struct Card {
     pub origin: V3,
     pub ex: V3,
     pub ey: V3,
+    pub flat_2d: bool,
 }
 
 impl Card {
     /// The identity card (covers the frame at z = 0).
     pub fn flat() -> Self {
-        Card { origin: [0.0; 3], ex: [1.0, 0.0, 0.0], ey: [0.0, 1.0, 0.0] }
+        Card { origin: [0.0; 3], ex: [1.0, 0.0, 0.0], ey: [0.0, 1.0, 0.0], flat_2d: true }
     }
     fn map(&self, f: impl Fn(V3) -> V3, lin: impl Fn(V3) -> V3) -> Self {
-        Card { origin: f(self.origin), ex: lin(self.ex), ey: lin(self.ey) }
+        let origin = f(self.origin);
+        let ex = lin(self.ex);
+        let ey = lin(self.ey);
+        let flat_2d = origin[2].abs() < 1e-6
+            && (ex[0] - 1.0).abs() < 1e-6
+            && ex[1].abs() < 1e-6
+            && ex[2].abs() < 1e-6
+            && ey[0].abs() < 1e-6
+            && (ey[1] - 1.0).abs() < 1e-6
+            && ey[2].abs() < 1e-6;
+        Card { origin, ex, ey, flat_2d }
     }
     pub fn translate(self, d: V3) -> Self {
         self.map(|p| [p[0] + d[0], p[1] + d[1], p[2] + d[2]], |v| v)
@@ -65,20 +76,14 @@ impl Card {
     /// Whether the card is aligned with the screen plane (flat at z = 0 with identity orientation).
     #[inline]
     pub fn is_flat_2d(&self) -> bool {
-        self.origin[2].abs() < 1e-6
-            && (self.ex[0] - 1.0).abs() < 1e-6
-            && self.ex[1].abs() < 1e-6
-            && self.ex[2].abs() < 1e-6
-            && self.ey[0].abs() < 1e-6
-            && (self.ey[1] - 1.0).abs() < 1e-6
-            && self.ey[2].abs() < 1e-6
+        self.flat_2d
     }
 
     /// Intersect the eye ray through screen point (x, y): local image coords, depth along the
     /// ray, and whether the front face (the side with the normal towards the eye) is seen.
     #[inline]
     pub fn hit(&self, eye: V3, x: f32, y: f32) -> Option<(f32, f32, f32, bool)> {
-        if self.is_flat_2d() {
+        if self.flat_2d {
             let lx = x - self.origin[0];
             let ly = y - self.origin[1];
             return Some((lx, ly, 1.0, true));

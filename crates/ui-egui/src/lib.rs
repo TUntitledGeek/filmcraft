@@ -3186,7 +3186,7 @@ impl eframe::App for FilmcraftApp {
         if ui.input(|i| !i.pointer.any_down() && !i.pointer.any_pressed()) {
             self.monitor_scrubbing = false;
         }
-        let is_interacting = ui.input(|i| i.pointer.any_down() || i.pointer.any_pressed() || i.pointer.delta().length_sq() > 0.0)
+        let is_interacting = ui.input(|i| i.pointer.any_down() || i.pointer.any_pressed())
             || self.tl.drag.is_some()
             || self.monitor_scrubbing
             || self.collab_drop_ghost.is_some();
@@ -3251,8 +3251,10 @@ impl eframe::App for FilmcraftApp {
         if self.frames.queue_len() > 0 {
             if is_interacting {
                 ctx.request_repaint();
-            } else {
+            } else if self.playback.playing {
                 ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            } else {
+                ctx.request_repaint_after(std::time::Duration::from_millis(32));
             }
         }
     }

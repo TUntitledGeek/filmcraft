@@ -693,7 +693,7 @@ impl FrameServer {
             } else {
                 retry.push(job);
             }
-            if max_prio.is_some() && done >= 1 {
+            if (max_prio.is_none() || budget <= Duration::from_millis(2)) && done >= 1 {
                 break;
             }
             if t0.elapsed() >= budget {
