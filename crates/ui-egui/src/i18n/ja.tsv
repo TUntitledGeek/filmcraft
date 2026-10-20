@@ -1260,6 +1260,7 @@
 	59.94 fps Non Drop-Frame	59.94 fps ノンドロップフレーム
 	ASC CDL	ASC CDL
 	Accessible color contrast	アクセシビリティに配慮したカラーコントラスト
+	Animate zoom, scrolling and menus	ズーム、スクロール、メニューをアニメーション表示
 	Action-Safe Margin	アクションセーフの余白
 	Active Monitor	アクティブなモニター
 	Add	加算
@@ -3609,7 +3610,15 @@
 	Shows the version, community links and credits in a FilmCraft window.	バージョン、コミュニティへのリンク、クレジットを FilmCraft のウィンドウに表示します。
 	Couldn't open your web browser	ウェブブラウザーを開けませんでした
 	Open this address in your browser yourself:	このアドレスをご自身でブラウザーで開いてください：
-	Co-op Session (Active)	共同編集セッション（アクティブ）
+# View ▸ Reset Interface Zoom (#2253).
+	Reset Interface Zoom	インターフェイスのズームをリセット
+	Track Color	トラックカラー
+	Open a sequence to search its graphics	シーケンスを開くとグラフィックスを検索できます
+	No text graphics in this sequence. Add text with the Type tool.	このシーケンスにはテキストのグラフィックスがありません。文字ツールでテキストを追加してください。
+	No matching text.	一致するテキストはありません。
+
+# Live Co-op Editing
+Co-op Session (Active)	共同編集セッション（アクティブ）
 	Live Co-op Editing...	リアルタイム共同編集...
 	Margin	余白
 	Start or Join Co-op Session	共同編集セッションを開始または参加
