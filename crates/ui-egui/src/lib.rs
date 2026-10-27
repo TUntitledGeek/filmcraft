@@ -2861,7 +2861,7 @@ impl FilmcraftApp {
         if self.ui.show_header {
             header::show(self, ui, header);
         }
-        let status_h = if self.ui.show_status_bar { 20.0 } else { 0.0 };
+        let status_h = if self.ui.show_status_bar { 24.0 } else { 0.0 };
         let body = egui::Rect::from_min_max(egui::pos2(full.min.x + 1.0, header.max.y + 1.0), egui::pos2(full.max.x - 1.0, full.max.y - status_h - 2.0));
         match self.ui.mode {
             state::Mode::Edit => self.dock_area(ui, body),
@@ -2876,7 +2876,7 @@ impl FilmcraftApp {
             self.watch_jobs(ui.ctx());
             return;
         }
-        // Status / hint bar
+        // Status / hint bar & DaVinci Studio Workspace Page Bar
         let sb = egui::Rect::from_min_max(egui::pos2(full.min.x, full.max.y - status_h), full.max);
         ui.painter().rect_filled(sb, 0.0, t.header_bg);
         let now = ui.input(|i| i.time);
@@ -2889,8 +2889,55 @@ impl FilmcraftApp {
                 ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
             }
         }
+
+        // DaVinci Studio Workspace Page Bar (Media, Cut, Edit, Fusion Nodes, Color, Fairlight, Deliver)
+        let pages = [
+            ("Media", state::Mode::Import, None),
+            ("Cut", state::Mode::Edit, Some(PanelKind::Timeline)),
+            ("Edit", state::Mode::Edit, Some(PanelKind::Timeline)),
+            ("Fusion Nodes", state::Mode::Edit, Some(PanelKind::NodeGraph)),
+            ("Color", state::Mode::Edit, Some(PanelKind::LumetriColor)),
+            ("Fairlight", state::Mode::Edit, Some(PanelKind::AudioTrackMixer)),
+            ("Deliver", state::Mode::Export, None),
+        ];
+
+        let total_pages_w = pages.len() as f32 * 74.0;
+        let start_x = sb.center().x - total_pages_w / 2.0;
+
+        for (idx, (p_label, p_mode, p_panel)) in pages.into_iter().enumerate() {
+            let pr = egui::Rect::from_min_size(egui::pos2(start_x + idx as f32 * 74.0, sb.min.y + 1.0), egui::vec2(70.0, sb.height() - 2.0));
+            let is_active = match (p_mode, p_panel) {
+                (state::Mode::Import, _) => self.ui.mode == state::Mode::Import,
+                (state::Mode::Export, _) => self.ui.mode == state::Mode::Export,
+                (state::Mode::Edit, Some(pk)) if pk == PanelKind::NodeGraph => self.ui.mode == state::Mode::Edit && self.ui.focused == PanelKind::NodeGraph,
+                (state::Mode::Edit, Some(pk)) if pk == PanelKind::LumetriColor => self.ui.mode == state::Mode::Edit && self.ui.focused == PanelKind::LumetriColor,
+                (state::Mode::Edit, Some(pk)) if pk == PanelKind::AudioTrackMixer => self.ui.mode == state::Mode::Edit && self.ui.focused == PanelKind::AudioTrackMixer,
+                (state::Mode::Edit, _) => self.ui.mode == state::Mode::Edit && !matches!(self.ui.focused, PanelKind::NodeGraph | PanelKind::LumetriColor | PanelKind::AudioTrackMixer),
+            };
+
+            let presp = ui.interact(pr, egui::Id::new(("davinci-page", idx)), egui::Sense::click());
+            if presp.hovered() || is_active {
+                ui.painter().rect_filled(pr, 4.0, if is_active { egui::Color32::from_rgb(0x28, 0x28, 0x34) } else { t.hover });
+            }
+            if is_active {
+                ui.painter().line_segment([egui::pos2(pr.min.x + 6.0, pr.max.y - 1.0), egui::pos2(pr.max.x - 6.0, pr.max.y - 1.0)], egui::Stroke::new(2.0, egui::Color32::from_rgb(0xec, 0x93, 0x24)));
+            }
+
+            let text_col = if is_active { egui::Color32::from_rgb(0xec, 0x93, 0x24) } else if presp.hovered() { t.text } else { t.text_dim };
+            ui.painter().text(pr.center(), egui::Align2::CENTER_CENTER, p_label, Tokens::ui(11.0), text_col);
+
+            if presp.clicked() {
+                self.ui.mode = p_mode;
+                if let Some(pk) = p_panel {
+                    self.show_panel(pk);
+                }
+            }
+        }
+
         let hint = if !self.ui.status.is_empty() { self.ui.status.clone() } else { self.hint_text() };
-        ui.painter().text(egui::pos2(sb.min.x + 10.0, sb.center().y), egui::Align2::LEFT_CENTER, hint, Tokens::ui(11.0), t.text_dim);
+        let hint_clip = egui::Rect::from_min_max(sb.min, egui::pos2((start_x - 12.0).max(sb.min.x), sb.max.y));
+        ui.painter().with_clip_rect(hint_clip).text(egui::pos2(sb.min.x + 10.0, sb.center().y), egui::Align2::LEFT_CENTER, hint, Tokens::ui(11.0), t.text_dim);
+
         let resp = ui.interact(sb, egui::Id::new("status-bar"), egui::Sense::click());
         if resp.clicked() {
             self.ui.status.clear();

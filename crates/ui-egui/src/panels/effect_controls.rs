@@ -163,9 +163,20 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let cp = ui.painter().with_clip_rect(r.shrink(2.0));
         cp.text(pos2(r.min.x + 8.0, r.center().y), Align2::LEFT_CENTER, text, Tokens::ui(11.5), if active { t.text } else { t.text_dim });
     };
-    let half = (head.width() - 6.0) / 2.0;
-    pill(ui, Rect::from_min_size(head.min, vec2(half, 24.0)), &tlf!("Source · {name}", name = it.name), false);
-    pill(ui, Rect::from_min_size(head.min + vec2(half + 6.0, 0.0), vec2(half, 24.0)), &format!("{} · {}", seq_name(app), it.name), true);
+    let node_btn_w = 95.0;
+    let pill_w = ((head.width() - node_btn_w - 12.0) / 2.0).max(60.0);
+    pill(ui, Rect::from_min_size(head.min, vec2(pill_w, 24.0)), &tlf!("Source · {name}", name = it.name), false);
+    pill(ui, Rect::from_min_size(head.min + vec2(pill_w + 6.0, 0.0), vec2(pill_w, 24.0)), &format!("{} · {}", seq_name(app), it.name), true);
+
+    let node_btn_r = Rect::from_min_size(head.min + vec2(pill_w * 2.0 + 12.0, 0.0), vec2(node_btn_w, 24.0));
+    let nresp = ui.interact(node_btn_r, egui::Id::new("ec-open-fusion-nodes"), Sense::click()).on_hover_text("Open DaVinci Fusion Node Compositor for this clip");
+    let nbg = if nresp.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x48) } else { Color32::from_rgb(0x28, 0x28, 0x34) };
+    ui.painter().rect_filled(node_btn_r, 4.0, nbg);
+    ui.painter().rect_stroke(node_btn_r, 4.0, Stroke::new(1.0, Color32::from_rgb(0xec, 0x93, 0x24)), egui::StrokeKind::Inside);
+    ui.painter().text(node_btn_r.center(), Align2::CENTER_CENTER, "☊ Fusion Nodes", Tokens::semibold(11.0), Color32::from_rgb(0xec, 0x93, 0x24));
+    if nresp.clicked() {
+        app.show_panel(crate::dock::PanelKind::NodeGraph);
+    }
     // keyframe lane header, as Premiere's: a time ruler over the clip's stretch of the sequence,
     // which the playhead's handle rides on, and the clip's bar under it
     let lane = Rect::from_min_max(pos2(split + 4.0, rect.min.y + 4.0), pos2(rect.max.x - 6.0, rect.max.y - 26.0));

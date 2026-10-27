@@ -22,6 +22,7 @@ pub mod mixer;
 pub mod multicam;
 pub mod narration;
 pub mod transcript;
+pub mod node_graph;
 pub mod vtransition;
 
 use std::collections::BTreeMap;
@@ -40,6 +41,7 @@ pub use keyframe::{Interpolation, Keyframe, Param, ParamValue};
 pub use mask::{Mask, MaskMode, MaskPath, MaskVertex, TrackMethod};
 pub use mixer::{AutomationMode, InputMap, MixerStrip, TrackSend};
 pub use multicam::{Camera, MergedClip, MulticamAudio, MulticamSel, MulticamSource};
+pub use node_graph::{NodeConnection, NodeGraph, NodeId, NodeInstance, NodeSocketKind, NodeType};
 pub use narration::{Narration, VocalPitch};
 pub use transcript::{Speaker, Transcript, Word};
 
@@ -530,6 +532,8 @@ pub struct TrackItem {
     #[serde(default)]
     pub group: Option<u64>,
     pub effects: Vec<EffectInstance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_graph: Option<crate::node_graph::NodeGraph>,
     #[serde(default)]
     pub markers: Vec<Marker>,
     /// Clip gain in dB (Audio Gain dialog), separate from the Volume effect.
@@ -1632,6 +1636,7 @@ impl Project {
             source_channels,
             audio_stream: 0,
             graphic: source_graphic.and_then(|sg| sg.meta.map(Box::new)),
+            node_graph: None,
         })
     }
 

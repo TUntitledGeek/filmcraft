@@ -26,6 +26,7 @@ pub mod menu_dialogs;
 pub mod metadata;
 pub mod meters;
 pub mod misc;
+pub mod node_graph;
 pub mod mixer;
 pub mod monitor;
 pub mod monitor_view;
@@ -84,6 +85,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, p: PanelKind, rect: Rect)
         PanelKind::Tools => tools::show(app, ui, rect),
         PanelKind::Effects => effects::show(app, ui, rect),
         PanelKind::EffectControls => effect_controls::show(app, ui, rect),
+        PanelKind::NodeGraph => node_graph::show(app, ui, rect),
         PanelKind::AudioMeters => meters::show(app, ui, rect),
         PanelKind::LumetriColor => lumetri::show(app, ui, rect),
         PanelKind::Properties if graphics::graphic_selected(app) => graphics::properties(app, ui, rect),

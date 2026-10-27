@@ -1,0 +1,1777 @@
+[
+  {
+    "number": 2490,
+    "title": "GPU: bound export read-back waits",
+    "author": "jahvari",
+    "branch": "codex/gpu-bounded-readback",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "readback",
+        "read-back"
+      ],
+      "stability": [
+        "bound",
+        "bounded"
+      ]
+    },
+    "score": 5
+  },
+  {
+    "number": 2488,
+    "title": "Windows: add Media Foundation H.264 and HEVC export",
+    "author": "jahvari",
+    "branch": "codex/mf-encoder-core",
+    "hits": {
+      "windows": [
+        "windows",
+        "media foundation"
+      ],
+      "codecs_media": [
+        "encoder",
+        "hevc",
+        "h\\.?264"
+      ]
+    },
+    "score": 5
+  },
+  {
+    "number": 1575,
+    "title": "Media Foundation hardware H.264 / HEVC encoding on Windows (#30)",
+    "author": "ComfyChloe",
+    "branch": "windows/media-foundation-encoder",
+    "hits": {
+      "windows": [
+        "windows",
+        "media foundation"
+      ],
+      "codecs_media": [
+        "encoder",
+        "hevc",
+        "h\\.?264"
+      ]
+    },
+    "score": 5
+  },
+  {
+    "number": 152,
+    "title": "Windows: zero-copy hardware decode (D3D11 surface to wgpu DX12)",
+    "author": "SaymonMaster14",
+    "branch": "feat/windows-zero-copy-decode",
+    "hits": {
+      "windows": [
+        "windows",
+        "d3d11"
+      ],
+      "gpu_perf": [
+        "wgpu",
+        "zero-copy"
+      ],
+      "codecs_media": [
+        "decode"
+      ]
+    },
+    "score": 5
+  },
+  {
+    "number": 2135,
+    "title": "#1984: silence concealing an MP4 audio packet that will not decode is bounded (its duration is the file's)",
+    "author": "00xJS",
+    "branch": "fix/1984-aac-fallback-allocation",
+    "hits": {
+      "codecs_media": [
+        "decode",
+        "aac",
+        "mp4"
+      ],
+      "stability": [
+        "bounded"
+      ]
+    },
+    "score": 4
+  },
+  {
+    "number": 1662,
+    "title": "fix(vp9): keep a decoder-pool worker available to the loop filter wavefront (#1283)",
+    "author": "earlvanze",
+    "branch": "fix/vp9-decode-pool-deadlock",
+    "hits": {
+      "codecs_media": [
+        "decode",
+        "decoder",
+        "vp9"
+      ],
+      "stability": [
+        "deadlock"
+      ]
+    },
+    "score": 4
+  },
+  {
+    "number": 408,
+    "title": "Linux: VA-API hardware decoding (H.264, HEVC, VP9, AV1) and H.264 / H.265 export encoding",
+    "author": "mutombopr",
+    "branch": "linux-vaapi",
+    "hits": {
+      "codecs_media": [
+        "hevc",
+        "h\\.?264",
+        "av1",
+        "vp9"
+      ]
+    },
+    "score": 4
+  },
+  {
+    "number": 352,
+    "title": "Codecs: H.264, HEVC, AAC and ProRes behind cargo features, on by default",
+    "author": "rossaai",
+    "branch": "rossa/optional-encumbered-codecs",
+    "hits": {
+      "codecs_media": [
+        "hevc",
+        "h\\.?264",
+        "prores",
+        "aac"
+      ]
+    },
+    "score": 4
+  },
+  {
+    "number": 2492,
+    "title": "Docs: update Media Foundation encoder and GPU export notes",
+    "author": "jahvari",
+    "branch": "codex/mf-encoder-docs",
+    "hits": {
+      "windows": [
+        "media foundation"
+      ],
+      "gpu_perf": [
+        "gpu"
+      ],
+      "codecs_media": [
+        "encoder"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 2303,
+    "title": "AVI: decode H.264 and HEVC with their parameter sets in the stream header",
+    "author": "tylerjenningsw",
+    "branch": "fix/avi-h264-hevc-stream-setup",
+    "hits": {
+      "codecs_media": [
+        "decode",
+        "hevc",
+        "h\\.?264"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 2239,
+    "title": "Fix phone MP4 timestamp frame rates",
+    "author": "TheGalitube",
+    "branch": "codex/fix-issue-1700-phone-timestamp-rate",
+    "hits": {
+      "codecs_media": [
+        "mp4",
+        "timestamp",
+        "phone"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 2233,
+    "title": "perf(export): add SDR RGBA8 GPU fast path",
+    "author": "ZpdyGonzales",
+    "branch": "feature/sdr-rgba8-export",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "perf",
+        "fast path"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 2137,
+    "title": "fix(macos): decode interlaced H.264 with VideoToolbox's software decoder (#1750)",
+    "author": "ssandweiss",
+    "branch": "fix/1750-videotoolbox-interlaced",
+    "hits": {
+      "codecs_media": [
+        "decode",
+        "decoder",
+        "h\\.?264"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 2133,
+    "title": "M5 (#666) updated for main: GPU Lumetri LUTs on Apple Silicon, GPU by default for unpreset exports",
+    "author": "earlvanze",
+    "branch": "perf/gpu-lut-666-on-main",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "perf"
+      ],
+      "codecs_media": [
+        "lut"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 1811,
+    "title": "Windows: guard initial AV1 color metadata for hardware decoding",
+    "author": "jahvari",
+    "branch": "fix/av1-initial-metadata-1678",
+    "hits": {
+      "windows": [
+        "windows"
+      ],
+      "codecs_media": [
+        "av1",
+        "color"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 1753,
+    "title": "Pack opaque SDR export readback on the GPU",
+    "author": "Gustitolito",
+    "branch": "codex/export-pipeline-throughput",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "readback",
+        "throughput"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 1363,
+    "title": "perf(av1): optimize decoder allocations, zero-fill elimination and DC transforms",
+    "author": "AnarchByte0",
+    "branch": "perf/av1-decoder-optimizations",
+    "hits": {
+      "gpu_perf": [
+        "perf"
+      ],
+      "codecs_media": [
+        "decoder",
+        "av1"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 1185,
+    "title": "feat(platform): NVIDIA NVENC hardware AV1 export for MP4 and MOV",
+    "author": "AnarchByte0",
+    "branch": "feat/nvenc-av1-export",
+    "hits": {
+      "codecs_media": [
+        "av1",
+        "mp4",
+        "mov"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 883,
+    "title": "h264: safe-SIMD 6-tap luma spike (decoder throughput half of #848)",
+    "author": "vbasky",
+    "branch": "feat/848-h264-safe-simd",
+    "hits": {
+      "gpu_perf": [
+        "throughput"
+      ],
+      "codecs_media": [
+        "decoder",
+        "h\\.?264"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 880,
+    "title": "feat(platform): AMD AMF hardware encoding for Linux and Windows",
+    "author": "AnarchByte0",
+    "branch": "feat/amf-and-av1-encoder",
+    "hits": {
+      "windows": [
+        "windows"
+      ],
+      "codecs_media": [
+        "encoder",
+        "av1"
+      ]
+    },
+    "score": 3
+  },
+  {
+    "number": 2487,
+    "title": "AV1: integrate guarded decoding with Media Foundation",
+    "author": "jahvari",
+    "branch": "codex/av1-mf-integration",
+    "hits": {
+      "windows": [
+        "media foundation"
+      ],
+      "codecs_media": [
+        "av1"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2485,
+    "title": "AV1: add bounded sequence-header inspection",
+    "author": "jahvari",
+    "branch": "codex/av1-header-inspection",
+    "hits": {
+      "codecs_media": [
+        "av1"
+      ],
+      "stability": [
+        "bounded"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2431,
+    "title": "platform: NVDEC on Windows for 4:2:2 and 10-bit H.264 camera footage (draft; builds on the h264 PR)",
+    "author": "kottav",
+    "branch": "nvdec-windows-high-bit-depth",
+    "hits": {
+      "windows": [
+        "windows"
+      ],
+      "codecs_media": [
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2418,
+    "title": "#1616: perf.stats says how many export frames the GPU rendered and why it is off when it is",
+    "author": "00xJS",
+    "branch": "fix/1616-gpu-render-stats",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "perf"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2372,
+    "title": "fix(hevc tests): skip Main10 fixtures an 8-bit-only libx265 cannot encode",
+    "author": "adventurelands",
+    "branch": "hevc-x265-8bit",
+    "hits": {
+      "codecs_media": [
+        "encode",
+        "hevc"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2221,
+    "title": "Avoid unnecessary hardware->software fallback for AV1 when only colour description differs (corrected AV1 spec)",
+    "author": "pixelsdontmove",
+    "branch": "fix/av1-color-description",
+    "hits": {
+      "codecs_media": [
+        "av1",
+        "color"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2180,
+    "title": "fix(platform): decode VP9 in hardware through VideoToolbox on macOS",
+    "author": "Andrey-Ultra",
+    "branch": "vp9-videotoolbox",
+    "hits": {
+      "codecs_media": [
+        "decode",
+        "vp9"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2119,
+    "title": "export: GPU-rendered SDR exports read back the finished sRGB RGBA8 frame (1.6\u00d7 faster NVENC export)",
+    "author": "MasakatsuFunaki",
+    "branch": "export-gpu-rgba8-readback",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "readback"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2111,
+    "title": "Fix potential GPU export deadlock by preparing frame plans outside renderer pool",
+    "author": "ZpdyGonzales",
+    "branch": "fix/gpu-export-deadlock-upstream",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ],
+      "stability": [
+        "deadlock"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2025,
+    "title": "GPU export fast path and mask support",
+    "author": "TheGalitube",
+    "branch": "main",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "fast path"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1954,
+    "title": "Decode Blackmagic RAW (.braw) through Blackmagic's runtime (Linux, Windows, macOS)",
+    "author": "txiki739",
+    "branch": "feat/braw-sdk",
+    "hits": {
+      "windows": [
+        "windows"
+      ],
+      "codecs_media": [
+        "decode"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1928,
+    "title": "#1216: the decoders and the H.264 encoder an export starts keep to its maxThreads",
+    "author": "Guilhermeb-Ferrarezi",
+    "branch": "feat/export-thread-cap-codecs-1216",
+    "hits": {
+      "codecs_media": [
+        "encoder",
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1858,
+    "title": "HEVC Main software encoder (I/P, single-slice) with export wiring",
+    "author": "lu123bing",
+    "branch": "feat/hevc-software-encoder",
+    "hits": {
+      "codecs_media": [
+        "encoder",
+        "hevc"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1795,
+    "title": "Hostile-input hardening for video decoders (AV1 panic + oversize allocation, MPEG-2 allocation) and fuzz tests",
+    "author": "g1obalworlds",
+    "branch": "fix/hostile-input-video-codecs",
+    "hits": {
+      "codecs_media": [
+        "av1"
+      ],
+      "stability": [
+        "panic"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1784,
+    "title": "perf: auto-scale memory budgets, GOP cache, and GPU upload cache to host RAM/VRAM",
+    "author": "ProgrammerDSJ",
+    "branch": "perf/auto-scale-memory-and-cache",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "perf"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1774,
+    "title": "HW6: VA-API hardware H.264/HEVC export encoding on Linux",
+    "author": "earlvanze",
+    "branch": "pr408-rebased-from-main",
+    "hits": {
+      "codecs_media": [
+        "hevc",
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1612,
+    "title": "HW6: VA-API hardware H.264/HEVC export encoding on Linux (#30)",
+    "author": "earlvanze",
+    "branch": "pr408-main-merge",
+    "hits": {
+      "codecs_media": [
+        "hevc",
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1580,
+    "title": "#1221: H.264 High 10 and High 10 Intra export in the built-in encoder",
+    "author": "JordyUSA",
+    "branch": "feat/1221-h264-high10",
+    "hits": {
+      "codecs_media": [
+        "encoder",
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1559,
+    "title": "export: GPU compositing in the standalone CLI, GPU status in export results, renderer-pool hang (#799)",
+    "author": "bsoulai",
+    "branch": "bsoulai/headless-gpu-799",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ],
+      "stability": [
+        "hang"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1440,
+    "title": "#1436: mpegts: H.264/HEVC units are access units; H.264 recovery points are key",
+    "author": "vangel76",
+    "branch": "fix-mpegts-h264-access-units",
+    "hits": {
+      "codecs_media": [
+        "hevc",
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1334,
+    "title": "Stop H.264 export hanging in the YUV conversion",
+    "author": "vbasky",
+    "branch": "fix/1329-yuv-rayon-deadlock",
+    "hits": {
+      "codecs_media": [
+        "h\\.?264"
+      ],
+      "stability": [
+        "deadlock"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1273,
+    "title": "color: tone-map iPhone HLG footage consistently to SDR",
+    "author": "reoniazx",
+    "branch": "fix/iphone-hlg-sdr",
+    "hits": {
+      "codecs_media": [
+        "iphone",
+        "color"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1256,
+    "title": "Linux: VA-API H.264 export encoding (AMD / Intel), on main's `vaapi` module (#30)",
+    "author": "LloydNicholson",
+    "branch": "vaapi-h264-encode",
+    "hits": {
+      "codecs_media": [
+        "encode",
+        "h\\.?264"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1182,
+    "title": "feat(av1enc): clean-room pure-Rust baseline AV1 software encoder",
+    "author": "AnarchByte0",
+    "branch": "feat/av1enc-software",
+    "hits": {
+      "codecs_media": [
+        "encoder",
+        "av1"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1128,
+    "title": "feat(platform): Intel Quick Sync Video (QSV) hardware encoding for Linux and Windows",
+    "author": "AnarchByte0",
+    "branch": "feat/intel-qsv-encoder",
+    "hits": {
+      "windows": [
+        "windows"
+      ],
+      "codecs_media": [
+        "encoder"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1114,
+    "title": "feat(web): share resident GPU sources and lazy CPU fallback",
+    "author": "WavJaby",
+    "branch": "perf/web-resident-frames",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "perf"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1076,
+    "title": "#1039: HEVC decodes pictures on several threads inside (WPP rows, tiles, filters next to parsing)",
+    "author": "vangel76",
+    "branch": "perf-hevc-wpp",
+    "hits": {
+      "gpu_perf": [
+        "perf"
+      ],
+      "codecs_media": [
+        "hevc"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 1021,
+    "title": "perf(windows): share decoded frames with the DX12 compositor",
+    "author": "WavJaby",
+    "branch": "perf/windows-resident-split",
+    "hits": {
+      "windows": [
+        "windows"
+      ],
+      "gpu_perf": [
+        "perf"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 666,
+    "title": "M5: Accelerate Apple Silicon media and GPU effect pipelines",
+    "author": "notnotshuts",
+    "branch": "perf/apple-silicon-metal-pipeline",
+    "hits": {
+      "gpu_perf": [
+        "gpu",
+        "perf"
+      ]
+    },
+    "score": 2
+  },
+  {
+    "number": 2491,
+    "title": "UI: report GPU compositor startup failures",
+    "author": "jahvari",
+    "branch": "codex/ui-compositor-status",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2486,
+    "title": "AV1: guard native metadata adoption and replay",
+    "author": "jahvari",
+    "branch": "codex/av1-replay-policy",
+    "hits": {
+      "codecs_media": [
+        "av1"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2480,
+    "title": "fix(mcp): pin doc_inspect's sequence to the reported active id (#1477)",
+    "author": "MichaelMuClaude",
+    "branch": "fix/doc-inspect-sequence-race-1477",
+    "hits": {
+      "stability": [
+        "race"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2475,
+    "title": "#2469: the media pool closes least recently used decoded stills past a budget",
+    "author": "Felix-Helleckes",
+    "branch": "fix/2469-media-pool-budget",
+    "hits": {
+      "codecs_media": [
+        "media pool"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2461,
+    "title": "#1584: control: a request that timed out is cancelled, never run later",
+    "author": "Felix-Helleckes",
+    "branch": "fix/control-timeout-no-late-run",
+    "hits": {
+      "stability": [
+        "timeout"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2451,
+    "title": "Timeline: colour labels for tracks (#1186)",
+    "author": "Felix-Helleckes",
+    "branch": "feat/1186-track-color-labels",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2417,
+    "title": "audio: work around distorted Razer 7.1 WASAPI output",
+    "author": "trikesh32",
+    "branch": "fix/2411-razer-surround-audio",
+    "hits": {
+      "windows": [
+        "wasapi"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2415,
+    "title": "#2340: uncompressed QuickTime video (raw 24-bit RGB, 2vuy, v210) decodes",
+    "author": "Felix-Helleckes",
+    "branch": "fix/2340-uncompressed-mov",
+    "hits": {
+      "codecs_media": [
+        "mov"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2407,
+    "title": "Playback: Linux audio over the PulseAudio native protocol, with reconnects (#106, #2117)",
+    "author": "adventurelands",
+    "branch": "omarchy-audio",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2403,
+    "title": "#2195: relative media URLs in imported timelines are percent-decoded",
+    "author": "Felix-Helleckes",
+    "branch": "fix/2195-decode-relative-media-urls",
+    "hits": {
+      "codecs_media": [
+        "decode"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2394,
+    "title": "Fix TTML/DFXP export overflow for cue times near i64::MAX",
+    "author": "Silvertree2010",
+    "branch": "fix/h2818-ttml-dfxp-export-panics-with-att",
+    "hits": {
+      "stability": [
+        "overflow"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2393,
+    "title": "#1123: Effect Controls' LUT rows pick a LUT",
+    "author": "Felix-Helleckes",
+    "branch": "fix/1123-effect-controls-lut-menus",
+    "hits": {
+      "codecs_media": [
+        "lut"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2391,
+    "title": "#1422: Matroska audio without a decoder is labelled unsupported",
+    "author": "Felix-Helleckes",
+    "branch": "fix/1422-mkv-unsupported-audio-label",
+    "hits": {
+      "codecs_media": [
+        "decoder"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2378,
+    "title": "Lumetri: Auto Color Correction for clips or the whole sequence (#1152)",
+    "author": "Felix-Helleckes",
+    "branch": "feat/1152-auto-basic-correction",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2366,
+    "title": "perf(ui): Trim Monitor pictures at a cut inside one take stop cancelling each other",
+    "author": "inspiretelapps",
+    "branch": "perf/frame-request-views",
+    "hits": {
+      "gpu_perf": [
+        "perf"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2365,
+    "title": "fix(engine): timeline.slip by i64::MIN clamps instead of overflowing",
+    "author": "inspiretelapps",
+    "branch": "fix/slip-delta-overflow",
+    "hits": {
+      "stability": [
+        "overflow"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2359,
+    "title": "Add a hex field to colour parameters in Effect Controls",
+    "author": "Felix-Helleckes",
+    "branch": "feat/1561-hex-input-for-color-params",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2301,
+    "title": "h264: High 10 / High 4:2:2 decoding, intra and inter (Sony XAVC S-I and S)",
+    "author": "kottav",
+    "branch": "h264-high-bit-depth-nvdec",
+    "hits": {
+      "codecs_media": [
+        "h\\.?264"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2293,
+    "title": "ui: show active state for loop playback",
+    "author": "VyxorDev",
+    "branch": "fix/2286-loop-active-state",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2284,
+    "title": "fix(interchange): a huge duration times a speed saturates instead of overflowing",
+    "author": "Wbunker",
+    "branch": "fix/interchange-scaled-overflow",
+    "hits": {
+      "stability": [
+        "overflow"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2282,
+    "title": "fix(interchange): absurd frame rates and start timecodes are bounded on import",
+    "author": "Wbunker",
+    "branch": "fix/interchange-absurd-frame-rate",
+    "hits": {
+      "stability": [
+        "bounded"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2276,
+    "title": "render: Warp Stabilizer analyses a clip once, in bounded memory",
+    "author": "daveinme",
+    "branch": "fix/stabilizer-analysis-once",
+    "hits": {
+      "stability": [
+        "bounded"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2271,
+    "title": "fix(render): bound graphic effect working rasters",
+    "author": "nuclearspike",
+    "branch": "codex/security-graphic-raster-budget",
+    "hits": {
+      "stability": [
+        "bound"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2268,
+    "title": "fix(render): bound offline placeholder images and cache",
+    "author": "nuclearspike",
+    "branch": "codex/security-offline-slate-budget",
+    "hits": {
+      "stability": [
+        "bound"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2193,
+    "title": "Overlap VA-API readback with decoding on Linux",
+    "author": "alexandrucaraus",
+    "branch": "feat/linux-video-preview",
+    "hits": {
+      "gpu_perf": [
+        "readback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2189,
+    "title": "fix(export): unpreset H.264 exports start from the default preset",
+    "author": "derektrimm",
+    "branch": "fix/export-default-preset",
+    "hits": {
+      "codecs_media": [
+        "h\\.?264"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2181,
+    "title": "fix(render): reduce CPU load during transition playback",
+    "author": "TheGalitube",
+    "branch": "codex/issue-2098-cpu-playback",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2170,
+    "title": "Fix #1996: reflect selected text fill in color picker",
+    "author": "TheGalitube",
+    "branch": "fix-issue-1996-selected-text-color-picker",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2169,
+    "title": "Fix #1994: persist native window geometry on Windows",
+    "author": "TheGalitube",
+    "branch": "fix-issue-1994-window-geometry",
+    "hits": {
+      "windows": [
+        "windows"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2143,
+    "title": "feat(installer): unify Windows setup and completion screens",
+    "author": "skylartaylor",
+    "branch": "codex/windows-installer-latest-20261014-01",
+    "hits": {
+      "windows": [
+        "windows"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2139,
+    "title": "fix(gpu): Intel Gen 9 to Gen 11 integrated graphics draw through DirectX 12 (#512, #1425)",
+    "author": "derektrimm",
+    "branch": "fix/512-intel-integrated-dx12",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2138,
+    "title": "fix(gpu): FXC compiles the effect stage, so DX12 keeps GPU effects (#1616, #1425, #1458)",
+    "author": "derektrimm",
+    "branch": "fix/fxc-unsharp-vector-write",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2136,
+    "title": "#2024: dialog commands the engine defaults can be bound to a key",
+    "author": "txiki739",
+    "branch": "fix/nest-rebindable",
+    "hits": {
+      "stability": [
+        "bound"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2113,
+    "title": "Write the output bit depth in exported .3dl files",
+    "author": "Silvertree2010",
+    "branch": "fix/h1773-a-dark-lut-exported-to-3dl-is-re",
+    "hits": {
+      "codecs_media": [
+        "lut"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2092,
+    "title": "Add native NTSC DV25 decoding for MOV imports",
+    "author": "andymenard",
+    "branch": "codex/ntsc-dv25-pr",
+    "hits": {
+      "codecs_media": [
+        "mov"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2086,
+    "title": "WIN-07: avoid Windows rustfmt command-length failures",
+    "author": "jahvari",
+    "branch": "fix/windows-rustfmt-batching-win07",
+    "hits": {
+      "windows": [
+        "windows"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2076,
+    "title": "HEVC: select the x86-v3 inverse transform at runtime, retaining the baseline path",
+    "author": "fanthomas-creator",
+    "branch": "codex/hevc-runtime-cpu-review",
+    "hits": {
+      "codecs_media": [
+        "hevc"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2075,
+    "title": "fix(macOS): show file dialogs as sheets instead of a nested modal run loop (#2018)",
+    "author": "vark-debug",
+    "branch": "fix/lut-dialog-reentrancy",
+    "hits": {
+      "codecs_media": [
+        "lut"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2053,
+    "title": "feat(timeline): add wheel zoom and waveform color preferences",
+    "author": "channelramble",
+    "branch": "feat/timeline-wheel-and-waveform-colors",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 2030,
+    "title": "fix(shortcuts): Nest\u2026 can be bound to a key",
+    "author": "marcoarnulfo",
+    "branch": "fix/nest-bindable",
+    "hits": {
+      "stability": [
+        "bound"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1987,
+    "title": "codecs: avoid duration-sized silence allocation for damaged MP4 audio",
+    "author": "nuclearspike",
+    "branch": "codex/security-mp4-audio-duration",
+    "hits": {
+      "codecs_media": [
+        "mp4"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1978,
+    "title": "Restore mixer throughput without changing DSP output",
+    "author": "skylartaylor",
+    "branch": "codex/independent-mixer-throughput-20261015",
+    "hits": {
+      "gpu_perf": [
+        "throughput"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1973,
+    "title": "Pause playback on Ripple Trim Previous Edit to Playhead",
+    "author": "Hezzym",
+    "branch": "main",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1967,
+    "title": "ui: playhead.set while playing moves the playhead and playback continues from it (#1622)",
+    "author": "midasmatterhorn",
+    "branch": "fix/issue-1622-playhead-set-during-playback",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1957,
+    "title": "render: Transform with its own shutter angle stays on the CPU (the GPU path dropped its motion blur)",
+    "author": "schnierk",
+    "branch": "fix/transform-shutter-angle-on-gpu",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1952,
+    "title": "codecs: HEVC 4:2:2 8/10-bit decoding (Main 4:2:2 10 / RExt profile), bit-exact (#626, G3)",
+    "author": "melchiaaronzedek",
+    "branch": "feat/hevc-422-10bit",
+    "hits": {
+      "codecs_media": [
+        "hevc"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1889,
+    "title": "interchange: avoid char-boundary panic when converting file:// media URLs",
+    "author": "midasmatterhorn",
+    "branch": "fix/file-url-char-boundary",
+    "hits": {
+      "stability": [
+        "panic"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1880,
+    "title": "Rename 'Lumetri' UI terms to 'Color Grade' and 'Video Scopes'",
+    "author": "alzithetrivialmind",
+    "branch": "fix/1868-rename-lumetri-trademark",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1866,
+    "title": "perf: Warp Stabilizer works out the corrections of a clip once per set of settings",
+    "author": "Guilhermeb-Ferrarezi",
+    "branch": "perf/stabilizer-cache-corrections",
+    "hits": {
+      "gpu_perf": [
+        "perf"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1865,
+    "title": "#1381: the Warp Stabilizer analyses a clip a block of frames at a time",
+    "author": "Guilhermeb-Ferrarezi",
+    "branch": "fix/stabilizer-bounded-memory-1381",
+    "hits": {
+      "stability": [
+        "bounded"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1840,
+    "title": "interchange: overflow-safe FCPXML times and FCP7 timebases, mutation-fuzz harness",
+    "author": "ahmed0magdy",
+    "branch": "contrib/interchange-overflow-fuzz",
+    "hits": {
+      "stability": [
+        "overflow"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1835,
+    "title": "fix(codecs): read AC-3/E-AC-3 MP4 layout from dac3/dec3 (#1701)",
+    "author": "earlvanze",
+    "branch": "fix/1701-mp4-ac3-layout-upstream",
+    "hits": {
+      "codecs_media": [
+        "mp4"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1829,
+    "title": "fix(codecs): read the frame rate phone clips average to (#1700)",
+    "author": "earlvanze",
+    "branch": "fix/1700-ms-frame-times",
+    "hits": {
+      "codecs_media": [
+        "phone"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1814,
+    "title": "codecs: eliminate gap/dropout clicks in Matroska PCM audio playback",
+    "author": "woldercraft",
+    "branch": "fix/matroska-pcm-audio-continuity",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1808,
+    "title": "#1061: watchdog for a graphics start that hangs: save the next mode, and the next launch ends the stuck start",
+    "author": "liangforstudy",
+    "branch": "graphics-hang-watchdog",
+    "hits": {
+      "stability": [
+        "hang"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1794,
+    "title": "Hostile-input hammer for container crates; 3 panic fixes",
+    "author": "g1obalworlds",
+    "branch": "fix/hostile-input-containers",
+    "hits": {
+      "stability": [
+        "panic"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1778,
+    "title": "Ultra Key: colour-difference matte for green/blue screens; red edges solved from their surroundings",
+    "author": "Guilhermeb-Ferrarezi",
+    "branch": "fix/ultra-key-color-difference",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1764,
+    "title": "codecs: detect explicit Apple Log metadata in MOV",
+    "author": "BitL8-ByteShort",
+    "branch": "jorvek/filmcraft-987-apple-log",
+    "hits": {
+      "codecs_media": [
+        "mov"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1751,
+    "title": "codecs: preserve MP4 Dolby surround channels",
+    "author": "BitL8-ByteShort",
+    "branch": "jorvek/filmcraft-1701-surround",
+    "hits": {
+      "codecs_media": [
+        "mp4"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1745,
+    "title": "platform: VA-API H.264 stays in hardware after an open-GOP seek on Mesa radeonsi",
+    "author": "iannitram",
+    "branch": "upstream-pr/vaapi-open-gop",
+    "hits": {
+      "codecs_media": [
+        "h\\.?264"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1744,
+    "title": "gpu tests: one GPU test at a time in the lib test binary",
+    "author": "iannitram",
+    "branch": "upstream-pr/gpu-tests-serialize",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1742,
+    "title": "codecs: report AV1 and Matroska pixel formats",
+    "author": "BitL8-ByteShort",
+    "branch": "jorvek/filmcraft-1702-pixel-format",
+    "hits": {
+      "codecs_media": [
+        "av1"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1739,
+    "title": "fix(codecs): recover fps/frame-grid of ms-rounded phone clips",
+    "author": "earlvanze",
+    "branch": "fix/issue-1700-frames-snapped-to-a-1ms-grid",
+    "hits": {
+      "codecs_media": [
+        "phone"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1729,
+    "title": "codecs: the frame rate is what a clip's rounded durations average to (#1700)",
+    "author": "lu123bing",
+    "branch": "fix/mp4-ms-rounded-frame-rate",
+    "hits": {
+      "codecs_media": [
+        "mp4"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1719,
+    "title": "Program: add preview playback speed selector",
+    "author": "andreivincit",
+    "branch": "contribution/review-speed",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1671,
+    "title": "codecs: start an edited MP4 at its first presented picture",
+    "author": "earlvanze",
+    "branch": "fix/mp4-empty-edit-start-offset",
+    "hits": {
+      "codecs_media": [
+        "mp4"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1661,
+    "title": "playback: Stop can return the playhead to where playback started, and Ctrl+Shift+Space stops the other way",
+    "author": "ReReddo",
+    "branch": "feat/stop-returns-to-start",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1649,
+    "title": "scrub bars: dragging the playhead keeps the audio stream open instead of stopping it every move",
+    "author": "ReReddo",
+    "branch": "fix/scrub-keeps-audio-stream",
+    "hits": {
+      "gpu_perf": [
+        "scrub"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1648,
+    "title": "NVENC H.265 export on Linux, and NVENC export at all (#1624)",
+    "author": "ComfyChloe",
+    "branch": "nvenc/hevc-on-linux",
+    "hits": {
+      "codecs_media": [
+        "hevc"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1646,
+    "title": "feat(updater): crash-resilient self-updating for desktop app",
+    "author": "ARYAN007H",
+    "branch": "main",
+    "hits": {
+      "stability": [
+        "crash"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1605,
+    "title": "timecodes: Effect Controls, the Audio Track Mixer and the Reference Monitor scrub and take a typed time; one font for them all",
+    "author": "ReReddo",
+    "branch": "fix/effect-controls-timecode-scrub",
+    "hits": {
+      "gpu_perf": [
+        "scrub"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1560,
+    "title": "gpu: interpolate a scaled-up Y'CbCr layer in linear light, as the CPU does (#1558)",
+    "author": "marcoarnulfo",
+    "branch": "fix/untagged-portrait-gpu-matrix",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1446,
+    "title": "fix(monitor): the playback and paused resolution set the rendered frame size",
+    "author": "marcoarnulfo",
+    "branch": "fix/preview-resolution",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1312,
+    "title": "Decode YCbCr TIFF stills",
+    "author": "vbasky",
+    "branch": "fix/1293-ycbcr-tiff",
+    "hits": {
+      "codecs_media": [
+        "decode"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1289,
+    "title": "codecs: start an edited MP4 at its first presented picture (#1276)",
+    "author": "bfenty",
+    "branch": "fix/mp4-empty-edit",
+    "hits": {
+      "codecs_media": [
+        "mp4"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1284,
+    "title": "GPU export: 4:2:0 frames straight from the GPU (colour conversion on the GPU) (#30)",
+    "author": "LloydNicholson",
+    "branch": "gpu-yuv-export",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1215,
+    "title": "fix(timeline): \u6ce2\u5f62\u3092\u30af\u30ea\u30c3\u30d7\u80cc\u666f\u306e\u6697\u3044\u540c\u7cfb\u8272\u3067\u8868\u793a\u3059\u308b (#1183)",
+    "author": "haranishi",
+    "branch": "fix/1183-waveform-label-color",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1206,
+    "title": "fix(timeline): \u7121\u52b9\u30af\u30ea\u30c3\u30d7\u306e\u30e9\u30d9\u30eb\u8272\u3092\u4fdd\u6301\u3059\u308b (#1190)",
+    "author": "haranishi",
+    "branch": "fix/1190-disabled-clip-color",
+    "hits": {
+      "codecs_media": [
+        "color"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1170,
+    "title": "Prefer Microsoft YaHei UI for Windows Simplified Chinese",
+    "author": "sch401",
+    "branch": "fix/windows-chinese-font-and-timeline-scrubbing",
+    "hits": {
+      "windows": [
+        "windows"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 1077,
+    "title": "#1065: DNG raw settings, faster decode, opcode lists, lossy JPEG DNG",
+    "author": "vangel76",
+    "branch": "dng-decode-plus",
+    "hits": {
+      "codecs_media": [
+        "decode"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 993,
+    "title": "#977: MP3 export with a clean-room Layer III encoder",
+    "author": "vangel76",
+    "branch": "gap-mp3-export",
+    "hits": {
+      "codecs_media": [
+        "encoder"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 966,
+    "title": "CI: FreeBSD and Windows ARM64 nightly and on release, not per PR",
+    "author": "echelon",
+    "branch": "ci-speedup-nightly-platform-checks",
+    "hits": {
+      "windows": [
+        "windows"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 884,
+    "title": "h264: safe-SIMD weighted pred, chroma, and IDCT add (#848)",
+    "author": "vbasky",
+    "branch": "feat/848-h264-safe-simd-kernels",
+    "hits": {
+      "codecs_media": [
+        "h\\.?264"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 629,
+    "title": "codecs: H.264 High 10 and High 4:2:2 decoding, bit-exact",
+    "author": "4papuce",
+    "branch": "feat/h264-high10-422",
+    "hits": {
+      "codecs_media": [
+        "h\\.?264"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 583,
+    "title": "Windows source-checkout launcher with --log mode",
+    "author": "didpublishing",
+    "branch": "windows-launcher",
+    "hits": {
+      "windows": [
+        "windows"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 409,
+    "title": "AV1 export format, encoded with VA-API on Linux",
+    "author": "mutombopr",
+    "branch": "av1-export-format",
+    "hits": {
+      "codecs_media": [
+        "av1"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 332,
+    "title": "Playback: Linux audio over the PulseAudio native protocol, pure Rust (#106)",
+    "author": "Chace-Berry",
+    "branch": "linux-pipewire-audio",
+    "hits": {
+      "gpu_perf": [
+        "playback"
+      ]
+    },
+    "score": 1
+  },
+  {
+    "number": 37,
+    "title": "FreeBSD CI + cross-platform fixes it found (shortcuts, GPU effect fallback)",
+    "author": "echelon",
+    "branch": "pr/freebsd",
+    "hits": {
+      "gpu_perf": [
+        "gpu"
+      ]
+    },
+    "score": 1
+  }
+]
