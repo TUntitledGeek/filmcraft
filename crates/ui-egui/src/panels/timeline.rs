@@ -62,6 +62,9 @@ pub struct TlState {
     zoom_anchor: Option<(f64, f32)>,
     /// The zoom (points a second) the video thumbnails are laid out at while the view is zooming (#1094).
     thumb_pps: Option<f64>,
+    pub visual_playhead: Option<Tick>,
+    pub pending_scrub_tick: Option<Tick>,
+    pub last_scrub_dispatch: Option<web_time::Instant>,
 }
 
 impl TlState {
@@ -674,7 +677,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     draw_top(app, ui, rect, seq, &layout, &t, seq_id);
 
     // ---- playhead
-    let ph = app.session.playhead();
+    let ph = app.tl.visual_playhead.unwrap_or_else(|| app.session.playhead());
     let px = layout.x_of(ph);
     if px >= content.min.x - 1.0 && px <= content.max.x + 1.0 {
         // a short head on the tick row, as in Effect Controls, so it leaves the markers and timecodes clear
@@ -1536,10 +1539,11 @@ fn draw_top(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, seq: &Sequenc
     // background of the whole top block
     p.rect_filled(Rect::from_min_max(rect.min, pos2(rect.max.x, ruler.max.y)), 0.0, t.panel_bg);
     // current timecode: Premiere's big blue timecode
-    let tc = format_time(app.session.playhead(), rate, seq.settings.drop_frame, TimeDisplay::Timecode, seq.settings.sample_rate as i64);
+    let display_playhead = app.tl.visual_playhead.unwrap_or_else(|| app.session.playhead());
+    let tc = format_time(display_playhead, rate, seq.settings.drop_frame, TimeDisplay::Timecode, seq.settings.sample_rate as i64);
     let tc_rect = Rect::from_min_size(pos2(rect.min.x + 14.0, rect.min.y + 4.0), vec2(hw - 20.0, 20.0));
     let tc_id = egui::Id::new(("timeline-tc", seq_id));
-    match crate::widgets::timecode_field(ui, tc_id, tc_rect, &tc, app.session.playhead(), Tick::ZERO, rate, seq.settings.drop_frame, t.timecode) {
+    match crate::widgets::timecode_field(ui, tc_id, tc_rect, &tc, display_playhead, Tick::ZERO, rate, seq.settings.drop_frame, t.timecode) {
         Some(Ok(time)) => {
             if let Err(e) = app.session.execute("playhead.set", json!({"time": time.0})) {
                 app.ui.status = e.to_string();
@@ -2315,7 +2319,10 @@ fn scrub_playhead(app: &mut FilmcraftApp, seq: &Sequence, layout: &Layout, p: Po
     if let Some(m) = marker_at(seq, layout, p) {
         tt = m.max(Tick::ZERO);
     }
+    app.tl.visual_playhead = Some(tt);
     app.session.set_playhead(tt);
+    app.tl.last_scrub_dispatch = Some(web_time::Instant::now());
+    app.tl.pending_scrub_tick = None;
 }
 
 fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &Layout, rect: Rect) {
@@ -2664,6 +2671,8 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
             match d {
                 Drag::Scrub { initial } => {
                     app.session.set_playhead(initial);
+                    app.tl.visual_playhead = None;
+                    app.tl.pending_scrub_tick = None;
                 }
                 Drag::Volume(v) => {
                     if v.changed() {
@@ -2701,7 +2710,17 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                 if mods.shift || app.session.prefs.timeline.snap_playhead {
                     tt = snap_playhead(app, seq, layout, tt);
                 }
-                app.session.set_playhead(tt);
+                app.tl.visual_playhead = Some(tt);
+                app.tl.pending_scrub_tick = Some(tt);
+                let now = web_time::Instant::now();
+                let should_dispatch = app.tl.last_scrub_dispatch.map_or(true, |last| {
+                    now.duration_since(last) >= std::time::Duration::from_millis(32)
+                });
+                if should_dispatch {
+                    app.session.set_playhead(tt);
+                    app.tl.last_scrub_dispatch = Some(now);
+                    app.tl.pending_scrub_tick = None;
+                }
                 Some(Drag::Scrub { initial })
             }
             Drag::Pan { last, start_scroll, start_v } => {
@@ -2881,6 +2900,24 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
         } else {
             app.tl.drag = None;
         }
+    }
+
+    // Settle & release flush for scrub coalescer (prevents desync)
+    let is_scrubbing = matches!(app.tl.drag, Some(Drag::Scrub { .. }));
+    let now = web_time::Instant::now();
+    let settle_due = app.tl.last_scrub_dispatch.map_or(true, |last| {
+        now.duration_since(last) >= std::time::Duration::from_millis(32)
+    });
+    if (!is_scrubbing || settle_due) && app.tl.pending_scrub_tick.is_some() {
+        if let Some(final_tick) = app.tl.pending_scrub_tick.take() {
+            app.session.set_playhead(final_tick);
+            app.tl.last_scrub_dispatch = Some(now);
+        }
+    }
+    if !is_scrubbing {
+        app.tl.visual_playhead = None;
+    } else if app.tl.pending_scrub_tick.is_some() {
+        ctx.request_repaint_after(std::time::Duration::from_millis(32));
     }
 
     // ---- double-click a transition: Set Transition Duration (Premiere)

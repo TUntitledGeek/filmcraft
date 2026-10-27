@@ -76,7 +76,43 @@ impl Generator {
     fn has_video(&self) -> bool {
         !matches!(self, Generator::Tone { .. })
     }
+    fn cache_kind(&self) -> u8 {
+        match self {
+            Generator::Demo(DemoScene::OceanSunset) => 1,
+            Generator::Demo(DemoScene::Aurora) => 2,
+            Generator::Demo(DemoScene::CityNight) => 3,
+            Generator::Demo(DemoScene::Dunes) => 4,
+            Generator::Demo(DemoScene::Plasma) => 5,
+            Generator::Demo(DemoScene::Forest) => 6,
+            Generator::BarsAndTone => 7,
+            Generator::CountingLeader => 8,
+            Generator::BlackVideo => 9,
+            Generator::TransparentVideo => 10,
+            Generator::ColorMatte { .. } => 11,
+            Generator::Tone { .. } => 12,
+        }
+    }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct DraftKey {
+    gen_kind: u8,
+    frame: i64,
+    w: u32,
+    h: u32,
+}
+
+struct DraftRingCache {
+    entries: std::collections::VecDeque<(DraftKey, Arc<VideoFrame>, usize)>,
+    current_bytes: usize,
+}
+
+static DRAFT_CACHE: std::sync::Mutex<DraftRingCache> = std::sync::Mutex::new(DraftRingCache {
+    entries: std::collections::VecDeque::new(),
+    current_bytes: 0,
+});
+
+const MAX_DRAFT_CACHE_BYTES: usize = 32 * 1024 * 1024; // 32 MB hard cap
 
 /// A generator bound to a frame size/rate/duration.
 pub struct GeneratorSource {
@@ -160,6 +196,37 @@ impl MediaSource for GeneratorSource {
         let s = bucket as f32 / 64.0;
         let (w, h) = (((v.width as f32 * s).round() as u32).max(2), ((v.height as f32 * s).round() as u32).max(2));
         let t = rate.tick_of(frame).seconds() as f32;
+        if w <= 960 {
+            let draft_key = DraftKey {
+                gen_kind: self.generator.cache_kind(),
+                frame,
+                w,
+                h,
+            };
+            if let Ok(cache) = DRAFT_CACHE.lock() {
+                if let Some((_, frame_arc, _)) = cache.entries.iter().find(|(k, _, _)| *k == draft_key) {
+                    return Ok(frame_arc.clone());
+                }
+            }
+            let frame_res = self.cache.get_or_insert_with((frame, bucket, is_draft), || {
+                let px = render(&self.generator, w, h, t, frame, rate);
+                Ok(Arc::new(VideoFrame::rgba8(w, h, px).with_pts(rate.tick_of(frame))))
+            });
+            if let Ok(ref f) = frame_res {
+                let frame_bytes = (w as usize) * (h as usize) * 4;
+                if let Ok(mut cache) = DRAFT_CACHE.lock() {
+                    while !cache.entries.is_empty() && cache.current_bytes + frame_bytes > MAX_DRAFT_CACHE_BYTES {
+                        if let Some((_, _, old_bytes)) = cache.entries.pop_front() {
+                            cache.current_bytes = cache.current_bytes.saturating_sub(old_bytes);
+                        }
+                    }
+                    cache.current_bytes += frame_bytes;
+                    cache.entries.push_back((draft_key, f.clone(), frame_bytes));
+                }
+            }
+            return frame_res;
+        }
+
         self.cache.get_or_insert_with((frame, bucket, is_draft), || {
             let px = render(&self.generator, w, h, t, frame, rate);
             Ok(Arc::new(VideoFrame::rgba8(w, h, px).with_pts(rate.tick_of(frame))))
@@ -311,7 +378,7 @@ pub fn render(g: &Generator, w: u32, h: u32, t: f32, frame: i64, rate: FrameRate
         Generator::CountingLeader => leader(&mut px, wu, hu, t, frame, rate),
         Generator::Demo(scene) => {
             let scene = *scene;
-            let is_draft = crate::cancel::draft();
+            let is_draft = crate::cancel::draft() && wu <= 960;
             let cancelled = AtomicBool::new(false);
             px.par_chunks_mut(wu * 4).enumerate().for_each(|(y, row)| {
                 if cancelled.load(Ordering::Relaxed) {
@@ -441,7 +508,7 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
                     c = [1.0, 0.95, 0.82];
                 }
                 // wispy clouds
-                let oct = if is_draft { 2 } else { 4 };
+                let oct = if is_draft { 1 } else { 4 };
                 let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, oct);
                 let cm = smoothstep(0.15, 0.45, cl) * smoothstep(0.1, 0.45, v) * (1.0 - smoothstep(0.45, 0.55, v));
                 lerp3(c, [0.55, 0.28, 0.35], cm * 0.55)
@@ -481,7 +548,7 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
                 c = lerp3(c, *col, (a * 0.8).min(1.0));
             }
             // mountains
-            let m_oct = if is_draft { 2 } else { 5 };
+            let m_oct = if is_draft { 1 } else { 5 };
             let m = 0.72 + 0.08 * fbm(u * 3.0, 3.3, m_oct) + 0.05 * (u * 5.0).sin();
             if v > m {
                 let snow = smoothstep(0.02, 0.0, v - m) * 0.3;
@@ -496,7 +563,7 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
         DemoScene::CityNight => {
             let mut c = lerp3([0.05, 0.02, 0.15], [0.55, 0.2, 0.35], v.powf(2.2));
             let layers = [(0.15, 0.55, [0.12, 0.08, 0.2], 0.02), (0.28, 0.62, [0.07, 0.05, 0.12], 0.05), (0.45, 0.7, [0.03, 0.02, 0.06], 0.12)];
-            let max_l = if is_draft { 2 } else { layers.len() };
+            let max_l = if is_draft { 1 } else { layers.len() };
             for (li, (bw, base, col, speed)) in layers[..max_l].iter().enumerate() {
                 let x = u * aspect / bw + t * speed;
                 let bi = x.floor();
@@ -530,7 +597,8 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
             let sun_d = ((u - 0.75) * aspect).hypot(v - 0.22);
             c = lerp3(c, [1.0, 0.97, 0.85], (-sun_d * 14.0).exp());
             let oct = if is_draft { 1 } else { 3 };
-            for k in 0..4 {
+            let max_k = if is_draft { 2 } else { 4 };
+            for k in 0..max_k {
                 let fk = k as f32;
                 let x = u * (1.0 + fk * 0.6) + t * 0.01 * (fk + 1.0);
                 let ridge = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, oct);
