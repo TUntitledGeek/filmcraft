@@ -2,7 +2,7 @@ name: Deploy FilmCraft Web to GitHub Pages
 
 on:
   push:
-    branches: [main, local/filmcraft-coop]
+    branches: [main, local/filmcraft-coop, studio-pro]
   workflow_dispatch:
 
 permissions:
