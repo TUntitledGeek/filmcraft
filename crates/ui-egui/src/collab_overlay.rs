@@ -1,9 +1,66 @@
 //! Rendering helpers for remote collaborative peers (presence cursors, ghost drags, and soft locks).
 
+use std::collections::HashMap;
+use std::sync::Mutex;
 use egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 use filmcraft_collab::{PeerPresence, SoftLock};
 use filmcraft_project::TrackKind;
 use filmcraft_time::Tick;
+
+static PEER_VISUAL_CURSORS: Mutex<Option<HashMap<(filmcraft_collab::PeerId, &'static str), Pos2>>> = Mutex::new(None);
+static PEER_VISUAL_PLAYHEADS: Mutex<Option<HashMap<filmcraft_collab::PeerId, f32>>> = Mutex::new(None);
+
+/// Critically damped spring / exponential smoothing for remote peer positions (Figma-style).
+/// Snaps immediately if distance > 500px (initial join or large jump).
+/// Interpolates smoothly when distance > 0.5px and calls request_repaint().
+/// Settles to target when distance <= 0.5px (0% idle CPU).
+pub fn interpolate_cursor(ctx: &egui::Context, peer_id: filmcraft_collab::PeerId, scope: &'static str, target_pos: Pos2) -> Pos2 {
+    let mut guard = PEER_VISUAL_CURSORS.lock().unwrap_or_else(|e| e.into_inner());
+    let map = guard.get_or_insert_with(HashMap::new);
+    let key = (peer_id, scope);
+    let visual_pos = if let Some(vis) = map.get_mut(&key) {
+        let dist_sq = (target_pos - *vis).length_sq();
+        if dist_sq > 250_000.0 {
+            *vis = target_pos;
+        } else if dist_sq > 0.25 {
+            let dt = ctx.input(|i| i.stable_dt).clamp(0.001, 0.1);
+            let alpha = 1.0 - (-dt * 18.0).exp();
+            *vis += (target_pos - *vis) * alpha;
+            ctx.request_repaint();
+        } else {
+            *vis = target_pos;
+        }
+        *vis
+    } else {
+        map.insert(key, target_pos);
+        target_pos
+    };
+    visual_pos
+}
+
+/// Critically damped spring interpolation for remote peer playhead X coordinate.
+pub fn interpolate_playhead_x(ctx: &egui::Context, peer_id: filmcraft_collab::PeerId, target_x: f32) -> f32 {
+    let mut guard = PEER_VISUAL_PLAYHEADS.lock().unwrap_or_else(|e| e.into_inner());
+    let map = guard.get_or_insert_with(HashMap::new);
+    let visual_x = if let Some(vis) = map.get_mut(&peer_id) {
+        let diff = (target_x - *vis).abs();
+        if diff > 500.0 {
+            *vis = target_x;
+        } else if diff > 0.5 {
+            let dt = ctx.input(|i| i.stable_dt).clamp(0.001, 0.1);
+            let alpha = 1.0 - (-dt * 18.0).exp();
+            *vis += (target_x - *vis) * alpha;
+            ctx.request_repaint();
+        } else {
+            *vis = target_x;
+        }
+        *vis
+    } else {
+        map.insert(peer_id, target_x);
+        target_x
+    };
+    visual_x
+}
 
 pub struct CollabRenderCtx<'a> {
     pub peers: &'a [PeerPresence],
@@ -48,7 +105,8 @@ pub fn paint_timeline_presence(
 
         // Remote Playhead
         if let Some(tick) = peer.playhead_tick {
-            let px = time_to_x(tick);
+            let target_px = time_to_x(tick);
+            let px = interpolate_playhead_x(painter.ctx(), peer.peer_id, target_px);
             if px >= content_rect.min.x && px <= content_rect.max.x {
                 // Secondary playhead line
                 painter.line_segment(
@@ -170,16 +228,19 @@ pub fn paint_timeline_presence(
                     } else {
                         // Exactly ON SCREEN: Draw cursor arrow and name tag
                         let clamped_y = cy.clamp(ruler_rect.min.y, content_rect.max.y - 12.0);
-                        paint_pointer(painter, pos2(cx, clamped_y), col, &peer.name, peer.in_hand.as_deref());
+                        let target_pos = pos2(cx, clamped_y);
+                        let visual_pos = interpolate_cursor(painter.ctx(), peer.peer_id, "timeline", target_pos);
+                        paint_pointer(painter, visual_pos, col, &peer.name, peer.in_hand.as_deref());
                     }
                 } else if let Some([nx, ny]) = peer.cursor_norm {
                     // Fallback only if no tick is known (e.g. over timeline panel headers)
-                    let pos = pos2(
+                    let target_pos = pos2(
                         content_rect.min.x + nx * content_rect.width(),
                         content_rect.min.y + ny * content_rect.height(),
                     );
-                    if content_rect.contains(pos) {
-                        paint_pointer(painter, pos, col, &peer.name, peer.in_hand.as_deref());
+                    let visual_pos = interpolate_cursor(painter.ctx(), peer.peer_id, "timeline", target_pos);
+                    if content_rect.contains(visual_pos) {
+                        paint_pointer(painter, visual_pos, col, &peer.name, peer.in_hand.as_deref());
                     }
                 }
             }
@@ -324,12 +385,13 @@ pub fn paint_monitor_presence(painter: &Painter, peers: &[PeerPresence], pic: Re
                 panel.eq_ignore_ascii_case("sourcepic")
             };
             if is_match {
-                let cursor_pos = pos2(
+                let target_pos = pos2(
                     pic.min.x + nx * pic.width(),
                     pic.min.y + ny * pic.height(),
                 );
-                if pic.contains(cursor_pos) {
-                    paint_pointer(painter, cursor_pos, col, &peer.name, peer.in_hand.as_deref());
+                let visual_pos = interpolate_cursor(painter.ctx(), peer.peer_id, "monitor", target_pos);
+                if pic.contains(visual_pos) {
+                    paint_pointer(painter, visual_pos, col, &peer.name, peer.in_hand.as_deref());
                 }
             }
         }
@@ -380,5 +442,23 @@ mod tests {
     #[test]
     fn offscreen_direction_enum_works() {
         assert_ne!(OffscreenDirection::Left, OffscreenDirection::Right);
+    }
+
+    #[test]
+    fn peer_spring_interpolation_tracks_and_settles() {
+        let ctx = egui::Context::default();
+        let p1 = pos2(100.0, 100.0);
+        let res1 = interpolate_cursor(&ctx, 42, "test", p1);
+        assert_eq!(res1, p1);
+
+        // Teleport snap (>500px)
+        let p_teleport = pos2(1000.0, 1000.0);
+        let res_teleport = interpolate_cursor(&ctx, 42, "test", p_teleport);
+        assert_eq!(res_teleport, p_teleport);
+
+        // Smooth move (small step)
+        let p_step = pos2(1010.0, 1010.0);
+        let res_step = interpolate_cursor(&ctx, 42, "test", p_step);
+        assert!(res_step.x > 1000.0 && res_step.x <= 1010.0);
     }
 }

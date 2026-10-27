@@ -547,7 +547,7 @@ impl FrameServer {
             return;
         }
         self.shared.stats.lock().unwrap_or_else(|e| e.into_inner()).request_misses += 1;
-        if prio == 0 {
+        if prio <= 10 {
             // A new frame on screen for this view replaces the one asked for before: scrubbing
             // asks for one per refresh, and without this the oldest position would decode
             // first (or keep a decoder busy seeking to it) while the newest waits.
@@ -557,7 +557,7 @@ impl FrameServer {
             // source frames, so it holds no decoder back, and when frames take longer than a
             // refresh, cancelling each one for the next would show nothing until the mouse rests.
             let same_view = |k: &FrameKey| k.target == key.target;
-            q.retain(|j| !(j.prio == 0 && !j.prefetch && same_view(&j.key)));
+            q.retain(|j| !(same_view(&j.key) && j.key.frame != key.frame && (j.prio == 0 || j.prefetch || j.prio <= 10)));
             for (k, c, prefetch) in self.shared.in_flight.lock().unwrap_or_else(|e| e.into_inner()).iter() {
                 if !prefetch && same_view(k) && k.frame != key.frame {
                     c.store(true, Ordering::Relaxed);
@@ -671,6 +671,26 @@ impl FrameServer {
                 let mut q = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
                 if q.is_empty() {
                     break;
+                }
+                if let Some(limit) = max_prio {
+                    // While in motion (playback or scrubbing), drop older pending monitor frame requests
+                    // for stale ticks on the same sequence so only the newest target tick is decoded.
+                    let mut latest_monitor_frames: std::collections::HashMap<Target, i64> = std::collections::HashMap::new();
+                    for j in q.iter() {
+                        if matches!(j.key.target, Target::Sequence(_) | Target::SequencePlan(_)) && j.prio <= limit {
+                            latest_monitor_frames.insert(j.key.target, j.key.frame);
+                        }
+                    }
+                    if !latest_monitor_frames.is_empty() {
+                        q.retain(|j| {
+                            if let Some(&latest_frame) = latest_monitor_frames.get(&j.key.target) {
+                                if j.prio <= limit && j.key.frame != latest_frame {
+                                    return false;
+                                }
+                            }
+                            true
+                        });
+                    }
                 }
                 let best = q.iter().enumerate().min_by_key(|(i, j)| (j.prio, *i)).map(|(i, _)| i).unwrap_or(0);
                 if let Some(limit) = max_prio {

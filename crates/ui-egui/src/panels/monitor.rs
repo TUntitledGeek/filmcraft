@@ -230,6 +230,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         } else {
             cpu_texture(app, &ctx, &tex_name, key, &asked, display)
         };
+        // Zero-flash guard: never blank or drop the texture while waiting for an in-flight frame or resolution swap
+        let shown = shown
+            .or_else(|| app.texture_existing(&tex_name).map(|(id, _)| id))
+            .or_else(|| app.texture_existing(&format!("monitor-{prefix}")).map(|(id, _)| id));
         let exact = on_screen == Some(key);
         if which == Which::Program {
             app.program_shown = on_screen;
@@ -518,6 +522,18 @@ fn cpu_texture(
         .or_else(|| (1..=8).map(|d| FrameKey { frame: key.frame.saturating_add(d), ..key }).find_map(|k| app.frames.get(&k).map(|img| (k, img))))
         .or_else(|| key.draft.then(|| FrameKey { draft: false, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
         .or_else(|| (!key.draft).then(|| FrameKey { draft: true, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| {
+            // Scale-transition guard: when pausing/settling between 0.5 (draft) and 1.0 (full),
+            // check if the alternate resolution is already cached so we never blank
+            [500, 250, 1000].into_iter()
+                .filter(|&sz| sz != key.size)
+                .find_map(|sz| {
+                    app.frames.get(&FrameKey { size: sz, ..key })
+                        .or_else(|| app.frames.get(&FrameKey { size: sz, draft: true, ..key }))
+                        .or_else(|| app.frames.get(&FrameKey { size: sz, draft: false, ..key }))
+                        .map(|img| (FrameKey { size: sz, ..key }, img))
+                })
+        })
         .or_else(|| asked.iter().find_map(|k| app.frames.get(k).map(|img| (*k, img))));
     match found {
         Some((k, img)) => {
@@ -528,7 +544,14 @@ fn cpu_texture(
             };
             (Some(tex), Some(k))
         }
-        None => (app.texture_existing(name).map(|(id, _)| id), app.texture_key(name)),
+        None => {
+            let existing = app.texture_existing(name)
+                .or_else(|| {
+                    let base_name = if name.contains("source") { "monitor-source" } else { "monitor-program" };
+                    app.texture_existing(base_name)
+                });
+            (existing.map(|(id, _)| id), app.texture_key(name))
+        }
     }
 }
 

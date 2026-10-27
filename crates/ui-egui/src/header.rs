@@ -95,8 +95,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
     // Co-op Editing: button to open live collaboration dialog
     let collab_active = app.collab.is_some();
-    let collab_tip = if collab_active { tl!("Co-op Session (Active)") } else { tl!("Start or Join Co-op Session") };
-    let resp_collab = btn(ui, Icon::Globe, "coop", &collab_tip, app);
+    let collab_tip = if collab_active { "Co-op Session (Active)" } else { "Start or Join Co-op Session" };
+    let resp_collab = btn(ui, Icon::Globe, "coop", collab_tip, app);
     if resp_collab.clicked() {
         app.collab_dialog_open = !app.collab_dialog_open;
     }

@@ -7,21 +7,54 @@
   <title>FilmCraft</title>
   <link rel="icon" href="favicon.png" type="image/png">
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1c1f; }
-    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0d0f12;
+      overscroll-behavior: none;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      overscroll-behavior: none;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #0d0f12;
+    }
     #loading {
       position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px;
-      align-items: center; justify-content: center; color: #c9c9cc;
-      font: 14px/1.4 system-ui, sans-serif; pointer-events: none;
+      align-items: center; justify-content: center; background-color: #0d0f12; color: #9da3ae;
+      font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      z-index: 5; transition: opacity 0.35s ease, visibility 0.35s;
     }
-    #loading img { width: 56px; height: 56px; }
+    #loading.loaded {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    #loading img { width: 56px; height: 56px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    #loading .spinner {
+      width: 22px; height: 22px; border: 2px solid rgba(255, 255, 255, 0.12);
+      border-top-color: #4f87f7; border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading #status { color: #8e95a2; letter-spacing: 0.01em; }
     #loading .err { color: #ff8a7a; white-space: pre-wrap; max-width: 70ch; pointer-events: auto; }
     #fatal {
       position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-      background: rgba(20, 20, 22, 0.88); color: #e6e6e8; font: 14px/1.45 system-ui, sans-serif; z-index: 10;
+      background: rgba(13, 15, 18, 0.92); color: #e6e6e8; font: 14px/1.45 system-ui, sans-serif; z-index: 10;
     }
     #fatal.on { display: flex; }
-    #fatal .box { max-width: min(78ch, calc(100vw - 32px)); padding: 20px 24px; background: #26272b; border-radius: 8px; }
+    #fatal .box { max-width: min(78ch, calc(100vw - 32px)); padding: 20px 24px; background: #1a1d23; border: 1px solid #2d3139; border-radius: 8px; }
     #fatal h1 { margin: 0 0 8px; font-size: 17px; color: #ff8a7a; }
     #fatal pre { max-height: 40vh; overflow: auto; white-space: pre-wrap; font-size: 12px; color: #c9c9cc; }
     #fatal button { font: inherit; padding: 6px 14px; border: 0; border-radius: 6px; background: #3b6fe0; color: #fff; cursor: pointer; }
@@ -29,7 +62,11 @@
 </head>
 <body>
   <canvas id="filmcraft_canvas"></canvas>
-  <div id="loading"><img src="favicon.png" alt=""><div id="status">Loading FilmCraft…</div></div>
+  <div id="loading">
+    <img src="favicon.png" alt="FilmCraft">
+    <div class="spinner"></div>
+    <div id="status">Loading FilmCraft…</div>
+  </div>
   <div id="fatal" role="alertdialog" aria-labelledby="fatal-title">
     <div class="box">
       <h1 id="fatal-title">FilmCraft stopped working</h1>
@@ -63,6 +100,30 @@
     // only after start-up: a failed start is shown in #loading below
     addEventListener("error", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.error || ev.message)) window.filmcraftFatal(ev.error || ev.message); });
     addEventListener("unhandledrejection", (ev) => { if (window.filmcraftLoad.readyMs && isFatal(ev.reason)) window.filmcraftFatal(ev.reason); });
+  </script>
+  <script>
+    // Browser Ergonomics & Isolation:
+    // 1. Block browser-level page pinch-zoom so egui receives clean canvas pinch gestures
+    window.addEventListener("wheel", (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // 2. Block native browser keyboard shortcuts that conflict with NLE editing
+    window.addEventListener("keydown", (e) => {
+      const tag = (document.activeElement && document.activeElement.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const cmd = e.ctrlKey || e.metaKey;
+      if (cmd) {
+        const key = e.key.toLowerCase();
+        if (key === "s" || key === "o" || key === "z" || key === "y") {
+          e.preventDefault();
+        }
+      } else if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+      }
+    });
   </script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script>
@@ -188,6 +249,11 @@
       window.filmcraftLoad.wasmMs = performance.now() - t0;
       await start("filmcraft_canvas");
       window.filmcraftLoad.readyMs = performance.now() - t0;
+      const loader = document.getElementById("loading");
+      if (loader) {
+        loader.classList.add("loaded");
+        setTimeout(() => loader.remove(), 400);
+      }
     } catch (e) {
       const text = String(e && e.stack || e);
       window.filmcraftLoad.error = String(e);

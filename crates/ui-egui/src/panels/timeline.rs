@@ -2364,8 +2364,16 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
         && let Some(p) = ctx.pointer_hover_pos()
     {
         let w = wheel_input(&ctx);
-        if (w.pinch - 1.0).abs() > 1e-4 || (w.alt && w.delta.y != 0.0) {
-            let f = if (w.pinch - 1.0).abs() > 1e-4 { w.pinch as f64 } else { (1.0_f64 + w.delta.y as f64 * 0.01).clamp(0.5, 2.0) };
+        let zoom_delta = ctx.input(|i| i.zoom_delta());
+        let pinch = if (w.pinch - 1.0).abs() > 1e-4 {
+            w.pinch
+        } else if (zoom_delta - 1.0).abs() > 1e-4 {
+            zoom_delta
+        } else {
+            1.0
+        };
+        if (pinch - 1.0).abs() > 1e-4 || (w.alt && w.delta.y != 0.0) {
+            let f = if (pinch - 1.0).abs() > 1e-4 { pinch as f64 } else { (1.0_f64 + w.delta.y as f64 * 0.01).clamp(0.5, 2.0) };
             let anchor_t = layout.tick_at(p.x).seconds();
             let v = &mut app.ui.timeline;
             v.target_pps = (v.target_pps * f).clamp(0.05, 24_000.0);
