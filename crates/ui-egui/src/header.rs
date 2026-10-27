@@ -3,7 +3,7 @@
 //! live in the native menu bar (set up by the app); elsewhere a compact in-window menu bar follows
 //! the mode tabs.
 
-use egui::{Color32, Rect, Sense, Stroke, pos2, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use crate::FilmcraftApp;
 use crate::icons::{self, Icon};
@@ -36,23 +36,47 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         app.ui.mode = Mode::Import;
     }
     x = home.max.x + 16.0;
-    // Mode tabs (14 pt; active = primary text with a 2 pt underline under the label)
-    for (m, label, shown) in [(Mode::Import, "Import", tl!("Import")), (Mode::Edit, "Edit", tl!("Edit")), (Mode::Export, "Export", tl!("Export"))] {
-        let active = app.ui.mode == m;
-        let galley = p.layout_no_wrap(shown.to_string(), Tokens::ui(14.0), if active { t.tab_text_active } else { t.tab_text });
-        let r = Rect::from_min_size(pos2(x - 6.0, rect.min.y + 6.0), vec2(galley.size().x + 12.0, rect.height() - 12.0));
-        let resp = ui.interact(r, egui::Id::new(("mode", label)), Sense::click());
-        app.auto.add(&format!("header.mode.{}", label.to_ascii_lowercase()), r, label);
-        let col = if active || resp.hovered() { t.tab_text_active } else { t.tab_text };
+    // Studio Pro Mode Switcher Tabs
+    let mode_tabs = [
+        (Mode::Import, "import", "◫ Media Hub", None),
+        (Mode::Edit, "edit", "▶ Edit Timeline", Some("Editing")),
+        (Mode::Edit, "fusion", "☊ Fusion Nodes", Some("Fusion")),
+        (Mode::Edit, "color", "🎨 Color", Some("Color")),
+        (Mode::Export, "export", "⇗ Export", None),
+    ];
+    for (m, id_tag, label_text, target_ws) in mode_tabs {
+        let is_active = match (m, target_ws) {
+            (Mode::Import, _) => app.ui.mode == Mode::Import,
+            (Mode::Export, _) => app.ui.mode == Mode::Export,
+            (Mode::Edit, Some("Fusion")) => app.ui.mode == Mode::Edit && (app.ui.workspace == "Fusion" || app.ui.workspace == "Fusion Nodes"),
+            (Mode::Edit, Some("Color")) => app.ui.mode == Mode::Edit && app.ui.workspace == "Color",
+            (Mode::Edit, _) => app.ui.mode == Mode::Edit && app.ui.workspace != "Fusion" && app.ui.workspace != "Fusion Nodes" && app.ui.workspace != "Color",
+        };
+        let galley = p.layout_no_wrap(label_text.to_string(), Tokens::ui(12.5), if is_active { Color32::from_rgb(0xf8, 0xfa, 0xfc) } else { t.tab_text });
         let gw = galley.size().x;
-        p.galley_with_override_text_color(pos2(x, rect.center().y - galley.size().y / 2.0), galley, col);
-        if active {
-            p.line_segment([pos2(x, rect.min.y + 29.0), pos2(x + gw, rect.min.y + 29.0)], Stroke::new(2.0, t.tab_text_active));
+        let r = Rect::from_min_size(pos2(x - 4.0, rect.min.y + 5.0), vec2(gw + 18.0, rect.height() - 10.0));
+        let resp = ui.interact(r, egui::Id::new(("studio-hdr-mode", id_tag)), Sense::click());
+        app.auto.add(&format!("header.mode.{}", id_tag), r, label_text);
+        
+        if is_active {
+            p.rect_filled(r, 4.0, Color32::from_rgb(0x22, 0x25, 0x32));
+            p.rect_stroke(r, 4.0, Stroke::new(1.0, Color32::from_rgb(0x32, 0x37, 0x48)), StrokeKind::Inside);
+            let bar_col = if id_tag == "fusion" || id_tag == "color" { Color32::from_rgb(0xec, 0x93, 0x24) } else { Color32::from_rgb(0x38, 0x7c, 0xf2) };
+            p.line_segment([pos2(r.min.x + 6.0, r.max.y - 1.0), pos2(r.max.x - 6.0, r.max.y - 1.0)], Stroke::new(2.0, bar_col));
+        } else if resp.hovered() {
+            p.rect_filled(r, 4.0, t.hover);
         }
+        
+        let col = if is_active { Color32::from_rgb(0xf8, 0xfa, 0xfc) } else if resp.hovered() { t.text } else { t.tab_text };
+        p.galley_with_override_text_color(pos2(r.center().x - gw / 2.0, rect.center().y - galley.size().y / 2.0), galley, col);
+        
         if resp.clicked() {
             app.ui.mode = m;
+            if let Some(ws) = target_ws {
+                app.set_workspace(ws);
+            }
         }
-        x += gw + 24.0;
+        x = r.max.x + 6.0;
     }
     let mut left_end = x;
     // In-window menus when there is no native menu bar.
@@ -65,8 +89,16 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         crate::menus::menu_bar(app, &mut mu);
         left_end = mu.min_rect().max.x;
     }
-    // Document title, centred
-    let title = if app.session.is_dirty() { tlf!("{name} - Edited", name = app.session.project.name) } else { app.session.project.name.clone() };
+    // Document title badge in center
+    let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
+    let title_badge = format!("🎬 {} · ☁ Google Drive", title_raw);
+    let title_w = 260.0;
+    let tr = Rect::from_center_size(pos2(rect.center().x, rect.center().y), vec2(title_w, 22.0));
+    p.rect_filled(tr, 11.0, Color32::from_rgb(0x10, 0x11, 0x16));
+    p.rect_stroke(tr, 11.0, Stroke::new(1.0, Color32::from_rgb(0x27, 0x2a, 0x36)), StrokeKind::Inside);
+    p.circle_filled(pos2(tr.min.x + 10.0, tr.center().y), 3.0, Color32::from_rgb(0x10, 0xb9, 0x81));
+    p.text(pos2(tr.min.x + 18.0, tr.center().y), Align2::LEFT_CENTER, title_badge, Tokens::ui(11.0), t.text);
+    let title = title_raw;
     // Right cluster: icons at ~38 pt pitch, then workspace name in caps.
     let mut rx = rect.max.x - 14.0;
     let mut btn = |ui: &mut egui::Ui, icon: Icon, id: &str, tip: &str, app: &mut FilmcraftApp| -> egui::Response {

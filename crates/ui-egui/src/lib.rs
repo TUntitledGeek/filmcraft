@@ -2893,43 +2893,44 @@ impl FilmcraftApp {
         // DaVinci Studio Workspace Page Bar (Media, Cut, Edit, Fusion Nodes, Color, Fairlight, Deliver)
         let pages = [
             ("Media", state::Mode::Import, None),
-            ("Cut", state::Mode::Edit, Some(PanelKind::Timeline)),
-            ("Edit", state::Mode::Edit, Some(PanelKind::Timeline)),
-            ("Fusion Nodes", state::Mode::Edit, Some(PanelKind::NodeGraph)),
-            ("Color", state::Mode::Edit, Some(PanelKind::LumetriColor)),
-            ("Fairlight", state::Mode::Edit, Some(PanelKind::AudioTrackMixer)),
+            ("Cut", state::Mode::Edit, Some("Editing")),
+            ("Edit", state::Mode::Edit, Some("Editing")),
+            ("Fusion Nodes", state::Mode::Edit, Some("Fusion")),
+            ("Color", state::Mode::Edit, Some("Color")),
+            ("Fairlight", state::Mode::Edit, Some("Audio")),
             ("Deliver", state::Mode::Export, None),
         ];
 
-        let total_pages_w = pages.len() as f32 * 74.0;
+        let total_pages_w = pages.len() as f32 * 78.0;
         let start_x = sb.center().x - total_pages_w / 2.0;
 
-        for (idx, (p_label, p_mode, p_panel)) in pages.into_iter().enumerate() {
-            let pr = egui::Rect::from_min_size(egui::pos2(start_x + idx as f32 * 74.0, sb.min.y + 1.0), egui::vec2(70.0, sb.height() - 2.0));
-            let is_active = match (p_mode, p_panel) {
+        for (idx, (p_label, p_mode, p_ws)) in pages.into_iter().enumerate() {
+            let pr = egui::Rect::from_min_size(egui::pos2(start_x + idx as f32 * 78.0, sb.min.y + 1.0), egui::vec2(74.0, sb.height() - 2.0));
+            let is_active = match (p_mode, p_ws) {
                 (state::Mode::Import, _) => self.ui.mode == state::Mode::Import,
                 (state::Mode::Export, _) => self.ui.mode == state::Mode::Export,
-                (state::Mode::Edit, Some(pk)) if pk == PanelKind::NodeGraph => self.ui.mode == state::Mode::Edit && self.ui.focused == PanelKind::NodeGraph,
-                (state::Mode::Edit, Some(pk)) if pk == PanelKind::LumetriColor => self.ui.mode == state::Mode::Edit && self.ui.focused == PanelKind::LumetriColor,
-                (state::Mode::Edit, Some(pk)) if pk == PanelKind::AudioTrackMixer => self.ui.mode == state::Mode::Edit && self.ui.focused == PanelKind::AudioTrackMixer,
-                (state::Mode::Edit, _) => self.ui.mode == state::Mode::Edit && !matches!(self.ui.focused, PanelKind::NodeGraph | PanelKind::LumetriColor | PanelKind::AudioTrackMixer),
+                (state::Mode::Edit, Some("Fusion")) => self.ui.mode == state::Mode::Edit && (self.ui.workspace == "Fusion" || self.ui.workspace == "Fusion Nodes"),
+                (state::Mode::Edit, Some("Color")) => self.ui.mode == state::Mode::Edit && self.ui.workspace == "Color",
+                (state::Mode::Edit, Some("Audio")) => self.ui.mode == state::Mode::Edit && self.ui.workspace == "Audio",
+                (state::Mode::Edit, Some("Editing")) => self.ui.mode == state::Mode::Edit && (self.ui.workspace == "Editing" || self.ui.workspace == "Assembly"),
+                _ => false,
             };
 
             let presp = ui.interact(pr, egui::Id::new(("davinci-page", idx)), egui::Sense::click());
             if presp.hovered() || is_active {
-                ui.painter().rect_filled(pr, 4.0, if is_active { egui::Color32::from_rgb(0x28, 0x28, 0x34) } else { t.hover });
+                ui.painter().rect_filled(pr, 4.0, if is_active { egui::Color32::from_rgb(0x28, 0x2b, 0x38) } else { t.hover });
             }
             if is_active {
-                ui.painter().line_segment([egui::pos2(pr.min.x + 6.0, pr.max.y - 1.0), egui::pos2(pr.max.x - 6.0, pr.max.y - 1.0)], egui::Stroke::new(2.0, egui::Color32::from_rgb(0xec, 0x93, 0x24)));
+                ui.painter().line_segment([egui::pos2(pr.min.x + 6.0, pr.max.y - 1.0), egui::pos2(pr.max.x - 6.0, pr.max.y - 1.0)], egui::Stroke::new(2.5, egui::Color32::from_rgb(0xec, 0x93, 0x24)));
             }
 
             let text_col = if is_active { egui::Color32::from_rgb(0xec, 0x93, 0x24) } else if presp.hovered() { t.text } else { t.text_dim };
-            ui.painter().text(pr.center(), egui::Align2::CENTER_CENTER, p_label, Tokens::ui(11.0), text_col);
+            ui.painter().text(pr.center(), egui::Align2::CENTER_CENTER, p_label, Tokens::ui(11.5), text_col);
 
             if presp.clicked() {
                 self.ui.mode = p_mode;
-                if let Some(pk) = p_panel {
-                    self.show_panel(pk);
+                if let Some(ws) = p_ws {
+                    self.set_workspace(ws);
                 }
             }
         }

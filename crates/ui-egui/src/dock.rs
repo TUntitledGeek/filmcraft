@@ -2,7 +2,7 @@
 //! thin gutters; each group has a tab strip (active tab bright, with a panel menu "≡"); the focused
 //! panel gets a blue outline. Gutters drag to resize; workspaces are serialized trees.
 
-use egui::{Align2, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis, SplitSize as SharedSplitSize, split_rect};
@@ -316,6 +316,15 @@ pub fn workspace(name: &str) -> DockNode {
     use SplitSize::*;
     let bottom_editing = || hsplit(FixedA(64.0), tabs(&[Tools], 0), hsplit(FixedB(116.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0)));
     match name {
+        "Fusion" | "Fusion Nodes" => vsplit(
+            Ratio(0.44),
+            hsplit(Ratio(0.5), tabs(&[Source, EffectControls], 0), tabs(&[Program], 0)),
+            hsplit(
+                Ratio(0.72),
+                vsplit(Ratio(0.68), tabs(&[NodeGraph], 0), tabs(&[Timeline, Tools], 0)),
+                tabs(&[Properties, EssentialGraphics, Metadata], 0),
+            ),
+        ),
         "Assembly" => vsplit(
             Ratio(0.52),
             hsplit(
@@ -338,7 +347,7 @@ pub fn workspace(name: &str) -> DockNode {
             FixedB(320.0),
             vsplit(
                 Ratio(0.5),
-                hsplit(Ratio(0.5), tabs(&[Source, EffectControls, AudioClipMixer], 1), tabs(&[Program], 0)),
+                hsplit(Ratio(0.5), tabs(&[Source, EffectControls, NodeGraph, AudioClipMixer], 1), tabs(&[Program], 0)),
                 hsplit(Ratio(0.3), tabs(&[Project, MediaBrowser, Info, Markers, History], 0), bottom_editing()),
             ),
             vsplit(Ratio(0.5), tabs(&[Effects], 0), tabs(&[EssentialGraphics], 0)),
@@ -376,7 +385,7 @@ pub fn workspace(name: &str) -> DockNode {
             Ratio(0.57),
             hsplit(
                 FixedB(450.0),
-                hsplit(Ratio(0.5), tabs(&[Source, EffectControls, AudioClipMixer, Metadata], 0), tabs(&[Program], 0)),
+                hsplit(Ratio(0.5), tabs(&[Source, EffectControls, NodeGraph, AudioClipMixer, Metadata], 0), tabs(&[Program], 0)),
                 tabs(&[Properties, EssentialGraphics, Text], 0),
             ),
             hsplit(
@@ -600,6 +609,7 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
     let mut tab_rects: Vec<(PanelKind, Rect)> = Vec::new();
     let painter = ui.painter().clone();
     painter.rect_filled(g.rect, t.radius, t.panel_bg);
+    painter.rect_stroke(g.rect, t.radius, Stroke::new(1.0, t.separator), StrokeKind::Inside);
     let active_panel = g.panels.get(g.active).copied();
     let compact = g.panels.len() == 1 && g.panels[0].compact();
     // A narrow header grip moves the entire panel, including Timeline panels whose tabs
@@ -620,6 +630,8 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
         }
     } else {
         let strip = Rect::from_min_size(g.rect.min, vec2(g.rect.width(), t.tab_h));
+        painter.rect_filled(strip, 0.0, t.tab_bg);
+        painter.line_segment([pos2(strip.min.x, strip.max.y), pos2(strip.max.x, strip.max.y)], Stroke::new(1.0, t.separator));
         // the Timeline panel shows one tab per open sequence (its own tab names the sequence)
         struct Tab {
             panel: PanelKind,
@@ -756,6 +768,18 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
             if tab.seq.is_none() || is_active {
                 reg.add_response(&format!("panel.tab.{}", p.id()), &resp, p.title());
             }
+            if is_active {
+                painter.rect_filled(tab_rect, 0.0, t.panel_bg);
+                let top_color = if *p == PanelKind::NodeGraph || *p == PanelKind::LumetriColor || *p == PanelKind::LumetriScopes {
+                    Color32::from_rgb(0xec, 0x93, 0x24)
+                } else {
+                    Color32::from_rgb(0x38, 0x7c, 0xf2)
+                };
+                painter.rect_filled(Rect::from_min_size(pos2(tab_rect.min.x, strip.min.y), vec2(tab_rect.width(), 2.0)), 0.0, top_color);
+            } else if resp.hovered() {
+                painter.rect_filled(tab_rect, 0.0, t.hover);
+            }
+            painter.line_segment([pos2(tab_rect.max.x, strip.min.y + 6.0), pos2(tab_rect.max.x, strip.max.y - 6.0)], Stroke::new(1.0, t.separator));
             let label_x = tab_rect.min.x + 8.0 + close_w;
             let label_w = galley.size().x;
             let col = if is_active || resp.hovered() { t.tab_text_active } else { t.tab_text };
