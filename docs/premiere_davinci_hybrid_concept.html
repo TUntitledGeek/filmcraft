@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FilmCraft Studio Pro: Premiere × DaVinci Hybrid Concept</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .studio-active-tab {
+      background: linear-gradient(180deg, #be511b 0%, #a24214 100%);
+      color: #ffffff !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .knob {
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.1), 0 2px 5px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body class="bg-[#0b0c0e] text-[#d6d9e0] antialiased p-4 font-sans select-none">
+  <div class="max-w-6xl mx-auto space-y-5">
+
+    <!-- Concept Banner -->
+    <div class="bg-[#18191e] border border-[#2b2c34] rounded-xl p-5 shadow-xl">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-[#be511b]/20 text-[#f2a26a] border border-[#be511b]/40">
+              NEW CONCEPT
+            </span>
+            <span class="text-xs text-[#8e929f] font-mono">FilmCraft Studio Pro</span>
+          </div>
+          <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            The Premiere × DaVinci Hybrid NLE
+          </h1>
+          <p class="text-xs text-[#9a9ea9] mt-1">
+            Combines the <strong>multitrack timeline freedom & tool precision of Premiere</strong> with the <strong>streamlined page lifecycle, charcoal/amber palette & color grading suite of DaVinci Resolve</strong>.
+          </p>
+        </div>
+
+        <!-- Mode Switcher (The DaVinci Page Bar adapted to Top/Bottom) -->
+        <div class="flex items-center bg-[#101114] p-1 rounded-lg border border-[#26272f]" id="stage-nav">
+          <button onclick="setStage('edit')" id="stage-btn-edit" class="studio-active-tab px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all">
+            Edit (Premiere Pro)
+          </button>
+          <button onclick="setStage('cut')" id="stage-btn-cut" class="px-3.5 py-1.5 rounded-md text-xs text-[#9498a4] hover:text-white transition-all">
+            Cut (Dual Timeline)
+          </button>
+          <button onclick="setStage('color')" id="stage-btn-color" class="px-3.5 py-1.5 rounded-md text-xs text-[#9498a4] hover:text-white transition-all">
+            Color (DaVinci Wheels)
+          </button>
+          <button onclick="setStage('audio')" id="stage-btn-audio" class="px-3.5 py-1.5 rounded-md text-xs text-[#9498a4] hover:text-white transition-all">
+            Audio (Fairlight Mixer)
+          </button>
+          <button onclick="setStage('deliver')" id="stage-btn-deliver" class="px-3.5 py-1.5 rounded-md text-xs text-[#9498a4] hover:text-white transition-all">
+            Deliver (Export)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN INTERACTIVE STUDIO WORKSPACE -->
+    <div class="bg-[#141519] border border-[#2b2c34] rounded-xl p-3 shadow-2xl flex flex-col gap-2 relative">
+
+      <!-- Studio Header Chrome -->
+      <div class="bg-[#202126] px-3 py-1.5 rounded-lg flex items-center justify-between text-xs border border-[#2f303a]">
+        <!-- Left: Branding & Quick Menus -->
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded-full bg-gradient-to-tr from-amber-600 to-orange-500"></span>
+            <span class="font-bold text-white tracking-wide">FilmCraft <span class="text-[#f2a26a] font-normal">Studio</span></span>
+          </div>
+          <div class="hidden sm:flex gap-3 text-[#9a9ea9] text-[11px]">
+            <span class="hover:text-white cursor-pointer">File</span>
+            <span class="hover:text-white cursor-pointer">Edit</span>
+            <span class="hover:text-white cursor-pointer">Clip</span>
+            <span class="hover:text-white cursor-pointer">Sequence</span>
+            <span class="hover:text-white cursor-pointer">Workspace</span>
+          </div>
+        </div>
+
+        <!-- Center: Active Project & Dirty State -->
+        <div class="text-[11px] text-[#8e929f] font-mono flex items-center gap-2">
+          <span>Project: <strong class="text-white">Neon_Cyberpunk_Short.fcproj</strong></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" title="All edits saved locally & synced"></span>
+        </div>
+
+        <!-- Right: Co-Op Live Presence & Timecode -->
+        <div class="flex items-center gap-3">
+          <!-- Remote Collaborators (Figma-style avatars) -->
+          <div class="flex -space-x-1.5">
+            <div class="w-5 h-5 rounded-full bg-indigo-500 border border-[#202126] text-[9px] flex items-center justify-center font-bold text-white" title="Editor: Alex">A</div>
+            <div class="w-5 h-5 rounded-full bg-pink-500 border border-[#202126] text-[9px] flex items-center justify-center font-bold text-white" title="Colorist: Sarah">S</div>
+          </div>
+          <span class="text-orange-400 font-mono font-bold text-xs bg-[#101114] px-2 py-0.5 rounded border border-[#26272f]">
+            00:01:24:18
+          </span>
+        </div>
+      </div>
+
+      <!-- ==================== STAGE 1: EDIT (PREMIERE POWERHOUSE) ==================== -->
+      <div id="stage-content-edit" class="stage-view flex flex-col gap-2">
+        <div class="grid grid-cols-12 gap-2 h-72">
+          <!-- Top Left: Premiere Source / Effect Controls -->
+          <div class="col-span-4 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between">
+            <div>
+              <div class="flex gap-3 border-b border-[#2f303a] pb-1.5 text-xs text-[#9a9ea9]">
+                <span class="text-white border-b-2 border-[#be511b] pb-1 font-semibold cursor-pointer">Source: B-Roll_04.mov</span>
+                <span class="hover:text-white cursor-pointer">Effect Controls</span>
+                <span class="hover:text-white cursor-pointer">Audio Clip</span>
+              </div>
+              <!-- Source Preview Surface -->
+              <div class="mt-2 bg-[#101114] h-24 rounded border border-[#26272f] flex flex-col items-center justify-center relative overflow-hidden group">
+                <span class="text-xs text-[#6e727e] font-medium">Source Monitor (Sub-Clip)</span>
+                <!-- In/Out Range Highlight -->
+                <div class="absolute bottom-1 left-4 right-8 h-1 bg-[#be511b]/50 rounded"></div>
+              </div>
+            </div>
+            <!-- In/Out Controls (Premiere I/O) -->
+            <div class="flex justify-between items-center text-[10px] text-[#8e929f] font-mono pt-1">
+              <div class="flex gap-1.5 text-[#d0d3dc]">
+                <button class="px-1.5 py-0.5 bg-[#2b2c34] rounded hover:text-white">[ Mark In (I) ]</button>
+                <button class="px-1.5 py-0.5 bg-[#2b2c34] rounded hover:text-white">[ Mark Out (O) ]</button>
+              </div>
+              <span class="text-[#f2a26a]">Dur: 00:00:04:12</span>
+            </div>
+          </div>
+
+          <!-- Top Center: Program Monitor -->
+          <div class="col-span-5 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between items-center border-b border-[#2f303a] pb-1.5 text-xs">
+              <span class="text-white font-semibold">Program: Master Sequence</span>
+              <span class="text-[#8e929f] text-[10px] font-mono">1080p60 · Fit (62%)</span>
+            </div>
+            <div class="bg-[#0e0f12] h-28 rounded border border-[#26272f] flex items-center justify-center relative shadow-inner">
+              <span class="text-sm font-semibold text-slate-300">Composite Output Canvas</span>
+              <!-- Safe Title Guides Overlay (Premiere style) -->
+              <div class="absolute inset-3 border border-dashed border-cyan-500/20 pointer-events-none rounded"></div>
+            </div>
+            <!-- JKL Playback Buttons -->
+            <div class="flex justify-center items-center gap-3 text-xs text-[#9a9ea9]">
+              <button class="hover:text-white">◀◀ (J)</button>
+              <button class="w-6 h-6 rounded bg-[#2b2c34] hover:bg-[#383a45] text-white flex items-center justify-center font-bold">▶ (K)</button>
+              <button class="hover:text-white">▶▶ (L)</button>
+              <span class="text-slate-600">|</span>
+              <button class="hover:text-white text-[11px]">{ }</button>
+            </div>
+          </div>
+
+          <!-- Top Right: DaVinci Inspector (Video / Audio / Speed) -->
+          <div class="col-span-3 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between text-xs">
+            <div>
+              <div class="flex gap-2 border-b border-[#2f303a] pb-1.5 text-[11px] text-[#9a9ea9]">
+                <span class="text-white border-b-2 border-[#be511b] pb-1 font-semibold">Inspector</span>
+                <span class="hover:text-white cursor-pointer">Lumetri</span>
+                <span class="hover:text-white cursor-pointer">Audio</span>
+              </div>
+              <div class="mt-2 space-y-2 text-[11px]">
+                <div class="flex justify-between items-center">
+                  <span class="text-[#8e929f]">Zoom / Scale</span>
+                  <span class="text-[#f2a26a] font-mono hover:underline cursor-ew-resize">100.0%</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[#8e929f]">Position X / Y</span>
+                  <span class="text-[#f2a26a] font-mono hover:underline cursor-ew-resize">0.0, 0.0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[#8e929f]">Rotation</span>
+                  <span class="text-[#f2a26a] font-mono hover:underline cursor-ew-resize">0.0°</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[#8e929f]">Opacity</span>
+                  <span class="text-[#f2a26a] font-mono hover:underline cursor-ew-resize">100%</span>
+                </div>
+              </div>
+            </div>
+            <!-- Audio Meters Strip -->
+            <div class="bg-[#16171b] p-1.5 rounded border border-[#26272f] flex items-center gap-2">
+              <span class="text-[9px] text-[#6e727e] font-mono">dB</span>
+              <div class="flex-1 flex gap-1 h-3 items-center">
+                <div class="h-2 bg-emerald-500 rounded-sm w-3/4"></div>
+                <div class="h-2 bg-amber-500 rounded-sm w-1/6"></div>
+              </div>
+              <span class="text-[9px] text-emerald-400 font-mono">-6.2</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Grid: Premiere Tools + Bins + Multitrack Timeline -->
+        <div class="grid grid-cols-12 gap-2 h-44">
+          <!-- Far-Left Tool Strip (Premiere Toolbar) -->
+          <div class="col-span-1 bg-[#202126] border border-[#2f303a] rounded-lg p-1.5 flex flex-col items-center justify-around text-xs text-[#9a9ea9]">
+            <button class="w-7 h-7 rounded bg-[#be511b] text-white font-bold" title="Selection (V)">V</button>
+            <button class="w-7 h-7 rounded hover:bg-[#2b2c34] hover:text-white" title="Track Select (A)">A</button>
+            <button class="w-7 h-7 rounded hover:bg-[#2b2c34] hover:text-white" title="Ripple Edit (B)">B</button>
+            <button class="w-7 h-7 rounded hover:bg-[#2b2c34] hover:text-white" title="Razor Cut (C)">C</button>
+            <button class="w-7 h-7 rounded hover:bg-[#2b2c34] hover:text-white" title="Slip Tool (Y)">Y</button>
+            <button class="w-7 h-7 rounded hover:bg-[#2b2c34] hover:text-white" title="Hand Pan (H)">H</button>
+          </div>
+
+          <!-- Bottom Left: Project Bins -->
+          <div class="col-span-3 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between text-xs">
+            <div class="flex justify-between items-center border-b border-[#2f303a] pb-1.5">
+              <span class="text-white font-semibold">Project Bins</span>
+              <span class="text-[10px] text-[#8e929f]">12 Assets</span>
+            </div>
+            <div class="space-y-1 text-[11px] overflow-hidden my-1">
+              <div class="p-1 bg-[#2b2c34] rounded flex items-center justify-between text-[#f2a26a]">
+                <span>📁 01_Cinematic_Shots</span><span>5</span>
+              </div>
+              <div class="p-1 hover:bg-[#26272f] rounded flex items-center justify-between text-slate-300">
+                <span>📁 02_Dialog_Takes</span><span>4</span>
+              </div>
+              <div class="p-1 hover:bg-[#26272f] rounded flex items-center justify-between text-slate-300">
+                <span>🎵 Synth_Score_V2.wav</span><span>3:12</span>
+              </div>
+            </div>
+            <input type="text" placeholder="Search clips..." class="bg-[#101114] border border-[#26272f] rounded px-2 py-0.5 text-[10px] text-white outline-none focus:border-[#be511b]">
+          </div>
+
+          <!-- Bottom Center: Premiere Multi-Track Timeline with DaVinci Red Playhead -->
+          <div class="col-span-8 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between">
+            <!-- Timeline Header & Snapping -->
+            <div class="flex justify-between items-center text-xs text-[#9a9ea9] border-b border-[#2f303a] pb-1">
+              <div class="flex items-center gap-3">
+                <span class="text-white font-semibold">Sequence 01</span>
+                <span class="text-[10px] px-1.5 py-0.2 bg-[#2b2c34] text-[#8e929f] rounded">Snap: ON (S)</span>
+                <span class="text-[10px] text-[#8e929f]">Link Selection: ON</span>
+              </div>
+              <div class="text-[#f2a26a] font-mono font-bold text-xs">00:01:24:18</div>
+            </div>
+
+            <!-- Multi-Track Canvas -->
+            <div class="bg-[#16171b] rounded border border-[#26272f] p-1.5 space-y-1.5 relative overflow-hidden font-mono text-[10px]">
+              <!-- Track V2 -->
+              <div class="flex items-center gap-2 h-6">
+                <span class="text-[#727684] w-6 text-center bg-[#202126] rounded py-0.5">V2</span>
+                <div class="flex-1 bg-[#1a1b20] h-full rounded relative flex items-center px-1">
+                  <div class="bg-violet-700/80 text-violet-100 px-2 py-0.5 rounded text-[9px] w-28 truncate ml-36 border border-violet-500/40">
+                    Lower_Third.title
+                  </div>
+                </div>
+              </div>
+              <!-- Track V1 -->
+              <div class="flex items-center gap-2 h-6">
+                <span class="text-[#f2a26a] font-bold w-6 text-center bg-[#202126] rounded py-0.5 border border-[#be511b]/40">V1</span>
+                <div class="flex-1 bg-[#1a1b20] h-full rounded relative flex items-center gap-1 px-1">
+                  <div class="bg-blue-600/80 text-blue-100 px-2 py-0.5 rounded text-[9px] w-36 truncate border border-blue-400/40">
+                    Shot_01_Wide.mov
+                  </div>
+                  <div class="bg-cyan-600/80 text-cyan-100 px-2 py-0.5 rounded text-[9px] w-48 truncate border border-cyan-400/40">
+                    Shot_02_CloseUp.mov
+                  </div>
+                </div>
+              </div>
+              <!-- Track A1 -->
+              <div class="flex items-center gap-2 h-6">
+                <span class="text-teal-400 font-bold w-6 text-center bg-[#202126] rounded py-0.5 border border-teal-500/40">A1</span>
+                <div class="flex-1 bg-[#1a1b20] h-full rounded relative flex items-center px-1">
+                  <div class="bg-teal-700/80 text-teal-100 px-2 py-0.5 rounded text-[9px] w-84 truncate border border-teal-500/40">
+                    Boom_Mic_Take3.wav (L/R)
+                  </div>
+                </div>
+              </div>
+              <!-- The DaVinci Crimson Red Precision Playhead -->
+              <div class="absolute left-48 top-0 bottom-0 w-0.5 bg-red-500 shadow-[0_0_10px_#ef4444] z-10 pointer-events-none">
+                <!-- Triangle Playhead Cap -->
+                <div class="w-2.5 h-2 bg-red-500 -ml-1 -mt-1 polygon-triangle"></div>
+              </div>
+            </div>
+
+            <!-- Zoom & Pan Slider -->
+            <div class="flex items-center justify-between text-[10px] text-[#6e727e]">
+              <span>Timeline Scale: 120 FPS Decoupled</span>
+              <div class="w-48 bg-[#16171b] h-1.5 rounded-full overflow-hidden">
+                <div class="bg-[#be511b] h-full w-24 ml-8 rounded-full"></div>
+              </div>
+              <span>Total: 00:03:45:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== STAGE 2: CUT (DAVINCI DUAL TIMELINE) ==================== -->
+      <div id="stage-content-cut" class="stage-view hidden flex flex-col gap-2">
+        <div class="grid grid-cols-12 gap-2 h-64">
+          <div class="col-span-4 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between text-xs">
+            <span class="text-white font-semibold border-b border-[#2f303a] pb-1">Source Tape Reel</span>
+            <div class="space-y-1 text-[11px] my-1">
+              <div class="p-1.5 bg-[#2b2c34] rounded flex justify-between"><span>Roll 1 (A-Cam)</span><span>14 clips</span></div>
+              <div class="p-1.5 hover:bg-[#26272f] rounded flex justify-between"><span>Roll 2 (B-Cam)</span><span>8 clips</span></div>
+            </div>
+            <button class="w-full py-1 bg-[#be511b] text-white rounded text-[11px] font-semibold">Fast Append to Tail</button>
+          </div>
+          <div class="col-span-8 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between text-xs">
+              <span class="text-white font-semibold">Cut Review Monitor</span>
+              <span class="text-orange-400 font-mono">00:00:45:10</span>
+            </div>
+            <div class="bg-[#0e0f12] h-44 rounded flex items-center justify-center text-slate-400 text-xs">
+              High-Speed Scrubbing Player (Zero dropped frames)
+            </div>
+          </div>
+        </div>
+        <!-- Dual Timeline (The DaVinci Cut Page Secret) -->
+        <div class="bg-[#202126] border border-[#2f303a] rounded-lg p-3 space-y-2">
+          <div class="text-xs text-[#8e929f] flex justify-between">
+            <span><strong>Upper Overview Ribbon:</strong> Full Project (3 minutes)</span>
+            <span class="text-[#f2a26a]">Macro View</span>
+          </div>
+          <!-- Upper Overview -->
+          <div class="h-6 bg-[#16171b] rounded border border-[#26272f] relative flex items-center px-1">
+            <div class="h-4 bg-blue-600/60 w-1/4 rounded"></div>
+            <div class="h-4 bg-cyan-600/60 w-1/3 rounded ml-1"></div>
+            <div class="h-4 bg-purple-600/60 w-1/4 rounded ml-1"></div>
+            <div class="absolute left-24 top-0 bottom-0 w-8 bg-white/20 border border-white/60 rounded"></div>
+          </div>
+          <div class="text-xs text-[#8e929f] flex justify-between">
+            <span><strong>Lower Working Timeline:</strong> Zoomed at playhead</span>
+            <span class="text-[#f2a26a]">Micro Trim</span>
+          </div>
+          <!-- Lower Zoomed Timeline -->
+          <div class="h-10 bg-[#16171b] rounded border border-[#26272f] relative flex items-center px-2">
+            <div class="h-7 bg-blue-600 text-white text-[10px] px-3 rounded flex items-center font-bold w-64 shadow">
+              Scene_03_Hero_Dialogue.mov
+            </div>
+            <div class="absolute left-36 top-0 bottom-0 w-0.5 bg-red-500 shadow-[0_0_10px_#ef4444]"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== STAGE 3: COLOR (DAVINCI GRADING WHEELS) ==================== -->
+      <div id="stage-content-color" class="stage-view hidden flex flex-col gap-2">
+        <div class="grid grid-cols-12 gap-2 h-64">
+          <!-- Big Color Monitor -->
+          <div class="col-span-8 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex justify-between text-xs border-b border-[#2f303a] pb-1">
+              <span class="text-white font-semibold">Grading Canvas</span>
+              <span class="text-emerald-400 font-mono">ACEScc / Rec.709</span>
+            </div>
+            <div class="bg-[#0a0a0c] h-52 rounded flex items-center justify-center text-slate-300 text-xs font-semibold">
+              Color-Accurate 10-Bit Frame Buffer
+            </div>
+          </div>
+          <!-- Scopes (RGB Parade / Vectorscope) -->
+          <div class="col-span-4 bg-[#202126] border border-[#2f303a] rounded-lg p-2.5 flex flex-col justify-between text-xs">
+            <span class="text-white font-semibold border-b border-[#2f303a] pb-1">RGB Parade Scope</span>
+            <div class="bg-[#101114] h-52 rounded flex items-end justify-around p-2 gap-2">
+              <div class="flex-1 bg-red-600/40 border-t-2 border-red-500 h-36 rounded-t"></div>
+              <div class="flex-1 bg-green-600/40 border-t-2 border-green-500 h-32 rounded-t"></div>
+              <div class="flex-1 bg-blue-600/40 border-t-2 border-blue-500 h-40 rounded-t"></div>
+            </div>
+          </div>
+        </div>
+        <!-- 3-Way Color Wheels (Lift, Gamma, Gain) -->
+        <div class="bg-[#202126] border border-[#2f303a] rounded-lg p-3">
+          <div class="flex justify-between items-center text-xs text-[#8e929f] border-b border-[#2f303a] pb-2 mb-2">
+            <span class="text-white font-semibold">Primary Color Wheels</span>
+            <span>Temperature: 5600K · Tint: +2.0 · Contrast: 1.05 · Saturation: 1.10</span>
+          </div>
+          <div class="grid grid-cols-3 gap-4 text-center text-xs">
+            <!-- Lift Wheel -->
+            <div class="bg-[#16171b] p-3 rounded-lg border border-[#26272f] flex flex-col items-center gap-2">
+              <span class="font-bold text-slate-300">Lift (Shadows)</span>
+              <div class="w-20 h-20 rounded-full border-2 border-slate-600 bg-gradient-to-tr from-blue-900/30 to-amber-900/30 flex items-center justify-center relative cursor-crosshair">
+                <div class="w-3 h-3 rounded-full bg-white knob"></div>
+              </div>
+              <span class="text-[10px] text-[#8e929f] font-mono">RGB: 0.00, 0.00, +0.02</span>
+            </div>
+            <!-- Gamma Wheel -->
+            <div class="bg-[#16171b] p-3 rounded-lg border border-[#26272f] flex flex-col items-center gap-2">
+              <span class="font-bold text-slate-300">Gamma (Midtones)</span>
+              <div class="w-20 h-20 rounded-full border-2 border-slate-600 bg-gradient-to-tr from-orange-900/30 to-cyan-900/30 flex items-center justify-center relative cursor-crosshair">
+                <div class="w-3 h-3 rounded-full bg-white knob"></div>
+              </div>
+              <span class="text-[10px] text-[#8e929f] font-mono">RGB: +0.01, 0.00, -0.01</span>
+            </div>
+            <!-- Gain Wheel -->
+            <div class="bg-[#16171b] p-3 rounded-lg border border-[#26272f] flex flex-col items-center gap-2">
+              <span class="font-bold text-slate-300">Gain (Highlights)</span>
+              <div class="w-20 h-20 rounded-full border-2 border-slate-600 bg-gradient-to-tr from-amber-900/30 to-blue-900/30 flex items-center justify-center relative cursor-crosshair">
+                <div class="w-3 h-3 rounded-full bg-white knob"></div>
+              </div>
+              <span class="text-[10px] text-[#8e929f] font-mono">RGB: +0.04, +0.02, 0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== STAGE 4: AUDIO (FAIRLIGHT MIXER) ==================== -->
+      <div id="stage-content-audio" class="stage-view hidden flex flex-col gap-2">
+        <div class="bg-[#202126] border border-[#2f303a] rounded-lg p-3">
+          <div class="flex justify-between items-center text-xs text-white border-b border-[#2f303a] pb-2 mb-3">
+            <span class="font-bold">Multichannel Audio Mixing Console</span>
+            <span class="text-[#f2a26a] font-mono">48 kHz · 24-bit PCM Master</span>
+          </div>
+          <!-- Channel Strips -->
+          <div class="grid grid-cols-5 gap-3 h-80">
+            <!-- Channel 1: Dialogue -->
+            <div class="bg-[#16171b] border border-[#26272f] rounded-lg p-2 flex flex-col justify-between text-center text-xs">
+              <span class="font-bold text-blue-400">A1: Dialogue</span>
+              <div class="h-10 bg-[#202126] rounded flex items-center justify-center text-[10px] text-slate-400">Parametric EQ</div>
+              <div class="flex-1 flex justify-center items-center py-2 relative">
+                <!-- Fader Slot -->
+                <div class="w-1.5 h-36 bg-[#0a0a0c] rounded-full"></div>
+                <div class="absolute w-8 h-4 bg-slate-300 rounded shadow border border-slate-400 flex items-center justify-center text-[9px] text-black font-bold">0dB</div>
+              </div>
+              <div class="flex gap-1 text-[10px]">
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-white">Mute</button>
+                <button class="flex-1 bg-[#be511b] rounded py-0.5 text-white font-bold">Solo</button>
+              </div>
+            </div>
+            <!-- Channel 2: SFX -->
+            <div class="bg-[#16171b] border border-[#26272f] rounded-lg p-2 flex flex-col justify-between text-center text-xs">
+              <span class="font-bold text-cyan-400">A2: Foley/SFX</span>
+              <div class="h-10 bg-[#202126] rounded flex items-center justify-center text-[10px] text-slate-400">Compressor</div>
+              <div class="flex-1 flex justify-center items-center py-2 relative">
+                <div class="w-1.5 h-36 bg-[#0a0a0c] rounded-full"></div>
+                <div class="absolute top-20 w-8 h-4 bg-slate-300 rounded shadow border border-slate-400 flex items-center justify-center text-[9px] text-black font-bold">-4dB</div>
+              </div>
+              <div class="flex gap-1 text-[10px]">
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-white">Mute</button>
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-slate-400">Solo</button>
+              </div>
+            </div>
+            <!-- Channel 3: Music -->
+            <div class="bg-[#16171b] border border-[#26272f] rounded-lg p-2 flex flex-col justify-between text-center text-xs">
+              <span class="font-bold text-amber-400">A3: Music Bed</span>
+              <div class="h-10 bg-[#202126] rounded flex items-center justify-center text-[10px] text-slate-400">Sidechain Duck</div>
+              <div class="flex-1 flex justify-center items-center py-2 relative">
+                <div class="w-1.5 h-36 bg-[#0a0a0c] rounded-full"></div>
+                <div class="absolute top-24 w-8 h-4 bg-slate-300 rounded shadow border border-slate-400 flex items-center justify-center text-[9px] text-black font-bold">-8dB</div>
+              </div>
+              <div class="flex gap-1 text-[10px]">
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-white">Mute</button>
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-slate-400">Solo</button>
+              </div>
+            </div>
+            <!-- Channel 4: Submix -->
+            <div class="bg-[#16171b] border border-[#26272f] rounded-lg p-2 flex flex-col justify-between text-center text-xs">
+              <span class="font-bold text-purple-400">Submix 1</span>
+              <div class="h-10 bg-[#202126] rounded flex items-center justify-center text-[10px] text-slate-400">Limiter</div>
+              <div class="flex-1 flex justify-center items-center py-2 relative">
+                <div class="w-1.5 h-36 bg-[#0a0a0c] rounded-full"></div>
+                <div class="absolute top-16 w-8 h-4 bg-slate-300 rounded shadow border border-slate-400 flex items-center justify-center text-[9px] text-black font-bold">-2dB</div>
+              </div>
+              <div class="flex gap-1 text-[10px]">
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-white">Mute</button>
+                <button class="flex-1 bg-[#2b2c34] rounded py-0.5 text-slate-400">Solo</button>
+              </div>
+            </div>
+            <!-- Master Bus -->
+            <div class="bg-[#1a1b22] border-2 border-[#be511b]/80 rounded-lg p-2 flex flex-col justify-between text-center text-xs">
+              <span class="font-bold text-[#f2a26a]">MASTER OUT</span>
+              <div class="h-10 bg-[#101114] rounded flex items-center justify-center text-[10px] text-emerald-400 font-mono">-14 LUFS</div>
+              <div class="flex-1 flex justify-center items-center py-2 relative">
+                <div class="w-2.5 h-36 bg-[#0a0a0c] rounded-full flex justify-center">
+                  <div class="w-1.5 bg-emerald-500 rounded-full h-28 self-end"></div>
+                </div>
+                <div class="absolute top-14 w-8 h-4 bg-[#be511b] rounded shadow flex items-center justify-center text-[9px] text-white font-bold">0dB</div>
+              </div>
+              <div class="text-[10px] text-emerald-400 font-mono font-bold">0.0 dB TP</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== STAGE 5: DELIVER (EXPORT) ==================== -->
+      <div id="stage-content-deliver" class="stage-view hidden flex flex-col gap-2">
+        <div class="grid grid-cols-12 gap-3 h-80">
+          <!-- Preset Queue -->
+          <div class="col-span-4 bg-[#202126] border border-[#2f303a] rounded-lg p-3 flex flex-col justify-between text-xs">
+            <div>
+              <span class="text-white font-bold border-b border-[#2f303a] pb-1.5 block">Delivery Presets</span>
+              <div class="space-y-1.5 mt-2">
+                <div class="p-2 bg-[#be511b]/20 border border-[#be511b] rounded text-white flex justify-between">
+                  <span>⚡ YouTube 4K (H.265/AAC)</span><span class="text-orange-300 font-bold">Selected</span>
+                </div>
+                <div class="p-2 hover:bg-[#2b2c34] rounded text-slate-300 flex justify-between">
+                  <span>ProRes 422 HQ (Master)</span><span>10-Bit</span>
+                </div>
+                <div class="p-2 hover:bg-[#2b2c34] rounded text-slate-300 flex justify-between">
+                  <span>WebM VP9 (Browser Ready)</span><span>8-Bit</span>
+                </div>
+              </div>
+            </div>
+            <button class="w-full py-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded font-bold text-xs shadow-lg">
+              Start Render Queue (1 Job)
+            </button>
+          </div>
+          <!-- Settings Summary -->
+          <div class="col-span-8 bg-[#202126] border border-[#2f303a] rounded-lg p-3 flex flex-col justify-between text-xs">
+            <span class="text-white font-bold border-b border-[#2f303a] pb-1.5">Export Parameters</span>
+            <div class="grid grid-cols-2 gap-3 text-[11px] my-2">
+              <div class="space-y-1 bg-[#16171b] p-2.5 rounded border border-[#26272f]">
+                <div class="text-[#8e929f]">Video Codec</div>
+                <div class="text-white font-semibold">H.265 / HEVC Main 10 (Hardware Accel)</div>
+                <div class="text-[#8e929f] pt-1">Resolution & Frame Rate</div>
+                <div class="text-white font-semibold">3840 × 2160 (4K UHD) @ 60.00 fps</div>
+              </div>
+              <div class="space-y-1 bg-[#16171b] p-2.5 rounded border border-[#26272f]">
+                <div class="text-[#8e929f]">Audio Encoding</div>
+                <div class="text-white font-semibold">AAC-LC 320 kbps Stereo 48 kHz</div>
+                <div class="text-[#8e929f] pt-1">Estimated Size & Time</div>
+                <div class="text-emerald-400 font-mono font-bold">142 MB · ~14 seconds render</div>
+              </div>
+            </div>
+            <div class="bg-[#101114] h-20 rounded border border-[#26272f] p-2 flex items-center justify-center text-slate-400">
+              Output Path: /home/sebastiang/Videos/Exports/Neon_Cyberpunk_Short_4K.mp4
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Comparative Breakdown Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-[#18191e] border border-[#2b2c34] rounded-xl p-4 space-y-2">
+        <h3 class="text-xs font-bold text-blue-400 uppercase tracking-wider">What it takes from Premiere Pro</h3>
+        <ul class="text-xs text-[#a4a9b6] space-y-1.5 list-disc list-inside">
+          <li><strong>Dockable Workspace Freedom:</strong> Any panel can be undocked, floating, or split.</li>
+          <li><strong>Multitrack Editing Hierarchy:</strong> V1-V8 and A1-A8 track patching and lock toggles.</li>
+          <li><strong>Classic Tool Palette:</strong> V (Selection), C (Razor), B (Ripple), Y (Slip).</li>
+          <li><strong>Dual Source/Program Paradigm:</strong> Mark In/Out on Source tape, insert directly to timeline.</li>
+        </ul>
+      </div>
+
+      <div class="bg-[#18191e] border border-[#2b2c34] rounded-xl p-4 space-y-2">
+        <h3 class="text-xs font-bold text-orange-400 uppercase tracking-wider">What it takes from DaVinci Resolve</h3>
+        <ul class="text-xs text-[#a4a9b6] space-y-1.5 list-disc list-inside">
+          <li><strong>Lifecycle Page Switcher:</strong> Direct access to Cut, Edit, Color, Audio, and Deliver.</li>
+          <li><strong>Charcoal & Warm Amber Aesthetics:</strong> Relaxing `#202126` panels with glowing `#be511b` highlights.</li>
+          <li><strong>Crimson Red Precision Playhead:</strong> Standout visual needle for accurate frame alignment.</li>
+          <li><strong>3-Way Primary Color Wheels:</strong> Lift/Gamma/Gain grading with integrated scopes.</li>
+        </ul>
+      </div>
+
+      <div class="bg-[#18191e] border border-[#2b2c34] rounded-xl p-4 space-y-2">
+        <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Why it feels better than both</h3>
+        <ul class="text-xs text-[#a4a9b6] space-y-1.5 list-disc list-inside">
+          <li><strong>No Clutter:</strong> Uncluttered task screens without Premiere's confusing dropdown sprawl.</li>
+          <li><strong>No Rigidity:</strong> Unlike DaVinci's locked pages, you can still dock or customize panels if you want.</li>
+          <li><strong>120Hz Decoupled Scrubbing:</strong> Butter-smooth playback powered by WebCodecs & SIMD128.</li>
+          <li><strong>Multiplayer Co-Op Ready:</strong> Figma-like real-time cursor presence built right in.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function setStage(stageId) {
+      // Hide all stage views
+      document.querySelectorAll('.stage-view').forEach(el => el.classList.add('hidden'));
+      // Show selected stage view
+      const target = document.getElementById('stage-content-' + stageId);
+      if (target) target.classList.remove('hidden');
+
+      // Update switcher buttons
+      document.querySelectorAll('#stage-nav button').forEach(btn => {
+        btn.classList.remove('studio-active-tab');
+        btn.classList.add('text-[#9498a4]');
+      });
+      const activeBtn = document.getElementById('stage-btn-' + stageId);
+      if (activeBtn) {
+        activeBtn.classList.add('studio-active-tab');
+        activeBtn.classList.remove('text-[#9498a4]');
+      }
+    }
+  </script>
+</body>
+</html>

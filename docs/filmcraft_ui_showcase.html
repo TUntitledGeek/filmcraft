@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FilmCraft UI Variations Showcase</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .active-tab {
+      background-color: var(--primary, #3b82f6) !important;
+      color: var(--primary-foreground, #ffffff) !important;
+      font-weight: 600;
+    }
+    .panel-box {
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background,#0d0f12)] text-[var(--foreground,#e2e8f0)] antialiased p-4 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header Header -->
+    <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5 shadow-lg">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-[var(--foreground,#ffffff)] flex items-center gap-2">
+            <span class="inline-block w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+            FilmCraft UI Variation Explorer
+          </h1>
+          <p class="text-[var(--muted-foreground,#94a3b8)] text-xs sm:text-sm mt-1">
+            Compare all 5 interface variations created for FilmCraft. Click each tab below to explore the mockups, color tokens, and layout mechanics.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
+            Hybrid Engine v0.10.0+
+          </span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex flex-wrap gap-2 mt-5 pt-4 border-t border-[var(--border,#262c36)]" id="tab-buttons">
+        <button onclick="switchTab('premiere')" id="btn-premiere" class="tab-btn active-tab px-3.5 py-2 rounded-lg text-xs transition-all border border-transparent">
+          1. Premiere Classic (Default)
+        </button>
+        <button onclick="switchTab('evolve')" id="btn-evolve" class="tab-btn px-3.5 py-2 rounded-lg text-xs bg-[var(--card,#1e232d)] text-[var(--muted-foreground,#94a3b8)] hover:text-white transition-all border border-[var(--border,#262c36)]">
+          2. DaVinci "Evolve" Pages (PR #3065)
+        </button>
+        <button onclick="switchTab('oled')" id="btn-oled" class="tab-btn px-3.5 py-2 rounded-lg text-xs bg-[var(--card,#1e232d)] text-[var(--muted-foreground,#94a3b8)] hover:text-white transition-all border border-[var(--border,#262c36)]">
+          3. OLED Minimalist (PR #2834)
+        </button>
+        <button onclick="switchTab('vertical')" id="btn-vertical" class="tab-btn px-3.5 py-2 rounded-lg text-xs bg-[var(--card,#1e232d)] text-[var(--muted-foreground,#94a3b8)] hover:text-white transition-all border border-[var(--border,#262c36)]">
+          4. Vertical 9:16 Shorts (PR #2041)
+        </button>
+        <button onclick="switchTab('webmod')" id="btn-webmod" class="tab-btn px-3.5 py-2 rounded-lg text-xs bg-[var(--card,#1e232d)] text-[var(--muted-foreground,#94a3b8)] hover:text-white transition-all border border-[var(--border,#262c36)]">
+          5. CapCut / Web Modern Studio
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 1: PREMIERE CLASSIC -->
+    <div id="content-premiere" class="tab-content space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Mockup Display -->
+        <div class="lg:col-span-2 bg-[#0c0d10] border border-[#2a2d35] rounded-xl p-3 shadow-inner flex flex-col gap-2">
+          <!-- Top Menu & Mode Bar -->
+          <div class="bg-[#1d1d1d] px-3 py-1.5 rounded flex items-center justify-between text-[11px] text-[#b0b0b0] border-b border-[#303030]">
+            <div class="flex items-center gap-3">
+              <span class="text-white font-bold">FilmCraft</span>
+              <span>File</span><span>Edit</span><span>Clip</span><span>Sequence</span><span>Markers</span><span>Window</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-[#333333] text-blue-400 font-medium">Editing</span>
+              <span>Assembly</span><span>Color</span><span>Effects</span><span>Audio</span>
+            </div>
+          </div>
+          <!-- Workspace Split Grid -->
+          <div class="grid grid-cols-12 gap-1.5 h-72">
+            <!-- Left Top: Source & Effect Controls -->
+            <div class="col-span-4 bg-[#1d1d1d] border border-[#303030] rounded p-2 flex flex-col justify-between">
+              <div>
+                <div class="flex gap-2 border-b border-[#303030] pb-1 text-[#b0b0b0] text-[11px]">
+                  <span class="text-white border-b border-blue-500 pb-1 font-semibold">Source: 001.mp4</span>
+                  <span>Effect Controls</span>
+                </div>
+                <div class="mt-2 bg-[#0e0e0e] h-24 rounded border border-[#252525] flex items-center justify-center text-[#555]">
+                  Source Video Monitor (16:9)
+                </div>
+              </div>
+              <div class="text-[10px] text-blue-400 font-mono">00:00:14:08 / 00:01:22:00</div>
+            </div>
+            <!-- Center Top: Program Monitor -->
+            <div class="col-span-5 bg-[#1d1d1d] border border-[#303030] rounded p-2 flex flex-col justify-between">
+              <div class="flex justify-between items-center border-b border-[#303030] pb-1 text-[11px]">
+                <span class="text-white font-semibold">Program: Sequence 01</span>
+                <span class="text-blue-400 font-mono">00:00:03:12</span>
+              </div>
+              <div class="bg-[#0e0e0e] h-28 rounded border border-[#252525] flex items-center justify-center text-slate-400 text-xs font-semibold">
+                Canvas Preview (Fit 100%)
+              </div>
+              <div class="flex justify-center gap-3 text-xs text-[#b0b0b0]">
+                <span>◀◀</span><span>▶</span><span>▶▶</span><span>{ }</span>
+              </div>
+            </div>
+            <!-- Right Top: Scopes / Lumetri -->
+            <div class="col-span-3 bg-[#1d1d1d] border border-[#303030] rounded p-2 flex flex-col gap-1 text-[11px]">
+              <span class="text-white font-semibold border-b border-[#303030] pb-1">Audio Meters</span>
+              <div class="flex gap-2 h-full items-end pb-2 justify-center">
+                <div class="w-3 bg-emerald-600 h-24 rounded-t"></div>
+                <div class="w-3 bg-emerald-600 h-20 rounded-t"></div>
+              </div>
+              <div class="text-center text-[10px] text-emerald-400 font-mono">-6.0 dB</div>
+            </div>
+            <!-- Bottom Left: Project Bins -->
+            <div class="col-span-4 bg-[#1d1d1d] border border-[#303030] rounded p-2 flex flex-col justify-between">
+              <div class="flex gap-2 border-b border-[#303030] pb-1 text-[11px] text-[#b0b0b0]">
+                <span class="text-white border-b border-blue-500 pb-1 font-semibold">Project</span>
+                <span>Media Browser</span>
+                <span>History</span>
+              </div>
+              <div class="space-y-1 text-[11px] text-slate-300">
+                <div class="p-1 bg-[#282828] rounded flex justify-between"><span>📁 B-Roll</span><span>3 clips</span></div>
+                <div class="p-1 hover:bg-[#252525] rounded flex justify-between"><span>🎬 intro_01.mp4</span><span>1080p</span></div>
+                <div class="p-1 hover:bg-[#252525] rounded flex justify-between"><span>🎵 theme.wav</span><span>48kHz</span></div>
+              </div>
+            </div>
+            <!-- Bottom Right: Multi-Track Timeline -->
+            <div class="col-span-8 bg-[#1d1d1d] border-2 border-blue-500/80 rounded p-2 flex flex-col justify-between">
+              <div class="flex justify-between items-center text-[11px] text-[#b0b0b0] border-b border-[#303030] pb-1">
+                <div class="flex gap-2"><span class="text-white font-semibold">Sequence 01</span><span>30.00 fps</span></div>
+                <div class="text-blue-400 font-mono font-bold">00:00:03:12</div>
+              </div>
+              <!-- Track Area -->
+              <div class="space-y-1.5 my-1 font-mono text-[10px]">
+                <div class="h-6 bg-[#252525] rounded flex items-center px-2 relative">
+                  <span class="text-slate-400 w-6">V1</span>
+                  <div class="bg-blue-600/80 text-white px-2 py-0.5 rounded text-[9px] w-48 truncate">Clip_A.mp4 [0-5s]</div>
+                  <div class="bg-cyan-600/80 text-white px-2 py-0.5 rounded text-[9px] w-32 truncate ml-1">Clip_B.mp4</div>
+                  <!-- Playhead line -->
+                  <div class="absolute left-24 top-0 bottom-0 w-0.5 bg-blue-400 shadow-[0_0_8px_#60a5fa]"></div>
+                </div>
+                <div class="h-6 bg-[#252525] rounded flex items-center px-2 relative">
+                  <span class="text-slate-400 w-6">A1</span>
+                  <div class="bg-teal-700/80 text-white px-2 py-0.5 rounded text-[9px] w-80 truncate">Audio_Track_1.wav</div>
+                  <div class="absolute left-24 top-0 bottom-0 w-0.5 bg-blue-400 shadow-[0_0_8px_#60a5fa]"></div>
+                </div>
+              </div>
+              <div class="text-[10px] text-[#777] flex justify-between">
+                <span>Tools: V (Select), C (Razor), B (Ripple)</span>
+                <span>Snap: ON</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variation Details -->
+        <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5 flex flex-col justify-between">
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+              Premiere Classic
+            </h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)] leading-relaxed">
+              The standard production UI of FilmCraft today. Closely replicates Adobe Premiere Pro 2026. Every panel can be undocked, tabbed, floated, or resized.
+            </p>
+            <div class="space-y-2 pt-2 border-t border-[var(--border,#262c36)] text-xs">
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Palette:</span>
+                <span class="font-mono text-slate-200">#1d1d1d / Blue (#2f6bdf)</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Target Audience:</span>
+                <span class="text-slate-200">Long-form & professional editors</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Workspaces:</span>
+                <span class="text-slate-200">9 built-in dropdown modes</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">State in Repo:</span>
+                <span class="text-emerald-400 font-semibold">Active & Live in Production</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border,#262c36)]">
+            <span class="text-[11px] text-amber-400 block font-medium">Pros: Maximum power & familiarity</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">Cons: Dense & complex for quick social edits</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: DAVINCI EVOLVE PAGES -->
+    <div id="content-evolve" class="tab-content hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Mockup Display -->
+        <div class="lg:col-span-2 bg-[#0c0d10] border border-[#2a2d35] rounded-xl p-3 shadow-inner flex flex-col gap-2">
+          <!-- Minimal Top Header -->
+          <div class="bg-[#28282d] px-3 py-1.5 rounded flex items-center justify-between text-[11px] text-[#b0b0b0] border-b border-[#36363d]">
+            <div class="flex items-center gap-3">
+              <span class="text-orange-400 font-bold">FilmCraft Evolve</span>
+              <span>Project: Indie_Film_Cut</span>
+            </div>
+            <div class="text-xs text-orange-400 font-mono font-bold">
+              01:02:14:19
+            </div>
+          </div>
+          <!-- Main Task Area (Edit Page Shown) -->
+          <div class="grid grid-cols-12 gap-1.5 h-64">
+            <!-- Left: Smart Media & Bins -->
+            <div class="col-span-3 bg-[#28282d] border border-[#36363d] rounded p-2 flex flex-col justify-between">
+              <div class="text-[11px] text-white font-semibold border-b border-[#36363d] pb-1">Media Pool</div>
+              <div class="space-y-1 text-[11px] text-slate-300">
+                <div class="p-1 bg-[#323238] rounded">📁 Master Footage</div>
+                <div class="p-1 rounded">📁 SFX & Foley</div>
+                <div class="p-1 rounded">📁 Music Cues</div>
+              </div>
+              <div class="text-[10px] text-slate-400">14 items ingested</div>
+            </div>
+            <!-- Center: Dual Viewer / Program -->
+            <div class="col-span-9 bg-[#28282d] border border-[#36363d] rounded p-2 flex flex-col justify-between">
+              <div class="flex justify-between items-center text-[11px] border-b border-[#36363d] pb-1">
+                <span class="text-white font-semibold">Timeline Viewer</span>
+                <span class="text-orange-400 font-mono">Rec 709 / 4K UHD</span>
+              </div>
+              <div class="bg-[#121214] h-24 rounded flex items-center justify-center text-slate-400 text-xs font-semibold">
+                Master Color-Managed Program View
+              </div>
+              <!-- Timeline with Red Playhead -->
+              <div class="h-14 bg-[#1e1e22] rounded p-1.5 relative flex flex-col justify-around">
+                <div class="h-4 bg-[#be511b]/30 border border-[#be511b] rounded text-[9px] text-orange-200 px-2 flex items-center">
+                  V1 Scene_4_Take_2.mov
+                </div>
+                <div class="h-4 bg-teal-900/50 border border-teal-500/50 rounded text-[9px] text-teal-200 px-2 flex items-center">
+                  A1 Dialogue_Boom.wav
+                </div>
+                <!-- Evolve Red Playhead -->
+                <div class="absolute left-32 top-0 bottom-0 w-0.5 bg-red-500 shadow-[0_0_8px_#ef4444]"></div>
+              </div>
+            </div>
+          </div>
+          <!-- DaVinci-Style Bottom Page Bar -->
+          <div class="bg-[#202024] px-3 py-2 rounded flex items-center justify-around border-t-2 border-[#be511b]/60 text-xs">
+            <button class="px-3 py-1 rounded text-[#999] hover:text-white">Media</button>
+            <button class="px-3 py-1 rounded text-[#999] hover:text-white">Cut</button>
+            <button class="px-3 py-1 rounded bg-[#be511b] text-white font-bold shadow">Edit</button>
+            <button class="px-3 py-1 rounded text-[#999] hover:text-white">Color</button>
+            <button class="px-3 py-1 rounded text-[#999] hover:text-white">Audio</button>
+            <button class="px-3 py-1 rounded text-[#999] hover:text-white">Deliver</button>
+          </div>
+        </div>
+
+        <!-- Variation Details -->
+        <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5 flex flex-col justify-between">
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+              DaVinci "Evolve" Pages
+            </h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)] leading-relaxed">
+              Authored in PR #3065 by admbe. Replaces workspace dropdowns with a dedicated workflow page bar at the bottom: <strong>Media → Cut → Edit → Color → Audio → Deliver</strong>.
+            </p>
+            <div class="space-y-2 pt-2 border-t border-[var(--border,#262c36)] text-xs">
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Palette:</span>
+                <span class="font-mono text-orange-400">#28282d / Warm Orange (#be511b)</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Playhead:</span>
+                <span class="text-red-400 font-semibold">Crimson Red (#ef4444)</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Contrast:</span>
+                <span class="text-emerald-400">Certified WCAG AA (4.5:1)</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">Keyboard:</span>
+                <span class="text-slate-200">DaVinci Resolve Keymap</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border,#262c36)]">
+            <span class="text-[11px] text-emerald-400 block font-medium">Pros: Clean task-based workflow, gorgeous colors</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">Cons: Fixed 6-stage lifecycle model</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: OLED MINIMALIST -->
+    <div id="content-oled" class="tab-content hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Mockup Display -->
+        <div class="lg:col-span-2 bg-[#000000] border border-[#222222] rounded-xl p-3 shadow-2xl flex flex-col gap-2">
+          <!-- True Black Top Header -->
+          <div class="bg-[#000000] px-3 py-1.5 flex items-center justify-between text-[11px] text-[#888888] border-b border-[#1a1a1a]">
+            <div class="flex items-center gap-4">
+              <span class="text-white font-mono font-bold tracking-wider">FILMCRAFT // OLED</span>
+              <span>Sequence_Master</span>
+            </div>
+            <div class="text-white font-mono text-xs">00:00:00:00</div>
+          </div>
+          <!-- True Black Surface Grid -->
+          <div class="grid grid-cols-12 gap-1.5 h-64">
+            <div class="col-span-4 bg-[#000000] border border-[#1e1e1e] rounded p-2 flex flex-col justify-between">
+              <div class="text-[11px] text-white font-medium border-b border-[#1e1e1e] pb-1">Inspector</div>
+              <div class="space-y-2 text-[10px] text-slate-400">
+                <div class="flex justify-between"><span>Transform Scale</span><span class="text-white font-mono">100.0%</span></div>
+                <div class="flex justify-between"><span>Position X / Y</span><span class="text-white font-mono">960, 540</span></div>
+                <div class="flex justify-between"><span>Opacity</span><span class="text-white font-mono">100%</span></div>
+              </div>
+              <div class="h-6 bg-[#0a0a0a] rounded border border-[#222] flex items-center px-2 text-[10px] text-slate-500">Audio EQ Flat</div>
+            </div>
+            <div class="col-span-8 bg-[#000000] border border-[#1e1e1e] rounded p-2 flex flex-col justify-between">
+              <div class="flex justify-between text-[11px] border-b border-[#1e1e1e] pb-1">
+                <span class="text-white">Program Monitor</span>
+                <span class="text-emerald-400 font-mono">DCI-P3 1000 nits</span>
+              </div>
+              <div class="bg-[#050505] h-32 rounded border border-[#151515] flex items-center justify-center text-slate-300 font-semibold text-xs">
+                Zero Backlight Bleed Pure Display
+              </div>
+              <div class="h-10 bg-[#050505] rounded border border-[#1a1a1a] p-1 flex items-center px-3 relative">
+                <div class="h-4 bg-white/20 text-white text-[9px] px-2 rounded flex items-center">Shot_01.raw</div>
+                <div class="absolute left-20 top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_#ffffff]"></div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-[#000000] px-3 py-1.5 border-t border-[#1a1a1a] flex justify-between text-[10px] text-slate-500">
+            <span>Pixel Burn-In Protection: ACTIVE</span>
+            <span>Power Consumption: -42% on OLED</span>
+          </div>
+        </div>
+
+        <!-- Variation Details -->
+        <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5 flex flex-col justify-between">
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-white"></span>
+              OLED Minimalist
+            </h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)] leading-relaxed">
+              Authored in PR #2834 by justacalico. Replaces dark grey panels with true `#000000` pitch black. Ideal for late-night editing sessions, high-contrast HDR previews, and modern OLED displays.
+            </p>
+            <div class="space-y-2 pt-2 border-t border-[var(--border,#262c36)] text-xs">
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Background:</span>
+                <span class="font-mono text-white">#000000 (Pure Black)</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Separators:</span>
+                <span class="font-mono text-slate-400">#1e1e1e Subtle 1px</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Highlight:</span>
+                <span class="text-white font-mono">Electric White / High Sat Blue</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">Benefit:</span>
+                <span class="text-emerald-400">Zero light spill, max contrast</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border,#262c36)]">
+            <span class="text-[11px] text-emerald-400 block font-medium">Pros: Ultra sleek, zero eye strain, looks modern</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">Cons: High contrast may feel sharp on LCD screens</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: VERTICAL 9:16 SHORTS -->
+    <div id="content-vertical" class="tab-content hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Mockup Display -->
+        <div class="lg:col-span-2 bg-[#0c0d10] border border-[#2a2d35] rounded-xl p-3 shadow-inner flex flex-col gap-2">
+          <div class="bg-[#181a20] px-3 py-1.5 rounded flex items-center justify-between text-[11px] text-[#b0b0b0]">
+            <span class="text-purple-400 font-bold">FilmCraft Vertical (9:16)</span>
+            <span class="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded text-[10px]">TikTok / Shorts / Reels</span>
+          </div>
+          <!-- Centered Phone Layout -->
+          <div class="grid grid-cols-12 gap-2 h-72">
+            <!-- Left: Captions & Text Tool -->
+            <div class="col-span-3 bg-[#181a20] border border-[#2b2f3a] rounded p-2 flex flex-col justify-between text-[11px]">
+              <div>
+                <span class="text-white font-semibold">Auto-Captions</span>
+                <div class="mt-2 space-y-1 text-[10px]">
+                  <div class="p-1 bg-[#252833] rounded text-yellow-300">"Check this out!"</div>
+                  <div class="p-1 bg-[#20222a] rounded text-slate-300">"This editor runs in WASM"</div>
+                  <div class="p-1 bg-[#20222a] rounded text-slate-300">"Entirely smooth 60fps"</div>
+                </div>
+              </div>
+              <button class="w-full py-1 bg-purple-600 text-white rounded text-[10px] font-medium">Generate Captions</button>
+            </div>
+            <!-- Center: 9:16 Phone Frame -->
+            <div class="col-span-5 bg-[#121317] border border-[#2b2f3a] rounded p-2 flex flex-col items-center justify-between">
+              <span class="text-[10px] text-slate-400">1080 x 1920 (9:16 Safe Area)</span>
+              <!-- Phone Bezel Mock -->
+              <div class="w-32 h-52 bg-black border-2 border-purple-500/40 rounded-xl relative overflow-hidden flex flex-col justify-between p-2 shadow-lg">
+                <div class="w-12 h-1 bg-slate-700 rounded-full mx-auto"></div>
+                <div class="text-center font-bold text-white text-xs drop-shadow">
+                  VERTICAL<br><span class="text-yellow-300 text-[10px]">VIDEO CONTENT</span>
+                </div>
+                <div class="text-[8px] text-slate-400 text-center">TikTok UI Safe Zone</div>
+              </div>
+              <div class="flex gap-2 text-xs text-purple-400">
+                <span>◀</span><span>▶</span><span>▶▶</span>
+              </div>
+            </div>
+            <!-- Right: Sticker / Filter / Speed -->
+            <div class="col-span-4 bg-[#181a20] border border-[#2b2f3a] rounded p-2 flex flex-col justify-between text-[11px]">
+              <div>
+                <span class="text-white font-semibold">Short-Form Tools</span>
+                <div class="mt-2 space-y-1.5 text-[10px]">
+                  <div class="flex justify-between py-1 border-b border-white/5"><span>Playback Speed</span><span class="text-purple-300 font-bold">1.2x</span></div>
+                  <div class="flex justify-between py-1 border-b border-white/5"><span>Audio Normalization</span><span class="text-emerald-400">-14 LUFS</span></div>
+                  <div class="flex justify-between py-1"><span>Background Blur</span><span class="text-purple-300">ON</span></div>
+                </div>
+              </div>
+              <div class="text-[10px] text-slate-400">Fast Mobile Export Preset</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variation Details -->
+        <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5 flex flex-col justify-between">
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+              Vertical 9:16 Creator
+            </h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)] leading-relaxed">
+              Proposed in PR #2041 and issues #1247/#3451. Designed specifically for portrait video formats (TikTok, Instagram Reels, YouTube Shorts).
+            </p>
+            <div class="space-y-2 pt-2 border-t border-[var(--border,#262c36)] text-xs">
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Aspect Ratio:</span>
+                <span class="font-mono text-purple-400">9:16 (1080x1920)</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Safe Guides:</span>
+                <span class="text-slate-200">TikTok UI Overlay mask</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Text & Graphics:</span>
+                <span class="text-slate-200">Automated word-by-word captions</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">Target Users:</span>
+                <span class="text-purple-300 font-semibold">Social creators & mobile editors</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border,#262c36)]">
+            <span class="text-[11px] text-emerald-400 block font-medium">Pros: Perfect for vertical content; no wasted screen space</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">Cons: Unsuitable for cinema 16:9 widescreen footage</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: CAPCUT / WEB MODERN -->
+    <div id="content-webmod" class="tab-content hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Mockup Display -->
+        <div class="lg:col-span-2 bg-[#0e1117] border border-[#262c36] rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+          <!-- Sleek Floating Glass Header -->
+          <div class="bg-[#161b22]/80 backdrop-blur px-4 py-2 rounded-xl flex items-center justify-between border border-[#30363d]">
+            <div class="flex items-center gap-3">
+              <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-xs text-white">F</div>
+              <span class="text-white font-semibold text-xs">FilmCraft Web Studio</span>
+            </div>
+            <!-- Quick Aspect Ratio Selector -->
+            <div class="flex items-center gap-1 bg-[#21262d] p-1 rounded-lg text-xs">
+              <button class="px-2 py-0.5 rounded bg-blue-600 text-white font-medium">16:9</button>
+              <button class="px-2 py-0.5 rounded text-slate-400 hover:text-white">9:16</button>
+              <button class="px-2 py-0.5 rounded text-slate-400 hover:text-white">1:1</button>
+            </div>
+            <!-- Export Pill -->
+            <button class="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md">
+              Export 4K ⚡
+            </button>
+          </div>
+
+          <!-- 3-Column Studio Grid -->
+          <div class="grid grid-cols-12 gap-2 h-48">
+            <!-- Left: Icon Bar & Asset Drawer -->
+            <div class="col-span-4 bg-[#161b22] border border-[#30363d] rounded-xl p-2.5 flex flex-col justify-between">
+              <div class="flex gap-2 text-xs border-b border-[#30363d] pb-1.5 text-slate-400">
+                <span class="text-blue-400 font-semibold border-b-2 border-blue-400 pb-1">Media</span>
+                <span>Audio</span>
+                <span>Text</span>
+                <span>Transitions</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5 my-1">
+                <div class="bg-[#21262d] h-14 rounded-lg p-1 text-[10px] text-slate-300 flex flex-col justify-end">clip_1.mp4</div>
+                <div class="bg-[#21262d] h-14 rounded-lg p-1 text-[10px] text-slate-300 flex flex-col justify-end">b_roll.mp4</div>
+              </div>
+              <button class="w-full py-1 rounded-lg border border-dashed border-slate-600 text-slate-400 hover:text-white text-[11px]">+ Import Files</button>
+            </div>
+            <!-- Center: Floating Canvas -->
+            <div class="col-span-5 bg-[#0d1117] border border-[#30363d] rounded-xl p-2 flex flex-col items-center justify-between">
+              <div class="w-full flex justify-between text-[10px] text-slate-500">
+                <span>Canvas</span>
+                <span class="text-blue-400 font-mono">60.0 FPS</span>
+              </div>
+              <div class="bg-[#161b22] w-48 h-28 rounded-lg flex items-center justify-center text-slate-300 font-semibold text-xs border border-[#30363d] shadow-sm">
+                Smooth 60fps WebGL
+              </div>
+              <div class="flex gap-3 text-xs text-slate-300">
+                <button>⏮</button><button class="text-blue-400 text-sm">▶</button><button>⏭</button>
+              </div>
+            </div>
+            <!-- Right: Smart Context Inspector -->
+            <div class="col-span-3 bg-[#161b22] border border-[#30363d] rounded-xl p-2.5 flex flex-col justify-between text-xs">
+              <div>
+                <span class="text-white font-semibold text-[11px]">Selected Clip</span>
+                <div class="mt-2 space-y-1.5 text-[10px] text-slate-300">
+                  <div class="flex justify-between"><span>Speed</span><span class="text-blue-400">1.0x</span></div>
+                  <div class="flex justify-between"><span>Volume</span><span class="text-blue-400">0.0 dB</span></div>
+                  <div class="flex justify-between"><span>Blend</span><span>Normal</span></div>
+                </div>
+              </div>
+              <div class="text-[10px] text-slate-500">Auto-adapts to selection</div>
+            </div>
+          </div>
+
+          <!-- Bottom: Rounded Magnetic Pill Timeline -->
+          <div class="bg-[#161b22] border border-[#30363d] rounded-xl p-2.5 flex flex-col gap-1.5">
+            <div class="flex justify-between items-center text-[10px] text-slate-400">
+              <div class="flex gap-2">
+                <button class="hover:text-white">✂ Split (Ctrl+K)</button>
+                <button class="hover:text-white">🗑 Delete</button>
+              </div>
+              <div class="text-blue-400 font-mono font-bold">00:00:04:15</div>
+            </div>
+            <!-- Pill Clips -->
+            <div class="h-10 bg-[#0d1117] rounded-lg p-1 flex items-center gap-1.5 relative overflow-hidden">
+              <div class="bg-gradient-to-r from-blue-600 to-blue-500 text-white h-7 px-3 rounded-md text-[10px] flex items-center font-medium shadow w-40">
+                Hero_Shot.mp4
+              </div>
+              <div class="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white h-7 px-3 rounded-md text-[10px] flex items-center font-medium shadow w-32">
+                Interview.mov
+              </div>
+              <div class="absolute left-28 top-0 bottom-0 w-0.5 bg-blue-400 shadow-[0_0_8px_#60a5fa]"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variation Details -->
+        <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5 flex flex-col justify-between">
+          <div class="space-y-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span>
+              CapCut / Web Modern Studio
+            </h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)] leading-relaxed">
+              Inspired by commercial web editors (CapCut Web, Descript, Canva). Features soft rounded corners (8px-12px), single-click aspect ratio toggles, and contextual inspectors.
+            </p>
+            <div class="space-y-2 pt-2 border-t border-[var(--border,#262c36)] text-xs">
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Layout:</span>
+                <span class="text-slate-200">Unified 3-column + bottom pills</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Border Radius:</span>
+                <span class="font-mono text-blue-400">8px - 14px modern glass</span>
+              </div>
+              <div class="flex justify-between py-1 border-b border-white/5">
+                <span class="text-slate-400">Tool Complexity:</span>
+                <span class="text-emerald-400">Intuitive, minimal cognitive load</span>
+              </div>
+              <div class="flex justify-between py-1">
+                <span class="text-slate-400">Timeline:</span>
+                <span class="text-slate-200">Magnetic rounded pill blocks</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border,#262c36)]">
+            <span class="text-[11px] text-emerald-400 block font-medium">Pros: Ultra-friendly, feels like a 2026 commercial web app</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5">Cons: Less visible control for advanced 30-track audio/color routing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparative Scorecard -->
+    <div class="bg-[var(--card,#161920)] border border-[var(--border,#262c36)] rounded-xl p-5">
+      <h3 class="text-sm font-bold text-white mb-3">Feature & Ergonomics Comparison Matrix</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs text-left border-collapse">
+          <thead>
+            <tr class="border-b border-[var(--border,#262c36)] text-slate-400">
+              <th class="py-2 px-3">Variation</th>
+              <th class="py-2 px-3">Visual Style</th>
+              <th class="py-2 px-3">Navigation Model</th>
+              <th class="py-2 px-3">Best Suited For</th>
+              <th class="py-2 px-3">Effort to Adopt</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            <tr class="hover:bg-white/[0.02]">
+              <td class="py-2.5 px-3 font-semibold text-white">1. Premiere Classic</td>
+              <td class="py-2.5 px-3 text-slate-300">#1d1d1d / Blue / 0px radius</td>
+              <td class="py-2.5 px-3 text-slate-300">Dropdown Workspaces</td>
+              <td class="py-2.5 px-3 text-slate-300">Heavy multi-track cinema/documentary</td>
+              <td class="py-2.5 px-3 text-emerald-400 font-medium">0 hrs (Current default)</td>
+            </tr>
+            <tr class="hover:bg-white/[0.02]">
+              <td class="py-2.5 px-3 font-semibold text-orange-400">2. DaVinci "Evolve" Pages</td>
+              <td class="py-2.5 px-3 text-slate-300">#28282d Charcoal / Warm Orange</td>
+              <td class="py-2.5 px-3 text-slate-300">Bottom Page Bar (6 stages)</td>
+              <td class="py-2.5 px-3 text-slate-300">Grading, cutdowns, audio mastering</td>
+              <td class="py-2.5 px-3 text-blue-400 font-medium">~1 hr (Port from PR #3065)</td>
+            </tr>
+            <tr class="hover:bg-white/[0.02]">
+              <td class="py-2.5 px-3 font-semibold text-white">3. OLED Minimalist</td>
+              <td class="py-2.5 px-3 text-slate-300">#000000 True Black / 1px Lines</td>
+              <td class="py-2.5 px-3 text-slate-300">Dropdown Workspaces</td>
+              <td class="py-2.5 px-3 text-slate-300">HDR editing, laptop battery saving</td>
+              <td class="py-2.5 px-3 text-blue-400 font-medium">~30 mins (Port from PR #2834)</td>
+            </tr>
+            <tr class="hover:bg-white/[0.02]">
+              <td class="py-2.5 px-3 font-semibold text-purple-400">4. Vertical 9:16 Shorts</td>
+              <td class="py-2.5 px-3 text-slate-300">9:16 Centered Phone Canvas</td>
+              <td class="py-2.5 px-3 text-slate-300">Workspace Preset</td>
+              <td class="py-2.5 px-3 text-slate-300">TikTok, Reels, YouTube Shorts</td>
+              <td class="py-2.5 px-3 text-blue-400 font-medium">~45 mins (Port from PR #2041)</td>
+            </tr>
+            <tr class="hover:bg-white/[0.02]">
+              <td class="py-2.5 px-3 font-semibold text-blue-400">5. CapCut / Web Modern</td>
+              <td class="py-2.5 px-3 text-slate-300">#0e1117 / 8-12px Glass Pills</td>
+              <td class="py-2.5 px-3 text-slate-300">3-Column Contextual</td>
+              <td class="py-2.5 px-3 text-slate-300">Casual web creators, quick social clips</td>
+              <td class="py-2.5 px-3 text-amber-400 font-medium">~2-3 hrs (New custom layout preset)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      // Hide all contents
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      // Show selected
+      const target = document.getElementById('content-' + tabId);
+      if (target) target.classList.remove('hidden');
+
+      // Update button styles
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active-tab');
+        btn.classList.add('bg-[var(--card,#1e232d)]', 'text-[var(--muted-foreground,#94a3b8)]');
+      });
+      const activeBtn = document.getElementById('btn-' + tabId);
+      if (activeBtn) {
+        activeBtn.classList.add('active-tab');
+        activeBtn.classList.remove('bg-[var(--card,#1e232d)]', 'text-[var(--muted-foreground,#94a3b8)]');
+      }
+    }
+  </script>
+</body>
+</html>
