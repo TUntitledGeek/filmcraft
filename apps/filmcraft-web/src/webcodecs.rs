@@ -282,6 +282,37 @@ struct Session {
     _closures: (Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>),
 }
 
+/// RAII guard ensuring browser `VideoFrame.close()` is unconditionally called on any drop/panic/early-return.
+struct JsVideoFrameGuard {
+    frame: JsValue,
+    copies: Rc<Cell<u32>>,
+    active: bool,
+}
+
+impl JsVideoFrameGuard {
+    fn new(frame: JsValue, copies: Rc<Cell<u32>>) -> Self {
+        copies.set(copies.get().saturating_add(1));
+        Self { frame, copies, active: true }
+    }
+    fn frame(&self) -> &JsValue {
+        &self.frame
+    }
+}
+
+impl Drop for JsVideoFrameGuard {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = call(&self.frame, "close", &[]);
+            self.copies.set(self.copies.get().saturating_sub(1));
+            TRANSFERS.with(|s| {
+                let mut s = s.borrow_mut();
+                s.closed = s.closed.saturating_add(1);
+            });
+            self.active = false;
+        }
+    }
+}
+
 /// Draw a WebCodecs `VideoFrame` and read it back as RGBA.
 fn to_rgba(frame: &JsValue) -> Option<VideoFrame> {
     let w = get(frame, "displayWidth").as_f64()? as u32;
@@ -322,10 +353,18 @@ impl Session {
             let expected = epoch.get();
             let (o, lo, om, copies, epoch, active, config, errors) =
                 (o.clone(), lo.clone(), om.clone(), copies.clone(), epoch.clone(), active.clone(), config.clone(), errors.clone());
-            copies.set(copies.get().saturating_add(1));
+            let guard = JsVideoFrameGuard::new(frame, copies);
             wasm_bindgen_futures::spawn_local(async move {
+                let guard = guard;
+                if !active.get() || epoch.get() != expected {
+                    TRANSFERS.with(|s| {
+                        let mut s = s.borrow_mut();
+                        s.stale = s.stale.saturating_add(1);
+                    });
+                    return;
+                }
                 let begin = now_ms();
-                let converted = match pixels::read(&frame, &config).await {
+                let converted = match pixels::read(guard.frame(), &config).await {
                     Ok((f, bytes)) => {
                         TRANSFERS.with(|s| {
                             let mut s = s.borrow_mut();
@@ -337,7 +376,7 @@ impl Session {
                     }
                     Err(reason) => {
                         let begin = now_ms();
-                        let f = to_rgba(&frame);
+                        let f = to_rgba(guard.frame());
                         TRANSFERS.with(|s| {
                             let mut s = s.borrow_mut();
                             s.canvas = s.canvas.saturating_add(1);
@@ -348,12 +387,6 @@ impl Session {
                         f
                     }
                 };
-                let _ = call(&frame, "close", &[]);
-                copies.set(copies.get().saturating_sub(1));
-                TRANSFERS.with(|s| {
-                    let mut s = s.borrow_mut();
-                    s.closed = s.closed.saturating_add(1);
-                });
                 if !active.get() || epoch.get() != expected {
                     TRANSFERS.with(|s| {
                         let mut s = s.borrow_mut();
@@ -475,8 +508,10 @@ impl WcSource {
             if !covers {
                 // Don't interrupt a session that is still working towards its own frame, unless it
                 // has gone quiet for STALE_MS (a copyTo that never settles must not wedge it).
+                // During backward or cross-GOP seeks, skip feeding obsolete inter-frames from the previous GOP immediately.
+                let cross_gop_or_backward = key != s.start || (s.out_max.get() != i64::MIN && want < s.out_max.get());
                 let fresh = now_ms() - s.last_output.get() < STALE_MS;
-                let busy = fresh && (s.copying.get() > 0 || (!s.needs_key && s.target != i64::MIN && s.out_max.get() < s.target));
+                let busy = !cross_gop_or_backward && fresh && (s.copying.get() > 0 || (!s.needs_key && s.target != i64::MIN && s.out_max.get() < s.target));
                 if busy {
                     return Drive::Waiting;
                 }

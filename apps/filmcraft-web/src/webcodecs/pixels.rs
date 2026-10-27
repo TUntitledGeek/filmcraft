@@ -1,5 +1,6 @@
 //! Browser planes -> core frames; no color conversion or chroma reconstruction here.
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use filmcraft_color::{ColorInfo, Matrix, Primaries, Range, Transfer};
@@ -12,6 +13,39 @@ use super::{Config, call, get, obj};
 
 // One 8K 4:4:4 16-bit picture + alpha fits within 256 MiB; cap browser-driven allocations.
 const MAX_COPY_BYTES: u32 = 256 * 1024 * 1024;
+// Retained thread-local scratch buffer capacity capped at 16 MiB so memory never bloats
+const MAX_SCRATCH_BYTES: usize = 16 * 1024 * 1024;
+
+thread_local! {
+    static JS_SCRATCH: RefCell<Option<(u32, js_sys::Uint8Array)>> = const { RefCell::new(None) };
+}
+
+fn get_js_scratch(bytes: u32) -> Result<js_sys::Uint8Array, &'static str> {
+    JS_SCRATCH.with(|cell| {
+        let mut guard = cell.borrow_mut();
+        if let Some((cap, ref array)) = *guard {
+            if cap >= bytes {
+                return Ok(array.subarray(0, bytes));
+            }
+        }
+        let array_fn: js_sys::Function = get(&js_sys::global(), "Uint8Array").dyn_into().map_err(|_| "allocation")?;
+        let alloc_bytes = if (bytes as usize) > MAX_SCRATCH_BYTES {
+            bytes
+        } else {
+            bytes.max(2 * 1024 * 1024)
+        };
+        let raw: js_sys::Uint8Array =
+            js_sys::Reflect::construct(&array_fn, &js_sys::Array::of1(&alloc_bytes.into()))
+                .and_then(|v| v.dyn_into())
+                .map_err(|_| "allocation")?;
+        if (alloc_bytes as usize) <= MAX_SCRATCH_BYTES {
+            *guard = Some((alloc_bytes, raw.clone()));
+        } else {
+            *guard = None;
+        }
+        Ok(raw.subarray(0, bytes))
+    })
+}
 
 fn integer(value: JsValue) -> Option<u32> {
     let n = value.as_f64()?;
@@ -103,9 +137,7 @@ pub(super) async fn read(frame: &JsValue, cfg: &Config) -> Result<(VideoFrame, u
     let options = obj(&[("rect", rect)]);
     let bytes =
         integer(call(frame, "allocationSize", &[&options]).map_err(|_| "allocation")?).filter(|n| *n > 0 && *n <= MAX_COPY_BYTES).ok_or("allocation")?;
-    let array: js_sys::Function = get(&js_sys::global(), "Uint8Array").dyn_into().map_err(|_| "allocation")?;
-    let raw: js_sys::Uint8Array =
-        js_sys::Reflect::construct(&array, &js_sys::Array::of1(&bytes.into())).and_then(|v| v.dyn_into()).map_err(|_| "allocation")?;
+    let raw = get_js_scratch(bytes)?;
     let promise = call(frame, "copyTo", &[raw.as_ref(), &options]).map_err(|_| "copy")?.dyn_into::<js_sys::Promise>().map_err(|_| "copy")?;
     let layout = js_sys::Array::from(&JsFuture::from(promise).await.map_err(|_| "copy")?);
     let count = if interleaved {
