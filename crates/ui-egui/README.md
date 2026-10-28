@@ -84,3 +84,18 @@ buttons use `craft-ui::layout::fit_toolbar`; commands beyond the available width
 through More, including their selected state and Source/Program routing. A scrolling fallback
 retains all commands if even More cannot fit. `monitor_geometry` checks the painted readouts,
 control bounds, overflow actions and Source drag payloads across monitor widths and themes.
+
+### Studio Pro focused workspaces
+
+New sessions use Clean Editing. Empty Source and Inspector groups collapse in the rendered
+layout, preserving the stored docking tree, resize paths and floating panels. Loaded sources and
+selected clips restore their panes; Keep Source/Inspector open pins them. Saved layouts bypass
+contextual hiding. Classic Editing retains the previous Editing layout. Preview Factory Layout
+is reversible and leaves workspace preferences intact. Fusion uses its graph inspector drawer;
+Color prioritizes Program, scopes and grading. See `docs/studio-pro-review.md` for browser evidence
+and verification limitations. `clean_editing_ui` and `workspaces_ui` cover layout and persistence.
+
+UI icons adapt upstream #2308 with cached SVG parsing and original bracket-based edit glyphs;
+license notices and per-asset provenance live under `assets/icons/` and in `ATTRIBUTION.md`.
+WASM revision coalescing preserves the due frame and prefetch window. A pump yields after one
+completed job, but cannot preempt an expensive synchronous render. Browser FPS must be measured.

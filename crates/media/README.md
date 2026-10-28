@@ -12,3 +12,12 @@ components. A prefix may contain other UTF-8 characters, including accented lett
 when generating sibling-frame paths. Sibling recognition compares the prefix's UTF-8 bytes exactly.
 Stems without ASCII digits or with a final frame-number run longer than 18 characters are not numbered
 image-sequence filenames.
+
+### Procedural preview caching and quality
+
+Generator frames are reused through each source's existing frame cache, independently of effect
+revisions. Distinct generator instances never share color-matte frames. An exact per-row lattice
+cache avoids repeated noise hashes; Aurora and dunes evaluate column-only features once per
+column. Pixel-equivalence tests cover full and draft output. Full-quality WASM requests use the
+requested scale, including exports. Reduced detail remains an explicit draft context; grading
+temporarily lowers Program resolution without making the source a draft decoder.
