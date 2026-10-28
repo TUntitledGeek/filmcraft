@@ -468,8 +468,13 @@ fn slider(
     );
     let (_, nv) =
         crate::widgets::hot_number(&mut vui, egui::Id::new(("lval", clip.0, id)), v, (soft_max - soft_min) / 300.0, (min, max), decimals as usize, "", t);
-    if let Some(nv) = out.or(nv) {
-        actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": (nv * 10f64.powi(decimals as i32)).round() / 10f64.powi(decimals as i32)}));
+    let target_v = out.or(nv).map(|v_raw| {
+        (v_raw * 10f64.powi(decimals as i32)).round() / 10f64.powi(decimals as i32)
+    });
+    if let Some(new_val) = target_v {
+        if (new_val - v).abs() > 1e-6 {
+            actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": new_val}));
+        }
     }
     row
 }
@@ -619,7 +624,11 @@ fn color_wheel(ui: &mut egui::Ui, e: &EffectInstance, mt: Tick, id: &str, lid: &
         let d = (pos - c) / (r_in - 4.0);
         let len = d.length().min(1.0);
         let dir = if d.length() > 1e-6 { d / d.length() } else { d };
-        actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": [dir.x * len, -dir.y * len]}));
+        let nx = dir.x * len;
+        let ny = -dir.y * len;
+        if (nx as f64 - v.x).abs() > 1e-4 || (ny as f64 - v.y).abs() > 1e-4 {
+            actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": [nx, ny]}));
+        }
     }
     if resp.double_clicked() {
         actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": [0.0, 0.0]}));
@@ -635,7 +644,10 @@ fn color_wheel(ui: &mut egui::Ui, e: &EffectInstance, mt: Tick, id: &str, lid: &
         && let Some(pos) = lr.interact_pointer_pos()
     {
         let nv = ((track.center().y - pos.y) / (track.height() / 2.0) * 100.0).clamp(-100.0, 100.0);
-        actions.push(json!({"clip": clip.0, "effect": idx, "param": lid, "value": nv}));
+        let rounded = (nv as f64 * 10.0).round() / 10.0;
+        if (rounded - l as f64).abs() > 1e-4 {
+            actions.push(json!({"clip": clip.0, "effect": idx, "param": lid, "value": rounded}));
+        }
     }
     let _ = StrokeKind::Inside;
 }

@@ -436,6 +436,8 @@ pub struct FilmcraftApp {
     pub(crate) source_pic_rect: Option<egui::Rect>,
     /// Last node graph canvas rect for interaction & navigation bounds.
     pub node_canvas_rect: Option<egui::Rect>,
+    /// Project Hub directory entries cache (debounces disk / virtual fs scans).
+    pub hub_cache: Option<panels::import_mode::HubDirectoryCache>,
     /// Currently visible dock panel content rects for context-aware cursor presence.
     pub(crate) visible_panels: Vec<(String, egui::Rect)>,
     /// Last soft locks leased by the local peer on tracks.
@@ -747,6 +749,7 @@ impl FilmcraftApp {
             program_pic_rect: None,
             source_pic_rect: None,
             node_canvas_rect: None,
+            hub_cache: None,
             visible_panels: Vec::new(),
             collab_last_locks: Vec::new(),
             collab_drop_ghost: None,

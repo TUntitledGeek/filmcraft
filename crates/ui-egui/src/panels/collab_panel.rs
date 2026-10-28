@@ -46,7 +46,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
     egui::Window::new("Cloud Storage Sync & Live Collaboration Hub")
         .open(&mut open)
         .resizable(true)
-        .default_size(vec2(520.0, 560.0))
+        .default_size(vec2(540.0, 840.0))
         .show(ctx, |ui| {
             // =========================================================================
             // PROMINENT TOP STATUS BADGE
@@ -299,7 +299,9 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                             )
                             .fill(Color32::from_rgb(32, 140, 60));
 
-                            if ui.add(save_btn).clicked() {
+                            let sresp = ui.add(save_btn);
+                            app.auto.add("collab.save_project", sresp.rect, "Save Project");
+                            if sresp.clicked() {
                                 let ctx_clone = ui.ctx().clone();
                                 if app.session.path.is_some() {
                                     match crate::menus::invoke(app, &ctx_clone, "file.save", serde_json::json!({})) {
@@ -308,7 +310,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                                 app.session.path.as_deref().map_or(false, |p| p.starts_with(d))
                                             });
                                             if is_in_linked {
-                                                app.ui.status = "Saved project locally to linked directory.".into();
+                                                app.ui.status = "Saved project locally to linked directory. (Sync managed by Google Drive Desktop client)".into();
                                             } else {
                                                 app.ui.status = "Saved project locally to disk.".into();
                                             }
@@ -325,15 +327,11 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
                             if is_gdrive_auth {
                                 let cloud_btn = egui::Button::new(
-                                    RichText::new("☁ Sync to Cloud").size(13.0).strong().color(Color32::WHITE)
+                                    RichText::new("☁ Remote Cloud Sync (Backend Not Connected)").size(13.0).strong().color(Color32::from_rgb(180, 190, 205))
                                 )
-                                .fill(Color32::from_rgb(24, 100, 180));
-                                if ui.add(cloud_btn).clicked() {
-                                    app.gdrive_syncing = true;
-                                    app.gdrive_syncing = false;
-                                    app.gdrive_last_synced = Some("Just now".into());
-                                    app.ui.status = "Synchronized project with Google Drive.".into();
-                                }
+                                .fill(Color32::from_rgb(45, 55, 72));
+                                ui.add_enabled(false, cloud_btn)
+                                    .on_disabled_hover_text("Direct Google Drive REST API upload requires an active cloud backend service and verified OAuth 2.0 token. To sync projects automatically, use 'Local Google Drive Desktop Binding' to save directly to your Google Drive Desktop folder.");
                             }
 
                             if is_gdrive_auth || app.gdrive_config.active_folder_id.is_some() || app.gdrive_config.active_folder_name.is_some() {
