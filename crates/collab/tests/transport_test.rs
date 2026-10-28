@@ -45,17 +45,19 @@ fn test_transport_host_and_client_connect_and_sync() {
     let start = std::time::Instant::now();
     while start.elapsed() < Duration::from_secs(2) {
         while let Some(evt) = host_transport.try_recv_event() {
-            if let CollabEvent::PeerConnected { peer_id, name, .. } = evt {
-                if peer_id == 2 && name == "Bob Client" {
-                    client_connected_on_host = true;
-                }
+            if let CollabEvent::PeerConnected { peer_id, name, .. } = evt
+                && peer_id == 2
+                && name == "Bob Client"
+            {
+                client_connected_on_host = true;
             }
         }
         while let Some(evt) = client_transport.try_recv_event() {
-            if let CollabEvent::PeerConnected { peer_id, name, .. } = evt {
-                if peer_id == 1 && name == "Alice Host" {
-                    host_connected_on_client = true;
-                }
+            if let CollabEvent::PeerConnected { peer_id, name, .. } = evt
+                && peer_id == 1
+                && name == "Alice Host"
+            {
+                host_connected_on_client = true;
             }
         }
         if client_connected_on_host && host_connected_on_client {
@@ -68,12 +70,7 @@ fn test_transport_host_and_client_connect_and_sync() {
     assert!(host_connected_on_client, "Client did not receive PeerConnected for Host");
 
     // Client broadcasts a command
-    let cmd = CollabMessage::CommitCommand {
-        peer_id: 2,
-        rev: 1,
-        id: "timeline.split".into(),
-        params: json!({"time": 1000}),
-    };
+    let cmd = CollabMessage::CommitCommand { peer_id: 2, rev: 1, id: "timeline.split".into(), params: json!({"time": 1000}) };
     client_session.msg_tx.send(cmd).unwrap();
 
     // Host should receive CommandReceived
@@ -81,11 +78,13 @@ fn test_transport_host_and_client_connect_and_sync() {
     let cmd_start = std::time::Instant::now();
     while cmd_start.elapsed() < Duration::from_secs(2) {
         while let Some(evt) = host_transport.try_recv_event() {
-            if let CollabEvent::CommandReceived { peer_id, id, params, .. } = evt {
-                if peer_id == 2 && id == "timeline.split" && params["time"] == 1000 {
-                    command_received = true;
-                    break;
-                }
+            if let CollabEvent::CommandReceived { peer_id, id, params, .. } = evt
+                && peer_id == 2
+                && id == "timeline.split"
+                && params["time"] == 1000
+            {
+                command_received = true;
+                break;
             }
         }
         if command_received {
@@ -119,13 +118,12 @@ fn test_transport_host_and_client_connect_and_sync() {
     let mut presence_updated = false;
     let pres_start = std::time::Instant::now();
     while pres_start.elapsed() < Duration::from_secs(2) {
-        if let Ok(peers) = client_session.peers.try_read() {
-            if let Some(p) = peers.get(&1) {
-                if p.playhead_tick == Some(filmcraft_time::Tick(500)) {
-                    presence_updated = true;
-                    break;
-                }
-            }
+        if let Ok(peers) = client_session.peers.try_read()
+            && let Some(p) = peers.get(&1)
+            && p.playhead_tick == Some(filmcraft_time::Tick(500))
+        {
+            presence_updated = true;
+            break;
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -169,11 +167,12 @@ fn test_passcode_protected_room_connect_success() {
     let start = std::time::Instant::now();
     while start.elapsed() < Duration::from_secs(2) {
         while let Some(evt) = host_transport.try_recv_event() {
-            if let CollabEvent::PeerConnected { peer_id, name, .. } = evt {
-                if peer_id == 2 && name == "Guest Secure" {
-                    authenticated = true;
-                    break;
-                }
+            if let CollabEvent::PeerConnected { peer_id, name, .. } = evt
+                && peer_id == 2
+                && name == "Guest Secure"
+            {
+                authenticated = true;
+                break;
             }
         }
         if authenticated {

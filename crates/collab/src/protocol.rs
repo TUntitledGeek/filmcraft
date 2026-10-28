@@ -60,40 +60,14 @@ pub struct DragGhost {
 }
 
 impl DragGhost {
-    pub fn single(
-        clip_id: u64,
-        track_kind: TrackKind,
-        track_index: usize,
-        start_tick: Tick,
-        duration_ticks: Tick,
-        label: String,
-    ) -> Self {
-        let item = GhostClipItem {
-            clip_id,
-            track_kind,
-            track_index,
-            start_tick,
-            duration_ticks,
-            label: label.clone(),
-        };
-        Self {
-            clip_id,
-            track_kind,
-            track_index,
-            start_tick,
-            duration_ticks,
-            label,
-            items: vec![item],
-        }
+    pub fn single(clip_id: u64, track_kind: TrackKind, track_index: usize, start_tick: Tick, duration_ticks: Tick, label: String) -> Self {
+        let item = GhostClipItem { clip_id, track_kind, track_index, start_tick, duration_ticks, label: label.clone() };
+        Self { clip_id, track_kind, track_index, start_tick, duration_ticks, label, items: vec![item] }
     }
 
     pub fn multiple(items: Vec<GhostClipItem>) -> Option<Self> {
         let first = items.first()?;
-        let label = if items.len() > 1 {
-            format!("{} (+{} clips)", first.label, items.len() - 1)
-        } else {
-            first.label.clone()
-        };
+        let label = if items.len() > 1 { format!("{} (+{} clips)", first.label, items.len() - 1) } else { first.label.clone() };
         Some(Self {
             clip_id: first.clip_id,
             track_kind: first.track_kind,
@@ -135,13 +109,7 @@ pub struct SoftLock {
 #[serde(tag = "type", content = "payload")]
 pub enum CollabMessage {
     /// Initial handshake when entering a room.
-    Hello {
-        peer_id: PeerId,
-        name: String,
-        color_rgba: [u8; 4],
-        protocol_version: u32,
-        project_name: String,
-    },
+    Hello { peer_id: PeerId, name: String, color_rgba: [u8; 4], protocol_version: u32, project_name: String },
 
     /// Transient presence update (cursor, ghost drag, playhead).
     Presence(PeerPresence),
@@ -150,49 +118,22 @@ pub enum CollabMessage {
     ClaimLock(SoftLock),
 
     /// Release of a soft lock.
-    ReleaseLock {
-        peer_id: PeerId,
-        track_kind: TrackKind,
-        track_index: usize,
-    },
+    ReleaseLock { peer_id: PeerId, track_kind: TrackKind, track_index: usize },
 
     /// An atomic committed command executed on the project.
-    CommitCommand {
-        peer_id: PeerId,
-        rev: u64,
-        id: String,
-        params: Value,
-    },
+    CommitCommand { peer_id: PeerId, rev: u64, id: String, params: Value },
 
     /// Heartbeat ping to keep P2P connection and leases alive.
-    Heartbeat {
-        peer_id: PeerId,
-        timestamp_ms: u64,
-    },
+    Heartbeat { peer_id: PeerId, timestamp_ms: u64 },
 
     /// Media availability offer.
-    MediaOffer {
-        file_id: String,
-        filename: String,
-        sha256: String,
-        size_bytes: u64,
-        is_proxy: bool,
-    },
+    MediaOffer { file_id: String, filename: String, sha256: String, size_bytes: u64, is_proxy: bool },
 
     /// Request to stream a missing media file or proxy.
-    MediaRequest {
-        sha256: String,
-        offset_bytes: u64,
-        chunk_size: u32,
-    },
+    MediaRequest { sha256: String, offset_bytes: u64, chunk_size: u32 },
 
     /// Chunk of media payload.
-    MediaChunk {
-        sha256: String,
-        offset_bytes: u64,
-        total_bytes: u64,
-        data: Vec<u8>,
-    },
+    MediaChunk { sha256: String, offset_bytes: u64, total_bytes: u64, data: Vec<u8> },
 
     /// Project-scoped asset (custom WGSL shader, FCGT template, LUT).
     AssetSync {
@@ -203,74 +144,34 @@ pub enum CollabMessage {
     },
 
     /// Offer to install an external system extension.
-    ExtensionOffer {
-        extension_id: String,
-        name: String,
-        version: String,
-        description: String,
-        sha256: String,
-    },
+    ExtensionOffer { extension_id: String, name: String, version: String, description: String, sha256: String },
 
     /// Request the latest project snapshot from the host.
     RequestSnapshot,
 
     /// Full snapshot of the project serialized to JSON.
-    SyncSnapshot {
-        project_json: String,
-        revision: u64,
-        active_sequence: Option<u64>,
-    },
+    SyncSnapshot { project_json: String, revision: u64, active_sequence: Option<u64> },
 
     /// Rollback or time-travel to a specific checkpoint snapshot.
-    RollbackToCheckpoint {
-        peer_id: PeerId,
-        revision: u64,
-        label: String,
-        project_json: String,
-        active_sequence: Option<u64>,
-    },
+    RollbackToCheckpoint { peer_id: PeerId, revision: u64, label: String, project_json: String, active_sequence: Option<u64> },
 
     /// Authentication challenge sent from host to connecting peer when passcode is set.
-    AuthChallenge {
-        nonce: [u8; 32],
-    },
+    AuthChallenge { nonce: [u8; 32] },
 
     /// Authentication response containing HMAC-SHA256 proof of room passcode.
-    AuthResponse {
-        hmac: [u8; 32],
-    },
+    AuthResponse { hmac: [u8; 32] },
 
     /// Result of authentication challenge.
-    AuthResult {
-        ok: bool,
-        reason: Option<String>,
-    },
+    AuthResult { ok: bool, reason: Option<String> },
 
     /// Multi-tier progressive proxy notification (Tier 0: Waveforms -> Tier 1: 480p -> Tier 2: 1080p -> Tier 3: 4K Master).
-    MediaTierOffer {
-        clip_id: u64,
-        filename: String,
-        tier: u8,
-        sha256: String,
-        size_bytes: u64,
-        duration_ticks: u64,
-        url: Option<String>,
-    },
+    MediaTierOffer { clip_id: u64, filename: String, tier: u8, sha256: String, size_bytes: u64, duration_ticks: u64, url: Option<String> },
 
     /// Progress report for an actively streaming proxy or media tier.
-    MediaTierProgress {
-        clip_id: u64,
-        tier: u8,
-        received_bytes: u64,
-        total_bytes: u64,
-    },
+    MediaTierProgress { clip_id: u64, tier: u8, received_bytes: u64, total_bytes: u64 },
 
     /// Notification that a higher quality tier has finished downloading and is promoted in the timeline.
-    MediaTierPromoted {
-        clip_id: u64,
-        tier: u8,
-        path_or_url: String,
-    },
+    MediaTierPromoted { clip_id: u64, tier: u8, path_or_url: String },
 }
 
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -293,13 +194,13 @@ pub fn compute_auth_hmac(nonce: &[u8; 32], passcode: &str) -> [u8; 32] {
         i_key_pad[i] ^= key[i];
     }
     let mut inner = Sha256::new();
-    inner.update(&i_key_pad);
+    inner.update(i_key_pad);
     inner.update(nonce);
     let inner_hash = inner.finalize();
 
     let mut outer = Sha256::new();
-    outer.update(&o_key_pad);
-    outer.update(&inner_hash);
+    outer.update(o_key_pad);
+    outer.update(inner_hash);
     outer.finalize().into()
 }
 
@@ -319,14 +220,7 @@ mod tests {
             cursor_tick: Some(Tick(100_000)),
             cursor_track: Some((TrackKind::Video, 1)),
             cursor_track_y_norm: Some(0.5),
-            active_drag: Some(DragGhost::single(
-                42,
-                TrackKind::Video,
-                1,
-                Tick(100_000),
-                Tick(500_000),
-                "Interview.mp4".into(),
-            )),
+            active_drag: Some(DragGhost::single(42, TrackKind::Video, 1, Tick(100_000), Tick(500_000), "Interview.mp4".into())),
             selected_clip: Some(42),
             selected_clips: vec![42],
             in_hand: Some("Interview.mp4".into()),

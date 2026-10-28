@@ -696,44 +696,44 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
 
     // ---- collaborative presence overlay (remote playheads, ghost drags, soft locks)
-    if let Some(collab) = &app.collab {
-        if let (Ok(peers_map), Ok(locks_mgr)) = (collab.peers.try_read(), collab.lock_manager.try_read()) {
-            let peers: Vec<_> = peers_map.values().cloned().collect();
-            let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-            // Get all unexpired soft locks
-            let mut active_locks = Vec::new();
-            for kind in [TrackKind::Video, TrackKind::Audio] {
-                let n = if kind == TrackKind::Video { nv } else { na };
-                for idx in 0..n {
-                    if let Some(l) = locks_mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms) {
-                        active_locks.push(l.clone());
-                    }
+    if let Some(collab) = &app.collab
+        && let (Ok(peers_map), Ok(locks_mgr)) = (collab.peers.try_read(), collab.lock_manager.try_read())
+    {
+        let peers: Vec<_> = peers_map.values().cloned().collect();
+        let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+        // Get all unexpired soft locks
+        let mut active_locks = Vec::new();
+        for kind in [TrackKind::Video, TrackKind::Audio] {
+            let n = if kind == TrackKind::Video { nv } else { na };
+            for idx in 0..n {
+                if let Some(l) = locks_mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms) {
+                    active_locks.push(l.clone());
                 }
             }
-            let layout_clone = layout.clone();
-            let rows_clone = rows.clone();
-            crate::collab_overlay::paint_timeline_presence(
-                &painter,
-                &peers,
-                &active_locks,
-                content,
-                ruler,
-                |t| layout_clone.x_of(t),
-                |k, idx| {
-                    if let Some(r) = rows_clone.iter().find(|r| r.kind == k && r.index == idx) {
-                        Some((r.rect.min.y, r.rect.max.y))
-                    } else if k == TrackKind::Video {
-                        let vh = rows_clone.first().map(|r| r.rect.height()).unwrap_or(58.0);
-                        let top_row_y = rows_clone.iter().filter(|r| r.kind == TrackKind::Video).map(|r| r.rect.min.y).reduce(f32::min);
-                        top_row_y.map(|y| (y - vh, y))
-                    } else {
-                        let ah = rows_clone.iter().find(|r| r.kind == TrackKind::Audio).map(|r| r.rect.height()).unwrap_or(58.0);
-                        let bot_row_y = rows_clone.iter().filter(|r| r.kind == TrackKind::Audio).map(|r| r.rect.max.y).reduce(f32::max);
-                        bot_row_y.map(|y| (y, y + ah))
-                    }
-                },
-            );
         }
+        let layout_clone = layout.clone();
+        let rows_clone = rows.clone();
+        crate::collab_overlay::paint_timeline_presence(
+            &painter,
+            &peers,
+            &active_locks,
+            content,
+            ruler,
+            |t| layout_clone.x_of(t),
+            |k, idx| {
+                if let Some(r) = rows_clone.iter().find(|r| r.kind == k && r.index == idx) {
+                    Some((r.rect.min.y, r.rect.max.y))
+                } else if k == TrackKind::Video {
+                    let vh = rows_clone.first().map(|r| r.rect.height()).unwrap_or(58.0);
+                    let top_row_y = rows_clone.iter().filter(|r| r.kind == TrackKind::Video).map(|r| r.rect.min.y).reduce(f32::min);
+                    top_row_y.map(|y| (y - vh, y))
+                } else {
+                    let ah = rows_clone.iter().find(|r| r.kind == TrackKind::Audio).map(|r| r.rect.height()).unwrap_or(58.0);
+                    let bot_row_y = rows_clone.iter().filter(|r| r.kind == TrackKind::Audio).map(|r| r.rect.max.y).reduce(f32::max);
+                    bot_row_y.map(|y| (y, y + ah))
+                }
+            },
+        );
     }
 
     // ---- scroll bars
@@ -1030,26 +1030,21 @@ fn draw_clip(
         p.rect_stroke(body.shrink(1.0), 0.0, Stroke::new(1.0, Color32::BLACK), StrokeKind::Inside);
         p.rect_stroke(body, 0.0, Stroke::new(2.0, t.clip_selected_border), StrokeKind::Inside);
     }
-    if let Some(collab) = &app.collab {
-        if let Ok(peers) = collab.peers.try_read() {
-            for peer in peers.values() {
-                let is_selected = peer.selected_clip == Some(it.id.0) || peer.selected_clips.contains(&it.id.0);
-                if is_selected {
-                    let col = Color32::from_rgba_unmultiplied(
-                        peer.color_rgba[0],
-                        peer.color_rgba[1],
-                        peer.color_rgba[2],
-                        peer.color_rgba[3],
-                    );
-                    p.rect_stroke(body, 0.0, Stroke::new(2.0, col), StrokeKind::Inside);
-                    let badge_pos = pos2(body.max.x - 4.0, body.min.y + 3.0);
-                    let font_id = egui::FontId::proportional(9.0);
-                    let galley = p.layout_no_wrap(peer.name.clone(), font_id, Color32::WHITE);
-                    if body.width() >= galley.size().x + 14.0 {
-                        let badge_rect = Rect::from_min_size(badge_pos - vec2(galley.size().x + 6.0, 0.0), galley.size() + vec2(6.0, 3.0));
-                        p.rect_filled(badge_rect, 2.0, col);
-                        p.galley(badge_rect.min + vec2(3.0, 1.5), galley, Color32::WHITE);
-                    }
+    if let Some(collab) = &app.collab
+        && let Ok(peers) = collab.peers.try_read()
+    {
+        for peer in peers.values() {
+            let is_selected = peer.selected_clip == Some(it.id.0) || peer.selected_clips.contains(&it.id.0);
+            if is_selected {
+                let col = Color32::from_rgba_unmultiplied(peer.color_rgba[0], peer.color_rgba[1], peer.color_rgba[2], peer.color_rgba[3]);
+                p.rect_stroke(body, 0.0, Stroke::new(2.0, col), StrokeKind::Inside);
+                let badge_pos = pos2(body.max.x - 4.0, body.min.y + 3.0);
+                let font_id = egui::FontId::proportional(9.0);
+                let galley = p.layout_no_wrap(peer.name.clone(), font_id, Color32::WHITE);
+                if body.width() >= galley.size().x + 14.0 {
+                    let badge_rect = Rect::from_min_size(badge_pos - vec2(galley.size().x + 6.0, 0.0), galley.size() + vec2(6.0, 3.0));
+                    p.rect_filled(badge_rect, 2.0, col);
+                    p.galley(badge_rect.min + vec2(3.0, 1.5), galley, Color32::WHITE);
                 }
             }
         }
@@ -2423,8 +2418,13 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                             let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
                             clips.iter().any(|c| {
                                 if let Some((tid, _)) = seq.find_item(*c) {
-                                    if let Some((kind, idx)) = seq.video_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Video, i))
-                                        .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Audio, i))) {
+                                    if let Some((kind, idx)) = seq
+                                        .video_tracks
+                                        .iter()
+                                        .position(|t| t.id == tid)
+                                        .map(|i| (TrackKind::Video, i))
+                                        .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Audio, i)))
+                                    {
                                         mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms).is_some()
                                     } else {
                                         false
@@ -2515,7 +2515,10 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                     let is_locked = if let Some(collab) = &app.collab {
                         if let (Some((tid, _)), Ok(mgr)) = (seq.find_item(clip), collab.lock_manager.try_read()) {
                             let now_ms = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-                            seq.video_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Video, i))
+                            seq.video_tracks
+                                .iter()
+                                .position(|t| t.id == tid)
+                                .map(|i| (TrackKind::Video, i))
                                 .or_else(|| seq.audio_tracks.iter().position(|t| t.id == tid).map(|i| (TrackKind::Audio, i)))
                                 .is_some_and(|(kind, idx)| mgr.is_locked_by_other(collab.config.peer_id, kind, idx, now_ms).is_some())
                         } else {
@@ -2721,9 +2724,7 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                 app.tl.visual_playhead = Some(tt);
                 app.tl.pending_scrub_tick = Some(tt);
                 let now = web_time::Instant::now();
-                let should_dispatch = app.tl.last_scrub_dispatch.map_or(true, |last| {
-                    now.duration_since(last) >= std::time::Duration::from_millis(32)
-                });
+                let should_dispatch = app.tl.last_scrub_dispatch.is_none_or(|last| now.duration_since(last) >= std::time::Duration::from_millis(32));
                 if should_dispatch {
                     app.session.set_playhead(tt);
                     app.tl.last_scrub_dispatch = Some(now);
@@ -2913,14 +2914,13 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
     // Settle & release flush for scrub coalescer (prevents desync)
     let is_scrubbing = matches!(app.tl.drag, Some(Drag::Scrub { .. }));
     let now = web_time::Instant::now();
-    let settle_due = app.tl.last_scrub_dispatch.map_or(true, |last| {
-        now.duration_since(last) >= std::time::Duration::from_millis(32)
-    });
-    if (!is_scrubbing || settle_due) && app.tl.pending_scrub_tick.is_some() {
-        if let Some(final_tick) = app.tl.pending_scrub_tick.take() {
-            app.session.set_playhead(final_tick);
-            app.tl.last_scrub_dispatch = Some(now);
-        }
+    let settle_due = app.tl.last_scrub_dispatch.is_none_or(|last| now.duration_since(last) >= std::time::Duration::from_millis(32));
+    if (!is_scrubbing || settle_due)
+        && app.tl.pending_scrub_tick.is_some()
+        && let Some(final_tick) = app.tl.pending_scrub_tick.take()
+    {
+        app.session.set_playhead(final_tick);
+        app.tl.last_scrub_dispatch = Some(now);
     }
     if !is_scrubbing {
         app.tl.visual_playhead = None;
@@ -3136,14 +3136,7 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
                 (TrackKind::Video, 0)
             };
             let item_name = app.session.project.item(item).map(|i| i.name.clone()).unwrap_or_else(|| "Footage".into());
-            app.collab_drop_ghost = Some(filmcraft_collab::DragGhost::single(
-                0,
-                dest_kind,
-                dest_idx,
-                t,
-                dur,
-                format!("Drop: {item_name}"),
-            ));
+            app.collab_drop_ghost = Some(filmcraft_collab::DragGhost::single(0, dest_kind, dest_idx, t, dur, format!("Drop: {item_name}")));
         }
         let target = match (&row, new_track) {
             (Some(row), _) => Some(match row.kind {

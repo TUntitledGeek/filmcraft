@@ -29,15 +29,9 @@ fn get_js_scratch(bytes: u32) -> Result<js_sys::Uint8Array, &'static str> {
             }
         }
         let array_fn: js_sys::Function = get(&js_sys::global(), "Uint8Array").dyn_into().map_err(|_| "allocation")?;
-        let alloc_bytes = if (bytes as usize) > MAX_SCRATCH_BYTES {
-            bytes
-        } else {
-            bytes.max(2 * 1024 * 1024)
-        };
+        let alloc_bytes = if (bytes as usize) > MAX_SCRATCH_BYTES { bytes } else { bytes.max(2 * 1024 * 1024) };
         let raw: js_sys::Uint8Array =
-            js_sys::Reflect::construct(&array_fn, &js_sys::Array::of1(&alloc_bytes.into()))
-                .and_then(|v| v.dyn_into())
-                .map_err(|_| "allocation")?;
+            js_sys::Reflect::construct(&array_fn, &js_sys::Array::of1(&alloc_bytes.into())).and_then(|v| v.dyn_into()).map_err(|_| "allocation")?;
         if (alloc_bytes as usize) <= MAX_SCRATCH_BYTES {
             *guard = Some((alloc_bytes, raw.clone()));
         } else {

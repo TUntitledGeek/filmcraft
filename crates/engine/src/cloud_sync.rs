@@ -47,10 +47,7 @@ impl GoogleDriveConfig {
         let scope = "https://www.googleapis.com/auth/drive.file";
         format!(
             "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent&state={}",
-            self.client_id,
-            redirect_uri,
-            scope,
-            state_nonce
+            self.client_id, redirect_uri, scope, state_nonce
         )
     }
 
@@ -126,10 +123,10 @@ pub fn url_decode(input: &str) -> String {
             let h1 = chars.next().unwrap_or(b'0');
             let h2 = chars.next().unwrap_or(b'0');
             let hex_str = [h1, h2];
-            if let Ok(s) = std::str::from_utf8(&hex_str) {
-                if let Ok(val) = u8::from_str_radix(s, 16) {
-                    bytes.push(val);
-                }
+            if let Ok(s) = std::str::from_utf8(&hex_str)
+                && let Ok(val) = u8::from_str_radix(s, 16)
+            {
+                bytes.push(val);
             }
         } else {
             bytes.push(b);
@@ -178,11 +175,7 @@ pub fn generate_share_url(base_url: &str, params: &ShareParams) -> String {
 
 /// Parses share parameters from a URL query string.
 pub fn parse_share_url(url_or_query: &str) -> Option<ShareParams> {
-    let query_str = if let Some(idx) = url_or_query.find('?') {
-        &url_or_query[idx + 1..]
-    } else {
-        url_or_query
-    };
+    let query_str = if let Some(idx) = url_or_query.find('?') { &url_or_query[idx + 1..] } else { url_or_query };
 
     let mut room_id = None;
     let mut drive_id = None;

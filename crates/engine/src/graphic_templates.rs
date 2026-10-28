@@ -89,18 +89,18 @@ pub fn library(s: &Session) -> Vec<LibraryEntry> {
             }
         }
     }
-    if let Some(proj_path) = &s.path {
-        if let Some(parent) = std::path::Path::new(proj_path).parent() {
-            let proj_templates = parent.join("templates");
-            if let Some(Ok(mut names)) = s.services.list_dir(&proj_templates.to_string_lossy()) {
-                names.sort();
-                for n in names.into_iter().filter(|n| n.to_ascii_lowercase().ends_with(&format!(".{TEMPLATE_EXTENSION}"))) {
-                    let path = proj_templates.join(&n).to_string_lossy().to_string();
-                    if let Ok(b) = s.services.read_file(&path)
-                        && let Ok(t) = GraphicsTemplate::from_bytes(&b)
-                    {
-                        v.push(LibraryEntry { template: t, path: Some(path) });
-                    }
+    if let Some(proj_path) = &s.path
+        && let Some(parent) = std::path::Path::new(proj_path).parent()
+    {
+        let proj_templates = parent.join("templates");
+        if let Some(Ok(mut names)) = s.services.list_dir(&proj_templates.to_string_lossy()) {
+            names.sort();
+            for n in names.into_iter().filter(|n| n.to_ascii_lowercase().ends_with(&format!(".{TEMPLATE_EXTENSION}"))) {
+                let path = proj_templates.join(&n).to_string_lossy().to_string();
+                if let Ok(b) = s.services.read_file(&path)
+                    && let Ok(t) = GraphicsTemplate::from_bytes(&b)
+                {
+                    v.push(LibraryEntry { template: t, path: Some(path) });
                 }
             }
         }

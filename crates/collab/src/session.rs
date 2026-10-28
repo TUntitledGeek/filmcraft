@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 
 use crate::id_allocator::CollabIdAllocator;
 use crate::lock_manager::LockManager;
@@ -69,13 +69,7 @@ impl CollabSession {
                 None
             }
             CollabMessage::ClaimLock(lock) => {
-                self.lock_manager.write().await.claim(
-                    lock.peer_id,
-                    lock.track_kind,
-                    lock.track_index,
-                    lock.expires_at_ms,
-                    None,
-                );
+                self.lock_manager.write().await.claim(lock.peer_id, lock.track_kind, lock.track_index, lock.expires_at_ms, None);
                 None
             }
             CollabMessage::ReleaseLock { peer_id, track_kind, track_index } => {
@@ -121,10 +115,7 @@ impl CollabSession {
             selected_clip,
             selected_clips,
             in_hand,
-            timestamp_ms: web_time::SystemTime::now()
-                .duration_since(web_time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
+            timestamp_ms: web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64,
         })
     }
 }

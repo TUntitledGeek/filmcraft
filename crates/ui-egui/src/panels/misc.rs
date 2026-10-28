@@ -36,12 +36,7 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     child.add_space(4.0);
 
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(&mut child, |ui| {
-        let row = |ui: &mut egui::Ui,
-                  label: &str,
-                  meta: Option<&filmcraft_engine::HistoryMetadata>,
-                  current: bool,
-                  dim: bool|
-         -> bool {
+        let row = |ui: &mut egui::Ui, label: &str, meta: Option<&filmcraft_engine::HistoryMetadata>, current: bool, dim: bool| -> bool {
             let row_h = 24.0;
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), row_h), Sense::click());
             if current {
@@ -55,10 +50,11 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             let mut x = r.min.x + 8.0;
 
             // Peer avatar dot / badge
-            let author_color = meta
-                .and_then(|m| m.author_color)
-                .map(|c| Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]))
-                .unwrap_or(if current { t.accent } else { t.text_faint });
+            let author_color = meta.and_then(|m| m.author_color).map(|c| Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3])).unwrap_or(if current {
+                t.accent
+            } else {
+                t.text_faint
+            });
 
             let dot_center = pos2(x + 4.0, r.center().y);
             ui.painter().circle_filled(dot_center, 4.0, author_color);
@@ -87,20 +83,20 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 let badge_r = Rect::from_min_size(pos2(r.max.x - 52.0, r.center().y - 7.0), vec2(46.0, 14.0));
                 ui.painter().rect_filled(badge_r, 3.0, t.accent.gamma_multiply(0.25));
                 ui.painter().text(badge_r.center(), Align2::CENTER_CENTER, "CURRENT", Tokens::ui(9.0), t.accent);
-            } else if let Some(ts) = meta.map(|m| m.timestamp_ms).filter(|&t| t > 0) {
-                if now_ms >= ts {
-                    let secs = (now_ms - ts) / 1000;
-                    let time_str = if secs < 5 {
-                        "just now".to_string()
-                    } else if secs < 60 {
-                        format!("{secs}s ago")
-                    } else if secs < 3600 {
-                        format!("{}m ago", secs / 60)
-                    } else {
-                        format!("{}h ago", secs / 3600)
-                    };
-                    ui.painter().text(pos2(r.max.x - 6.0, r.center().y), Align2::RIGHT_CENTER, time_str, Tokens::ui(10.5), t.text_faint);
-                }
+            } else if let Some(ts) = meta.map(|m| m.timestamp_ms).filter(|&t| t > 0)
+                && now_ms >= ts
+            {
+                let secs = (now_ms - ts) / 1000;
+                let time_str = if secs < 5 {
+                    "just now".to_string()
+                } else if secs < 60 {
+                    format!("{secs}s ago")
+                } else if secs < 3600 {
+                    format!("{}m ago", secs / 60)
+                } else {
+                    format!("{}h ago", secs / 3600)
+                };
+                ui.painter().text(pos2(r.max.x - 6.0, r.center().y), Align2::RIGHT_CENTER, time_str, Tokens::ui(10.5), t.text_faint);
             }
 
             let resp = resp.on_hover_text(if current {
@@ -115,7 +111,7 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         };
 
         // Initial "Open" state
-        if row(ui, &tl!("Open"), None, undo.is_empty(), false) {
+        if row(ui, tl!("Open"), None, undo.is_empty(), false) {
             target = Some(-(undo.len() as i64));
         }
 
@@ -123,19 +119,15 @@ pub fn history(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         for (i, (l, _)) in undo.iter().enumerate() {
             let meta = undo_meta.get(i);
             let is_cur = i + 1 == undo.len();
-            if row(ui, &crate::i18n::t(l), meta, is_cur, false) {
+            if row(ui, crate::i18n::t(l), meta, is_cur, false) {
                 target = Some(i as i64 + 1 - undo.len() as i64);
             }
         }
 
         // Redoable future states
         for (i, (l, _)) in hist.redo.iter().rev().enumerate() {
-            let meta = if i < hist.redo_meta.len() {
-                hist.redo_meta.get(hist.redo_meta.len() - 1 - i)
-            } else {
-                None
-            };
-            if row(ui, &crate::i18n::t(l), meta, false, true) {
+            let meta = if i < hist.redo_meta.len() { hist.redo_meta.get(hist.redo_meta.len() - 1 - i) } else { None };
+            if row(ui, crate::i18n::t(l), meta, false, true) {
                 target = Some(i as i64 + 1);
             }
         }

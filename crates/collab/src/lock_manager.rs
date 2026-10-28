@@ -6,9 +6,9 @@
 //! If a peer's connection drops mid-drag, their lock automatically dissolves,
 //! preventing permanent deadlocks.
 
-use std::collections::HashMap;
-use filmcraft_project::TrackKind;
 use crate::protocol::{PeerId, SoftLock};
+use filmcraft_project::TrackKind;
+use std::collections::HashMap;
 
 const DEFAULT_TTL_MS: u64 = 500;
 
@@ -24,24 +24,18 @@ impl LockManager {
     }
 
     /// Claim or refresh a lock on a track. Returns true if acquired or refreshed.
-    pub fn claim(
-        &mut self,
-        peer_id: PeerId,
-        kind: TrackKind,
-        track_index: usize,
-        now_ms: u64,
-        ttl_ms: Option<u64>,
-    ) -> bool {
+    pub fn claim(&mut self, peer_id: PeerId, kind: TrackKind, track_index: usize, now_ms: u64, ttl_ms: Option<u64>) -> bool {
         self.prune_expired(now_ms);
 
         let key = (kind, track_index);
         let ttl = ttl_ms.unwrap_or(DEFAULT_TTL_MS);
         let expires_at_ms = now_ms.saturating_add(ttl);
 
-        if let Some(existing) = self.track_locks.get(&key) {
-            if existing.peer_id != peer_id && existing.expires_at_ms > now_ms {
-                return false; // Locked by another peer
-            }
+        if let Some(existing) = self.track_locks.get(&key)
+            && existing.peer_id != peer_id
+            && existing.expires_at_ms > now_ms
+        {
+            return false; // Locked by another peer
         }
 
         self.track_locks.insert(key, SoftLock { peer_id, track_kind: kind, track_index, expires_at_ms });
@@ -51,23 +45,17 @@ impl LockManager {
     /// Release an existing lock explicitly on mouse release.
     pub fn release(&mut self, peer_id: PeerId, kind: TrackKind, track_index: usize) -> bool {
         let key = (kind, track_index);
-        if let Some(lock) = self.track_locks.get(&key) {
-            if lock.peer_id == peer_id {
-                self.track_locks.remove(&key);
-                return true;
-            }
+        if let Some(lock) = self.track_locks.get(&key)
+            && lock.peer_id == peer_id
+        {
+            self.track_locks.remove(&key);
+            return true;
         }
         false
     }
 
     /// Check if a track is currently locked by someone other than `for_peer`.
-    pub fn is_locked_by_other(
-        &self,
-        for_peer: PeerId,
-        kind: TrackKind,
-        track_index: usize,
-        now_ms: u64,
-    ) -> Option<&SoftLock> {
+    pub fn is_locked_by_other(&self, for_peer: PeerId, kind: TrackKind, track_index: usize, now_ms: u64) -> Option<&SoftLock> {
         let key = (kind, track_index);
         self.track_locks.get(&key).filter(|l| l.peer_id != for_peer && l.expires_at_ms > now_ms)
     }

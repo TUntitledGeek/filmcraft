@@ -7,6 +7,9 @@ rust-version.workspace = true
 repository.workspace = true
 description = "Real-time peer-to-peer collaborative editing protocol, presence, and state synchronization for FilmCraft"
 
+[lints]
+workspace = true
+
 [dependencies]
 filmcraft-time = { workspace = true }
 filmcraft-project = { workspace = true }

@@ -1,9 +1,9 @@
 //! Collaborative Editing (Co-op) Session Dialog, Google Drive Cloud Sync Hub,
 //! Progressive Proxy Ladder, and Extension Opt-in Modal.
 
-use egui::{Color32, RichText, vec2};
-use filmcraft_engine::cloud_sync::{generate_share_url, ShareParams};
 use crate::FilmcraftApp;
+use egui::{Color32, RichText, vec2};
+use filmcraft_engine::cloud_sync::{ShareParams, generate_share_url};
 
 /// Returns the base URL for generating invite links.
 /// On web: dynamically uses the current browser origin + path (works seamlessly on localhost, GitHub Pages, or custom domains).
@@ -255,7 +255,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                     ui.colored_label(Color32::from_rgb(50, 200, 100), "🟢 Saved");
                                 }
                                 let storage_label = if let Some(path) = &app.session.path {
-                                    let is_linked = app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| path.starts_with(d));
+                                    let is_linked = app.gdrive_config.active_folder_name.as_deref().is_some_and(|d| path.starts_with(d));
                                     if is_linked {
                                         if app.gdrive_last_synced.is_some() { "🟢 Synced Drive" } else { "📁 Linked Directory" }
                                     } else {
@@ -274,7 +274,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                         filmcraft_project::ItemKind::Media(m) => {
                                             let is_linked = match &m.media {
                                                 filmcraft_project::MediaRef::File { path } => {
-                                                    app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| path.starts_with(d))
+                                                    app.gdrive_config.active_folder_name.as_deref().is_some_and(|d| path.starts_with(d))
                                                 }
                                                 _ => false,
                                             };
@@ -306,8 +306,8 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                 if app.session.path.is_some() {
                                     match crate::menus::invoke(app, &ctx_clone, "file.save", serde_json::json!({})) {
                                         Ok(_) => {
-                                            let is_in_linked = app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| {
-                                                app.session.path.as_deref().map_or(false, |p| p.starts_with(d))
+                                            let is_in_linked = app.gdrive_config.active_folder_name.as_deref().is_some_and(|d| {
+                                                app.session.path.as_deref().is_some_and(|p| p.starts_with(d))
                                             });
                                             if is_in_linked {
                                                 app.ui.status = "Saved project locally to linked directory. (Sync managed by Google Drive Desktop client)".into();
@@ -334,14 +334,13 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                     .on_disabled_hover_text("Direct Google Drive REST API upload requires an active cloud backend service and verified OAuth 2.0 token. To sync projects automatically, use 'Local Google Drive Desktop Binding' to save directly to your Google Drive Desktop folder.");
                             }
 
-                            if is_gdrive_auth || app.gdrive_config.active_folder_id.is_some() || app.gdrive_config.active_folder_name.is_some() {
-                                if ui.button(RichText::new("Unlink Drive").color(Color32::from_rgb(255, 100, 100))).clicked() {
+                            if (is_gdrive_auth || app.gdrive_config.active_folder_id.is_some() || app.gdrive_config.active_folder_name.is_some())
+                                && ui.button(RichText::new("Unlink Drive").color(Color32::from_rgb(255, 100, 100))).clicked() {
                                     app.gdrive_config.active_folder_id = None;
                                     app.gdrive_config.active_folder_name = None;
                                     app.gdrive_config.access_token = None;
                                     app.ui.status = "Unlinked Google Drive folder / path.".into();
                                 }
-                            }
                         });
                     });
                 });
@@ -588,31 +587,27 @@ pub fn show_extension_offer_modal(app: &mut FilmcraftApp, ctx: &egui::Context) {
     let Some(offer) = app.pending_extension_offer.clone() else { return };
     let mut close = false;
 
-    egui::Window::new("Collaborator Extension Offer")
-        .collapsible(false)
-        .resizable(false)
-        .default_size(vec2(380.0, 220.0))
-        .show(ctx, |ui| {
-            ui.heading(&offer.name);
-            ui.label(format!("Version: {}", offer.version));
-            ui.label(format!("ID: {}", offer.extension_id));
-            ui.add_space(4.0);
-            ui.label(&offer.description);
-            ui.add_space(8.0);
+    egui::Window::new("Collaborator Extension Offer").collapsible(false).resizable(false).default_size(vec2(380.0, 220.0)).show(ctx, |ui| {
+        ui.heading(&offer.name);
+        ui.label(format!("Version: {}", offer.version));
+        ui.label(format!("ID: {}", offer.extension_id));
+        ui.add_space(4.0);
+        ui.label(&offer.description);
+        ui.add_space(8.0);
 
-            ui.colored_label(Color32::from_rgb(220, 160, 0), "Note: Only install extensions from people you trust.");
+        ui.colored_label(Color32::from_rgb(220, 160, 0), "Note: Only install extensions from people you trust.");
 
-            ui.add_space(12.0);
-            ui.horizontal(|ui| {
-                if ui.button(RichText::new("Install Extension").strong()).clicked() {
-                    app.ui.status = format!("Installed extension '{}'", offer.name);
-                    close = true;
-                }
-                if ui.button("Decline").clicked() {
-                    close = true;
-                }
-            });
+        ui.add_space(12.0);
+        ui.horizontal(|ui| {
+            if ui.button(RichText::new("Install Extension").strong()).clicked() {
+                app.ui.status = format!("Installed extension '{}'", offer.name);
+                close = true;
+            }
+            if ui.button("Decline").clicked() {
+                close = true;
+            }
         });
+    });
 
     if close {
         app.pending_extension_offer = None;
@@ -648,7 +643,7 @@ pub fn show_collab_join_prompt(app: &mut FilmcraftApp, ctx: &egui::Context) {
             let edit_resp = ui.add(
                 egui::TextEdit::singleline(&mut app.collab_name_input)
                     .hint_text("Enter your name (e.g. Alex, Sam, Editor)")
-                    .desired_width(ui.available_width())
+                    .desired_width(ui.available_width()),
             );
 
             // Give the input field initial focus
@@ -661,10 +656,8 @@ pub fn show_collab_join_prompt(app: &mut FilmcraftApp, ctx: &egui::Context) {
             }
 
             ui.add_space(12.0);
-            let join_btn = egui::Button::new(
-                RichText::new("🚀 Join Room & Start Editing").size(14.0).strong().color(Color32::WHITE)
-            )
-            .fill(Color32::from_rgb(32, 140, 60));
+            let join_btn =
+                egui::Button::new(RichText::new("🚀 Join Room & Start Editing").size(14.0).strong().color(Color32::WHITE)).fill(Color32::from_rgb(32, 140, 60));
 
             if ui.add_sized([ui.available_width(), 36.0], join_btn).clicked() {
                 enter_room = true;
@@ -677,11 +670,7 @@ pub fn show_collab_join_prompt(app: &mut FilmcraftApp, ctx: &egui::Context) {
     if !open {
         app.collab_join_prompt = None;
     } else if enter_room {
-        let name = if app.collab_name_input.trim().is_empty() {
-            "Editor".to_string()
-        } else {
-            app.collab_name_input.trim().to_string()
-        };
+        let name = if app.collab_name_input.trim().is_empty() { "Editor".to_string() } else { app.collab_name_input.trim().to_string() };
         app.collab_name_input = name.clone();
         #[cfg(target_arch = "wasm32")]
         if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {

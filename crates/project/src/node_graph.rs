@@ -156,15 +156,7 @@ impl NodeInstance {
             }
             _ => {}
         }
-        Self {
-            id,
-            name: name.to_string(),
-            node_type,
-            pos,
-            params,
-            enabled: true,
-            solo: false,
-        }
+        Self { id, name: name.to_string(), node_type, pos, params, enabled: true, solo: false }
     }
 }
 
@@ -196,25 +188,11 @@ impl NodeGraph {
         let media_out = NodeInstance::new(NodeId(3), "MediaOut1", NodeType::MediaOut, [520.0, 160.0]);
 
         let connections = vec![
-            NodeConnection {
-                from_node: NodeId(1),
-                from_socket: "Out".into(),
-                to_node: NodeId(2),
-                to_socket: "In".into(),
-            },
-            NodeConnection {
-                from_node: NodeId(2),
-                from_socket: "Out".into(),
-                to_node: NodeId(3),
-                to_socket: "In".into(),
-            },
+            NodeConnection { from_node: NodeId(1), from_socket: "Out".into(), to_node: NodeId(2), to_socket: "In".into() },
+            NodeConnection { from_node: NodeId(2), from_socket: "Out".into(), to_node: NodeId(3), to_socket: "In".into() },
         ];
 
-        Self {
-            nodes: vec![media_in, grade, media_out],
-            connections,
-            next_id: 10,
-        }
+        Self { nodes: vec![media_in, grade, media_out], connections, next_id: 10 }
     }
 
     /// Converts an existing list of linear effects into a corresponding DAG.
@@ -250,12 +228,7 @@ impl NodeGraph {
             node.enabled = e.enabled;
             nodes.push(node);
 
-            connections.push(NodeConnection {
-                from_node: prev_id,
-                from_socket: "Out".into(),
-                to_node: node_id,
-                to_socket: "In".into(),
-            });
+            connections.push(NodeConnection { from_node: prev_id, from_socket: "Out".into(), to_node: node_id, to_socket: "In".into() });
 
             prev_id = node_id;
         }
@@ -264,18 +237,9 @@ impl NodeGraph {
         let out_id = NodeId(current_id);
         nodes.push(NodeInstance::new(out_id, "MediaOut1", NodeType::MediaOut, [x, y]));
 
-        connections.push(NodeConnection {
-            from_node: prev_id,
-            from_socket: "Out".into(),
-            to_node: out_id,
-            to_socket: "In".into(),
-        });
+        connections.push(NodeConnection { from_node: prev_id, from_socket: "Out".into(), to_node: out_id, to_socket: "In".into() });
 
-        Self {
-            nodes,
-            connections,
-            next_id: current_id + 1,
-        }
+        Self { nodes, connections, next_id: current_id + 1 }
     }
 
     /// Generates equivalent serial EffectInstances for execution in the linear engine pipeline.
@@ -336,12 +300,7 @@ impl NodeGraph {
     pub fn connect(&mut self, from_node: NodeId, from_socket: &str, to_node: NodeId, to_socket: &str) {
         // Disconnect any existing connection to the destination socket (1 input per socket)
         self.disconnect(to_node, to_socket);
-        self.connections.push(NodeConnection {
-            from_node,
-            from_socket: from_socket.to_string(),
-            to_node,
-            to_socket: to_socket.to_string(),
-        });
+        self.connections.push(NodeConnection { from_node, from_socket: from_socket.to_string(), to_node, to_socket: to_socket.to_string() });
     }
 
     pub fn disconnect(&mut self, to_node: NodeId, to_socket: &str) {
@@ -365,12 +324,7 @@ impl NodeGraph {
             }
         }
 
-        let mut queue: VecDeque<NodeId> = self
-            .nodes
-            .iter()
-            .map(|n| n.id)
-            .filter(|id| in_degree.get(id).copied().unwrap_or(0) == 0)
-            .collect();
+        let mut queue: VecDeque<NodeId> = self.nodes.iter().map(|n| n.id).filter(|id| in_degree.get(id).copied().unwrap_or(0) == 0).collect();
 
         let mut order = Vec::new();
         while let Some(u) = queue.pop_front() {
