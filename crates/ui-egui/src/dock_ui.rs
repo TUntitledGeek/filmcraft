@@ -1,11 +1,11 @@
 //! FilmCraft's panel chrome and document tabs over the shared docking transactions.
 
 use craft_ui::docking::{Action, DropTarget, Placement, Zone, resolve_drop};
-use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+use egui::{Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 use serde_json::{Value, json};
 
 use crate::dock::{self, DockAction, DockNode, Group, PanelKind};
-use crate::theme::Tokens;
+use crate::icons::{self, Icon};
 use crate::{FilmcraftApp, panels};
 
 /// Single source for rendering and hit testing: saved offscreen positions remain
@@ -241,6 +241,7 @@ impl FilmcraftApp {
             if self.session.state.selection.is_empty() && !self.ui.pin_inspector {
                 hidden.extend([PanelKind::Properties, PanelKind::EffectControls]);
             }
+            hidden.push(PanelKind::Tools);
         }
         dock::layout_contextual(ui, &mut dock, body, &t, "", &mut groups, &mut self.auto, &mut layout_actions, &hidden);
         let seqs = dock::SeqTabs {
@@ -258,6 +259,7 @@ impl FilmcraftApp {
                 })
                 .collect(),
             active: self.session.state.active_sequence.map(|id| id.0),
+            tool: Some(self.ui.tool),
         };
         let mut actions = vec![];
         let mut targets = vec![];
@@ -289,55 +291,75 @@ impl FilmcraftApp {
         }
         if self.ui.workspace == "Clean Editing" {
             for group in &groups {
-                if group.panels.contains(&PanelKind::Program) {
-                    let strip_y = group.rect.min.y;
-                    let toggle_h = 22.0;
-                    let toggle_w = 204.0;
-                    let toggle_r = Rect::from_min_size(
-                        pos2(group.rect.max.x - toggle_w - 8.0, strip_y + (t.tab_h - toggle_h) / 2.0),
-                        vec2(toggle_w, toggle_h),
+                let strip_y = group.rect.min.y;
+                let p = ui.painter();
+                // Source group header: subtle pin and close buttons
+                if group.panels.contains(&PanelKind::Source) {
+                    let pin_active = self.ui.pin_source;
+                    let pin_r = Rect::from_min_size(
+                        pos2(group.rect.max.x - 52.0, strip_y + (t.tab_h - 22.0) / 2.0),
+                        vec2(22.0, 22.0),
                     );
-                    let p = ui.painter();
-                    p.rect_filled(toggle_r, 11.0, t.field_bg);
-                    p.rect_stroke(toggle_r, 11.0, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
-
-                    let r_prog = Rect::from_min_size(toggle_r.min, vec2(80.0, toggle_h));
-                    let r_dual = Rect::from_min_max(pos2(r_prog.max.x, toggle_r.min.y), toggle_r.max);
-
-                    let dual_active = self.ui.pin_source || self.session.state.source_item.is_some();
-                    let prog_active = !dual_active;
-
-                    // Single Program segment
-                    let prog_resp = ui.interact(r_prog, egui::Id::new("viewer-single-program"), Sense::click())
-                        .on_hover_text("Single Program viewer (large grading & playback monitor)");
-                    self.auto.add("editing.singleProgram", r_prog, "Single Program");
-                    if prog_active {
-                        p.rect_filled(r_prog, 11.0, if t.kind == crate::theme::ThemeKind::Light { t.panel_bg } else { t.pill_active_bg });
-                        p.rect_stroke(r_prog, 11.0, Stroke::new(1.0, if t.kind == crate::theme::ThemeKind::Light { t.field_border } else { t.separator }), StrokeKind::Inside);
-                    } else if prog_resp.hovered() {
-                        p.rect_filled(r_prog, 11.0, t.hover);
+                    let pin_resp = ui.interact(pin_r, egui::Id::new("viewer-source-pin"), Sense::click())
+                        .on_hover_text(if pin_active { "Unpin Source viewer" } else { "Pin Source viewer (keep dual layout)" });
+                    if pin_active {
+                        p.rect_filled(pin_r, 4.0, if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x27, 0x39, 0x54) });
+                        p.rect_stroke(pin_r, 4.0, Stroke::new(1.0, t.accent), StrokeKind::Inside);
+                    } else if pin_resp.hovered() {
+                        p.rect_filled(pin_r, 4.0, t.hover);
                     }
-                    let col_prog = if prog_active { if t.kind == crate::theme::ThemeKind::Light { t.accent } else { t.tab_text_active } } else { t.tab_text };
-                    p.text(r_prog.center(), Align2::CENTER_CENTER, "Program", Tokens::semibold(11.0), col_prog);
-
-                    // Dual Source + Program segment
-                    let dual_resp = ui.interact(r_dual, egui::Id::new("viewer-dual-monitor"), Sense::click())
-                        .on_hover_text("Side-by-side Source + Program dual viewing");
-                    self.auto.add_response("editing.pinSource", &dual_resp, "Keep Source open");
-                    if dual_active {
-                        p.rect_filled(r_dual, 11.0, if t.kind == crate::theme::ThemeKind::Light { t.panel_bg } else { t.pill_active_bg });
-                        p.rect_stroke(r_dual, 11.0, Stroke::new(1.0, if t.kind == crate::theme::ThemeKind::Light { t.field_border } else { t.separator }), StrokeKind::Inside);
-                    } else if dual_resp.hovered() {
-                        p.rect_filled(r_dual, 11.0, t.hover);
+                    let pin_col = if pin_active { t.accent } else if pin_resp.hovered() { t.tab_text_active } else { t.icon };
+                    let ir = pin_r.shrink(5.0);
+                    p.line_segment([pos2(ir.center().x, ir.min.y + 2.0), pos2(ir.center().x, ir.max.y - 2.0)], Stroke::new(1.3, pin_col));
+                    p.line_segment([pos2(ir.min.x + 2.0, ir.min.y + 4.0), pos2(ir.max.x - 2.0, ir.min.y + 4.0)], Stroke::new(1.3, pin_col));
+                    p.circle_filled(pos2(ir.center().x, ir.min.y + 2.0), 2.0, pin_col);
+                    if pin_resp.clicked() {
+                        self.ui.pin_source = !self.ui.pin_source;
                     }
-                    let col_dual = if dual_active { if t.kind == crate::theme::ThemeKind::Light { t.accent } else { t.tab_text_active } } else { t.tab_text };
-                    p.text(r_dual.center(), Align2::CENTER_CENTER, "Source + Program", Tokens::semibold(11.0), col_dual);
-
-                    if prog_resp.clicked() {
+                    // Close button (returns to single Program viewer)
+                    let close_r = Rect::from_min_size(
+                        pos2(group.rect.max.x - 26.0, strip_y + (t.tab_h - 22.0) / 2.0),
+                        vec2(22.0, 22.0),
+                    );
+                    let close_resp = ui.interact(close_r, egui::Id::new("viewer-source-close"), Sense::click())
+                        .on_hover_text("Close Source viewer (single Program)");
+                    self.auto.add_response("editing.singleProgram", &close_resp, "Single Program");
+                    if close_resp.hovered() {
+                        p.rect_filled(close_r, 4.0, t.hover);
+                    }
+                    let close_col = if close_resp.hovered() { t.tab_text_active } else { t.text_dim };
+                    icons::paint(p, Rect::from_center_size(close_r.center(), vec2(11.0, 11.0)), Icon::Close, close_col);
+                    if close_resp.clicked() {
                         self.ui.pin_source = false;
                         self.session.state.source_item = None;
                     }
-                    if dual_resp.clicked() {
+                }
+                // Program group header: subtle split-view toggle button
+                if group.panels.contains(&PanelKind::Program) {
+                    let dual_active = self.ui.pin_source || self.session.state.source_item.is_some();
+                    let split_r = Rect::from_min_size(
+                        pos2(group.rect.max.x - 30.0, strip_y + (t.tab_h - 22.0) / 2.0),
+                        vec2(24.0, 22.0),
+                    );
+                    let split_resp = ui.interact(split_r, egui::Id::new("viewer-split-toggle"), Sense::click())
+                        .on_hover_text(if dual_active { "Hide Source viewer (Single Program)" } else { "Split View: Show Source beside Program" });
+                    self.auto.add_response("editing.pinSource", &split_resp, "Keep Source open");
+                    self.auto.add("editing.singleProgram", split_r, "Single Program");
+                    if dual_active {
+                        p.rect_filled(split_r, 4.0, if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x27, 0x39, 0x54) });
+                        p.rect_stroke(split_r, 4.0, Stroke::new(1.0, t.accent), StrokeKind::Inside);
+                    } else if split_resp.hovered() {
+                        p.rect_filled(split_r, 4.0, t.hover);
+                    }
+                    let split_col = if dual_active { t.accent } else if split_resp.hovered() { t.tab_text_active } else { t.icon };
+                    let ir = split_r.shrink(4.0);
+                    p.rect_stroke(ir, 2.0, Stroke::new(1.2, split_col), StrokeKind::Inside);
+                    let div_x = ir.center().x;
+                    p.line_segment([pos2(div_x, ir.min.y), pos2(div_x, ir.max.y)], Stroke::new(1.0, split_col));
+                    if dual_active {
+                        p.rect_filled(Rect::from_min_max(ir.min, pos2(div_x, ir.max.y)), 1.0, split_col.gamma_multiply(0.3));
+                    }
+                    if split_resp.clicked() {
                         self.ui.pin_source = !self.ui.pin_source;
                         if self.ui.pin_source && self.session.state.source_item.is_none() {
                             if let Some((id, _)) = self.session.project.items.iter().find(|(_, item)| matches!(item.kind, filmcraft_project::ItemKind::Media(_))) {
@@ -417,6 +439,7 @@ impl FilmcraftApp {
                         data.insert_temp(egui::Id::new("panel-menu-opened"), frame);
                     });
                 }
+                DockAction::SelectTool(tool) => self.ui.tool = tool,
             }
         }
         self.panel_drag(&ctx, body, &targets);

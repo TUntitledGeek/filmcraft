@@ -330,9 +330,9 @@ pub fn workspace(name: &str) -> DockNode {
     let bottom_editing = || hsplit(FixedA(64.0), tabs(&[Tools], 0), hsplit(FixedB(116.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0)));
     match name {
         "Clean Editing" => vsplit(
-            Ratio(0.64),
+            Ratio(0.62),
             hsplit(
-                FixedA(260.0),
+                FixedA(280.0),
                 tabs(&[Project, Effects, MediaBrowser], 0),
                 hsplit(FixedB(300.0), hsplit(Ratio(0.42), tabs(&[Source], 0), tabs(&[Program], 0)), tabs(&[Properties, EffectControls], 0)),
             ),
@@ -526,6 +526,7 @@ pub enum DockAction {
     CloseSequence(u64),
     /// A sequence tab was dragged past a neighbour: its new place among the sequence tabs.
     MoveSequence(u64, usize),
+    SelectTool(crate::state::Tool),
 }
 
 /// Lay out the tree into group rects (with `gap` gutters) and handle gutter dragging.
@@ -629,6 +630,7 @@ fn layout_inner(
 pub struct SeqTabs {
     pub open: Vec<(u64, String)>,
     pub active: Option<u64>,
+    pub tool: Option<crate::state::Tool>,
 }
 
 pub fn draw_group_chrome(
@@ -891,6 +893,71 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
                 actions.push(DockAction::MoveSequence(id, index.saturating_sub(1)));
             } else if after.is_some_and(|(_, r)| px > r.center().x) {
                 actions.push(DockAction::MoveSequence(id, index + 1));
+            }
+        }
+        if g.panels.contains(&PanelKind::Timeline) {
+            let sep_x = x + 4.0;
+            if sep_x + 10.0 < strip.max.x - 30.0 {
+                painter.line_segment([pos2(sep_x, strip.min.y + 7.0), pos2(sep_x, strip.max.y - 7.0)], Stroke::new(1.0, t.separator));
+                let mut tx = sep_x + 8.0;
+                let tools = [
+                    crate::state::Tool::Selection,
+                    crate::state::Tool::TrackSelectForward,
+                    crate::state::Tool::Ripple,
+                    crate::state::Tool::Razor,
+                    crate::state::Tool::Slip,
+                    crate::state::Tool::Pen,
+                    crate::state::Tool::Hand,
+                    crate::state::Tool::Type,
+                ];
+                let current_tool = seqs.tool.unwrap_or(crate::state::Tool::Selection);
+                for tl in tools {
+                    if tx + 26.0 > strip.max.x - 140.0 {
+                        break;
+                    }
+                    let tr = Rect::from_min_size(pos2(tx, strip.min.y + (t.tab_h - 22.0) / 2.0), vec2(25.0, 22.0));
+                    let is_active = current_tool == tl;
+                    let tip = if tl.shortcut().is_empty() {
+                        tl.label().to_string()
+                    } else {
+                        format!("{} ({})", tl.label(), tl.shortcut())
+                    };
+                    let resp = ui.interact(tr, egui::Id::new(("tl-tool", tl)), Sense::click()).on_hover_text(tip);
+                    reg.add_response(&format!("tools.{tl:?}"), &resp, tl.label());
+                    if is_active {
+                        painter.rect_filled(tr, 3.0, t.accent);
+                    } else if resp.hovered() {
+                        painter.rect_filled(tr, 3.0, t.hover);
+                    }
+                    let icol = if is_active { Color32::WHITE } else if resp.hovered() { t.tab_text_active } else { t.icon };
+                    icons::paint(&painter, Rect::from_center_size(tr.center(), vec2(15.0, 15.0)), tl.icon(), icol);
+                    if resp.clicked() {
+                        actions.push(DockAction::SelectTool(tl));
+                    }
+                    tx += 27.0;
+                }
+                let label_short = match current_tool {
+                    crate::state::Tool::Selection => "Select",
+                    crate::state::Tool::TrackSelectForward | crate::state::Tool::TrackSelectBackward => "Track Select",
+                    crate::state::Tool::Ripple => "Ripple Edit",
+                    crate::state::Tool::Rolling => "Rolling Edit",
+                    crate::state::Tool::RateStretch => "Rate Stretch",
+                    crate::state::Tool::Razor => "Razor",
+                    crate::state::Tool::Slip => "Slip",
+                    crate::state::Tool::Slide => "Slide",
+                    crate::state::Tool::Pen => "Pen",
+                    crate::state::Tool::Hand => "Hand",
+                    crate::state::Tool::Zoom => "Zoom",
+                    crate::state::Tool::Type | crate::state::Tool::VerticalType => "Type",
+                    _ => current_tool.label(),
+                };
+                let sec_text = if current_tool.shortcut().is_empty() {
+                    format!("Tools · {label_short}")
+                } else {
+                    format!("Tools · {label_short} ({})", current_tool.shortcut())
+                };
+                let sec_pos = pos2(strip.max.x - if more.is_some() { 32.0 } else { 14.0 }, strip.center().y);
+                painter.text(sec_pos, Align2::RIGHT_CENTER, sec_text, Tokens::ui(10.5), t.text_dim);
             }
         }
         // the » list: every tab of the group, the shown one ticked

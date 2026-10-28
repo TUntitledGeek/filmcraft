@@ -951,6 +951,60 @@ fn bin_card(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, b: &Bin, v: &Vie
     resp.context_menu(|ui| bin_menu(app, ui, v, b.id.0, actions));
 }
 
+fn bin_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, b: &Bin, v: &View, actions: &mut Actions) {
+    let t = app.tokens;
+    let row_h = 40.0;
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width() - 4.0, row_h), Sense::click_and_drag());
+    let selected = app.ui.project_panel.selected_bin == Some(b.id.0);
+
+    let row_r = Rect::from_min_size(pos2(rect.min.x + 2.0, rect.min.y + 1.0), vec2(rect.width() - 4.0, row_h - 2.0));
+    if selected {
+        ui.painter().rect_filled(row_r, t.radius_sm, if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x20, 0x2b, 0x3a) });
+        ui.painter().rect_stroke(row_r, t.radius_sm, Stroke::new(1.0, t.accent), StrokeKind::Inside);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(row_r, t.radius_sm, if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0xec, 0xf2, 0xfc) } else { Color32::from_rgb(0x20, 0x2b, 0x3a) });
+    }
+
+    // Left folder icon box: 38 x 30 pt
+    let icon_box = Rect::from_min_size(pos2(row_r.min.x + 6.0, row_r.center().y - 15.0), vec2(38.0, 30.0));
+    let icon_bg = if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0xef, 0xf2, 0xf8) } else { Color32::from_rgb(0x22, 0x2b, 0x38) };
+    ui.painter().rect_filled(icon_box, 4.0, icon_bg);
+    let icon_stroke = if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0xd9, 0xe0, 0xec) } else { Color32::from_rgb(0x30, 0x38, 0x46) };
+    ui.painter().rect_stroke(icon_box, 4.0, Stroke::new(1.0, icon_stroke), StrokeKind::Inside);
+    icons::paint(ui.painter(), Rect::from_center_size(icon_box.center(), vec2(19.0, 19.0)), Icon::Folder, BIN_COLOR);
+
+    // Name & item count text
+    let mut items = Vec::new();
+    b.all_items(&mut items);
+    let count_text = tlf!("{n} items", n = items.len());
+    let text_x = icon_box.max.x + 10.0;
+    let name_r = Rect::from_min_max(pos2(text_x, icon_box.min.y), pos2(row_r.max.x - 8.0, row_r.center().y));
+    let count_r = Rect::from_min_max(pos2(text_x, row_r.center().y), pos2(row_r.max.x - 8.0, icon_box.max.y));
+
+    if !rename_field(app, ui, name_r, None, Some(b.id.0), &v.prefix) {
+        ui.painter().text(name_r.left_center(), Align2::LEFT_CENTER, &b.name, Tokens::semibold(12.0), t.text);
+        let count_col = if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0x71, 0x80, 0x98) } else { Color32::from_rgb(0xaa, 0xb4, 0xc2) };
+        ui.painter().text(count_r.left_center(), Align2::LEFT_CENTER, count_text, Tokens::ui(10.5), count_col);
+    }
+
+    app.auto.add(&format!("{}.bin.{}", v.prefix, b.id.0), row_r, &b.name);
+    accept_bin_drop(app, ui, row_r, b.id.0, actions);
+    if resp.drag_started() {
+        crate::panels::start_drag_bin(ui, b.id.0);
+    }
+    if resp.clicked() {
+        app.ui.project_panel.selected_bin = Some(b.id.0);
+        actions.push(("project.select".into(), json!({"items": []})));
+    }
+    if resp.double_clicked() {
+        let mods = click_modifiers(ui);
+        if let Err(e) = open_bin(app, v.inst, b.id.0, None, mods) {
+            app.ui.status = e;
+        }
+    }
+    resp.context_menu(|ui| bin_menu(app, ui, v, b.id.0, actions));
+}
+
 pub fn icon_view(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, v: &View, filter: &str, actions: &mut Actions) {
     let Some(bin) = app.session.project.root.find_bin(v.bin).cloned() else { return };
     let size = v.icon_size;
@@ -962,42 +1016,73 @@ pub fn icon_view(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, v: &View
     } else {
         Vec::new()
     };
-    let n = bins.len() + ids.len();
     egui::ScrollArea::vertical().id_salt((&v.prefix, "icon-scroll")).auto_shrink([false, false]).show(ui, |ui| {
         let bg = background(ui, v);
-        let per_row = ((rect.width() - 12.0) / cell.x).floor().max(1.0) as usize;
-        if v.inst == Inst::Main {
-            app.ui.keys.icon_columns = per_row;
-        }
-        let rows = n.div_ceil(per_row);
-        for rr in 0..rows {
-            let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), cell.y), Sense::hover());
-            for k in 0..per_row {
-                let i = rr * per_row + k;
-                if i >= n {
-                    break;
+        if app.ui.workspace == "Clean Editing" {
+            for b in &bins {
+                bin_row(app, ui, b, v, actions);
+            }
+            if !bins.is_empty() && !ids.is_empty() {
+                ui.add_space(4.0);
+            }
+            let per_row = ((rect.width() - 12.0) / cell.x).floor().max(1.0) as usize;
+            if v.inst == Inst::Main {
+                app.ui.keys.icon_columns = per_row;
+            }
+            let rows = ids.len().div_ceil(per_row);
+            for rr in 0..rows {
+                let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), cell.y), Sense::hover());
+                for k in 0..per_row {
+                    let i = rr * per_row + k;
+                    if i >= ids.len() {
+                        break;
+                    }
+                    let r = Rect::from_min_size(pos2(row.min.x + 12.0 + k as f32 * cell.x, row.min.y + 8.0), vec2(size, th_h + 20.0));
+                    let id = ids[i];
+                    let Some(kind) = app.session.project.item(id).map(|x| x.kind.clone()) else { continue };
+                    let was_selected = app.session.state.project_selection.contains(&id);
+                    if let Some(resp) = card(app, ui, r, id, &v.prefix, true, true, Sense::click_and_drag()) {
+                        note_hit(ui, v, id, r);
+                        let name_r = Rect::from_min_max(pos2(r.min.x, r.min.y + th_h), r.max);
+                        slow_click_rename(app, ui, &resp, name_r, id, was_selected);
+                        item_interactions(app, ui, v, &resp, id, &kind, actions, true, true);
+                    }
                 }
-                let r = Rect::from_min_size(pos2(row.min.x + 12.0 + k as f32 * cell.x, row.min.y + 8.0), vec2(size, th_h + 20.0));
-                if i < bins.len() {
-                    bin_card(app, ui, r, &bins[i], v, actions);
-                    continue;
-                }
-                let id = ids[i - bins.len()];
-                let Some(kind) = app.session.project.item(id).map(|x| x.kind.clone()) else { continue };
-                let was_selected = app.session.state.project_selection.contains(&id);
-                if let Some(resp) = card(app, ui, r, id, &v.prefix, true, true, Sense::click_and_drag()) {
-                    note_hit(ui, v, id, r);
-                    let name_r = Rect::from_min_max(pos2(r.min.x, r.min.y + th_h), r.max);
-                    slow_click_rename(app, ui, &resp, name_r, id, was_selected);
-                    item_interactions(app, ui, v, &resp, id, &kind, actions, true, true);
+            }
+        } else {
+            let n = bins.len() + ids.len();
+            let per_row = ((rect.width() - 12.0) / cell.x).floor().max(1.0) as usize;
+            if v.inst == Inst::Main {
+                app.ui.keys.icon_columns = per_row;
+            }
+            let rows = n.div_ceil(per_row);
+            for rr in 0..rows {
+                let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), cell.y), Sense::hover());
+                for k in 0..per_row {
+                    let i = rr * per_row + k;
+                    if i >= n {
+                        break;
+                    }
+                    let r = Rect::from_min_size(pos2(row.min.x + 12.0 + k as f32 * cell.x, row.min.y + 8.0), vec2(size, th_h + 20.0));
+                    if i < bins.len() {
+                        bin_card(app, ui, r, &bins[i], v, actions);
+                        continue;
+                    }
+                    let id = ids[i - bins.len()];
+                    let Some(kind) = app.session.project.item(id).map(|x| x.kind.clone()) else { continue };
+                    let was_selected = app.session.state.project_selection.contains(&id);
+                    if let Some(resp) = card(app, ui, r, id, &v.prefix, true, true, Sense::click_and_drag()) {
+                        note_hit(ui, v, id, r);
+                        let name_r = Rect::from_min_max(pos2(r.min.x, r.min.y + th_h), r.max);
+                        slow_click_rename(app, ui, &resp, name_r, id, was_selected);
+                        item_interactions(app, ui, v, &resp, id, &kind, actions, true, true);
+                    }
                 }
             }
         }
         empty_space(app, ui, v, &bg, actions);
     });
 }
-
-// ------------------------------------------------------------------------------------ freeform
 
 pub fn freeform_view(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, v: &View, filter: &str, actions: &mut Actions) {
     let t = app.tokens;
