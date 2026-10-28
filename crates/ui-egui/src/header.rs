@@ -149,14 +149,14 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         app.auto.add(&format!("header.mode.{}", id_tag), r, label_text);
 
         if is_active {
-            p.rect_filled(r, 4.0, Color32::from_rgb(0x22, 0x25, 0x32));
-            p.rect_stroke(r, 4.0, Stroke::new(1.0, Color32::from_rgb(0x32, 0x37, 0x48)), StrokeKind::Inside);
+            p.rect_filled(r, 4.0, t.pill_active_bg);
+            p.rect_stroke(r, 4.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
             p.line_segment([pos2(r.min.x + 6.0, r.max.y - 1.0), pos2(r.max.x - 6.0, r.max.y - 1.0)], Stroke::new(2.5, underline_col));
         } else if resp.hovered() {
             p.rect_filled(r, 4.0, t.hover);
         }
 
-        let col = if is_active { Color32::from_rgb(0xf8, 0xfa, 0xfc) } else if resp.hovered() { t.text } else { t.tab_text };
+        let col = if is_active { t.tab_text_active } else if resp.hovered() { t.text } else { t.tab_text };
         p.text(r.center(), Align2::CENTER_CENTER, label_text, Tokens::ui(12.5), col);
 
         if resp.clicked() {
@@ -255,9 +255,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let cresp = ui.interact(cr, egui::Id::new("hdr-gdrive-capsule"), Sense::click()).on_hover_text("Cloud Storage & Collaboration Hub");
         app.auto.add("header.gdrive_capsule", cr, "Cloud Storage & Collaboration Hub");
 
-        let capsule_bg = if cresp.hovered() { t.hover } else { Color32::from_rgb(0x15, 0x18, 0x22) };
+        let capsule_bg = if cresp.hovered() { t.hover } else { t.tl_header_bg };
         p.rect_filled(cr, 12.0, capsule_bg);
-        p.rect_stroke(cr, 12.0, Stroke::new(1.0, Color32::from_rgb(0x28, 0x2e, 0x3e)), StrokeKind::Inside);
+        p.rect_stroke(cr, 12.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
 
         // Status dot
         p.circle_filled(pos2(cr.min.x + 11.0, cr.center().y), 3.5, dot_color);

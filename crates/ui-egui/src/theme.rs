@@ -328,6 +328,8 @@ impl Tokens {
                 tl_header_bg: Color32::from_rgb(214, 214, 214),
                 tl_ruler_bg: Color32::from_rgb(226, 226, 226),
                 tl_ruler_text: Color32::from_rgb(80, 80, 80),
+                clip_selected_border: Color32::from_rgb(0x18, 0x1a, 0x24),
+                monitor_bg: Color32::from_rgb(0x1a, 0x1a, 0x1e),
                 ..dark
             },
         }

@@ -398,21 +398,44 @@ fn slider(
     ui.painter().text(pos2(row.min.x + 4.0, row.center().y), Align2::LEFT_CENTER, label, Tokens::ui(12.0), t.text_dim);
     let track = Rect::from_min_max(pos2(row.min.x + 112.0, row.center().y - 1.0), pos2(row.max.x - 58.0, row.center().y + 1.0));
     match grad {
-        Some(g) => {
-            let n = 24;
+        Some(Gradient::Temp) | Some(Gradient::Tint) => {
+            let (c_left, c_right) = if matches!(grad, Some(Gradient::Temp)) {
+                (Color32::from_rgb(70, 120, 230), Color32::from_rgb(240, 150, 50))
+            } else {
+                (Color32::from_rgb(60, 190, 80), Color32::from_rgb(220, 70, 200))
+            };
+            let mut mesh = egui::Mesh::default();
+            let tr = Rect::from_min_max(pos2(track.min.x, track.min.y - 1.0), pos2(track.max.x, track.max.y + 1.0));
+            mesh.colored_vertex(tr.left_top(), c_left);
+            mesh.colored_vertex(tr.left_bottom(), c_left);
+            mesh.colored_vertex(tr.right_bottom(), c_right);
+            mesh.colored_vertex(tr.right_top(), c_right);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            ui.painter().add(mesh);
+        }
+        Some(Gradient::Hue) => {
+            let n = 16;
+            let mut mesh = egui::Mesh::default();
+            let tr = Rect::from_min_max(pos2(track.min.x, track.min.y - 1.0), pos2(track.max.x, track.max.y + 1.0));
             for i in 0..n {
                 let f0 = i as f32 / n as f32;
-                let c = match g {
-                    Gradient::Temp => lerp_col(Color32::from_rgb(70, 120, 230), Color32::from_rgb(240, 150, 50), f0),
-                    Gradient::Tint => lerp_col(Color32::from_rgb(60, 190, 80), Color32::from_rgb(220, 70, 200), f0),
-                    Gradient::Hue => {
-                        let rgb = filmcraft_color::hsl_to_rgb(f0, 0.8, 0.5);
-                        Color32::from_rgb((rgb[0] * 255.0) as u8, (rgb[1] * 255.0) as u8, (rgb[2] * 255.0) as u8)
-                    }
-                };
-                let x0 = track.min.x + track.width() * f0;
-                ui.painter().rect_filled(Rect::from_min_max(pos2(x0, track.min.y - 1.0), pos2(x0 + track.width() / n as f32 + 0.5, track.max.y + 1.0)), 0.0, c);
+                let f1 = (i + 1) as f32 / n as f32;
+                let rgb0 = filmcraft_color::hsl_to_rgb(f0, 0.8, 0.5);
+                let rgb1 = filmcraft_color::hsl_to_rgb(f1, 0.8, 0.5);
+                let c0 = Color32::from_rgb((rgb0[0] * 255.0) as u8, (rgb0[1] * 255.0) as u8, (rgb0[2] * 255.0) as u8);
+                let c1 = Color32::from_rgb((rgb1[0] * 255.0) as u8, (rgb1[1] * 255.0) as u8, (rgb1[2] * 255.0) as u8);
+                let x0 = tr.min.x + tr.width() * f0;
+                let x1 = tr.min.x + tr.width() * f1;
+                let base = mesh.vertices.len() as u32;
+                mesh.colored_vertex(pos2(x0, tr.min.y), c0);
+                mesh.colored_vertex(pos2(x0, tr.max.y), c0);
+                mesh.colored_vertex(pos2(x1, tr.max.y), c1);
+                mesh.colored_vertex(pos2(x1, tr.min.y), c1);
+                mesh.add_triangle(base, base + 1, base + 2);
+                mesh.add_triangle(base, base + 2, base + 3);
             }
+            ui.painter().add(mesh);
         }
         None => {
             ui.painter().rect_filled(track, 0.0, Color32::from_rgb(0x6e, 0x6e, 0x6e));
@@ -449,11 +472,6 @@ fn slider(
         actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": (nv * 10f64.powi(decimals as i32)).round() / 10f64.powi(decimals as i32)}));
     }
     row
-}
-
-fn lerp_col(a: Color32, b: Color32, f: f32) -> Color32 {
-    let l = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * f) as u8;
-    Color32::from_rgb(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()))
 }
 
 /// Curve editor: drag points, click the curve to add, double-click a point to remove.
@@ -575,7 +593,7 @@ fn color_wheel(ui: &mut egui::Ui, e: &EffectInstance, mt: Tick, id: &str, lid: &
     let r_out = size / 2.0 - 4.0;
     let r_in = r_out - 10.0;
     let p = ui.painter();
-    let n = 72;
+    let n = 48;
     let mut mesh = egui::Mesh::default();
     for i in 0..n {
         let a0 = i as f32 / n as f32 * std::f32::consts::TAU;
