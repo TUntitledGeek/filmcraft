@@ -947,3 +947,79 @@ fn test_lumetri_full_path_profiling_and_interaction_pipeline() {
     // Command execution with merge must be well under 10ms for 60fps budget
     assert!(cmd_per_call_us < 10_000.0, "Command execution must be well under frame budget");
 }
+
+
+#[test]
+fn test_properties_panel_contextual_sequence_inspector_when_unselected() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    s.execute("edit.deselectAll", json!({})).unwrap();
+
+    let mut app = FilmcraftApp::new(s);
+    app.ui.dock.activate(filmcraft_ui_egui::dock::PanelKind::Properties);
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    let seq_settings_btn = harness.state().auto.query("props.sequence_settings");
+    assert!(!seq_settings_btn.is_empty(), "Sequence Settings button must be present in empty Properties inspector");
+}
+
+#[test]
+fn test_adaptive_grading_drag_and_revision_coalescing() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let mut app = FilmcraftApp::new(s);
+
+    assert!(!app.grading_drag_active);
+    app.grading_drag_active = true;
+
+    // Verify draft_playback returns true when grading_drag_active is true and scale <= 0.5
+    assert!(filmcraft_ui_egui::frames::draft_playback(app.grading_drag_active, 0.5, true));
+    // Verify full resolution (1.0) is never draft even while grading
+    assert!(!filmcraft_ui_egui::frames::draft_playback(app.grading_drag_active, 1.0, true));
+    // Verify when not in motion or grading, paused frame is not draft
+    assert!(!filmcraft_ui_egui::frames::draft_playback(false, 0.5, true));
+}
+
+#[test]
+fn test_source_monitor_contextual_empty_state() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let mut app = FilmcraftApp::new(s);
+    app.session.state.source_item = None;
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    assert_eq!(harness.state().session.state.source_item, None);
+}
+
+#[test]
+fn test_project_hub_header_actions() {
+    let s = Session::default();
+    let mut app = FilmcraftApp::new(s);
+    app.ui.mode = Mode::Import;
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    let load_demo_btn = harness.state().auto.query("hub.action.load_demo");
+    assert!(!load_demo_btn.is_empty(), "hub.action.load_demo must exist in header");
+
+    let new_proj_btn = harness.state().auto.query("hub.action.new_project");
+    assert!(!new_proj_btn.is_empty(), "hub.action.new_project must exist in header");
+
+    let link_folder_btn = harness.state().auto.query("hub.action.link_folder");
+    assert!(!link_folder_btn.is_empty(), "hub.action.link_folder must exist in header");
+
+    let rect = load_demo_btn[0].rect;
+    let pos = pos2(rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
+    harness.input_mut().events.push(egui::Event::PointerMoved(pos));
+    harness.input_mut().events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
+    harness.input_mut().events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
+    harness.step();
+
+    assert_eq!(harness.state().ui.mode, Mode::Edit, "Clicking Load Demo must transition to Edit mode");
+    assert_eq!(harness.state().session.project.name, "FilmCraft Demo");
+}

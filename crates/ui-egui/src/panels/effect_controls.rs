@@ -851,11 +851,78 @@ pub fn lumetri_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 }
 
 /// Properties panel (Premiere 26): a compact inspector for the selected clip.
+fn show_sequence_properties(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, t: &Tokens) {
+    let p = ui.painter().with_clip_rect(rect);
+    p.rect_filled(rect, t.radius, t.panel_bg);
+
+    let Some(seq_id) = app.session.state.active_sequence else {
+        crate::dock::placeholder(ui, rect, t, tl!("Select a clip to see its properties"));
+        return;
+    };
+    let Some(seq) = app.session.project.sequence(seq_id) else {
+        crate::dock::placeholder(ui, rect, t, tl!("Select a clip to see its properties"));
+        return;
+    };
+
+    let seq_name = app.session.project.item(seq_id).map(|i| i.name.as_str()).unwrap_or("Active Sequence");
+    let pad = 16.0;
+    let mut y = rect.min.y + 16.0;
+
+    // Header badge
+    p.text(pos2(rect.min.x + pad, y), Align2::LEFT_TOP, "SEQUENCE INSPECTOR", Tokens::semibold(11.0), t.accent);
+    y += 20.0;
+
+    // Sequence title
+    p.text(pos2(rect.min.x + pad, y), Align2::LEFT_TOP, seq_name, Tokens::semibold(15.0), t.text);
+    y += 28.0;
+
+    p.line_segment([pos2(rect.min.x + pad, y), pos2(rect.max.x - pad, y)], Stroke::new(1.0, t.separator));
+    y += 12.0;
+
+    // Metadata entries
+    let items = [
+        ("Resolution", format!("{} × {}", seq.settings.width, seq.settings.height)),
+        ("Frame Rate", format!("{:.3} fps", seq.settings.frame_rate.as_f64())),
+        ("Audio Spec", format!("{} Hz Stereo", seq.settings.sample_rate)),
+        ("Track Count", format!("{} Video · {} Audio", seq.video_tracks.len(), seq.audio_tracks.len())),
+        ("Working Space", format!("{:?}", seq.settings.color.working)),
+    ];
+
+    for (label, val) in items {
+        p.text(pos2(rect.min.x + pad, y), Align2::LEFT_TOP, label, Tokens::ui(11.5), t.text_dim);
+        p.text(pos2(rect.max.x - pad, y), Align2::RIGHT_TOP, val, Tokens::semibold(11.5), t.text);
+        y += 22.0;
+    }
+
+    y += 8.0;
+    p.line_segment([pos2(rect.min.x + pad, y), pos2(rect.max.x - pad, y)], Stroke::new(1.0, t.separator));
+    y += 14.0;
+
+    // Quick action: Sequence Settings button
+    let btn_r = Rect::from_min_size(pos2(rect.min.x + pad, y), vec2(rect.width() - pad * 2.0, 28.0));
+    let resp = ui.interact(btn_r, egui::Id::new("props-open-seq-settings"), Sense::click());
+    app.auto.add("props.sequence_settings", btn_r, "Sequence Settings");
+    let b_bg = if resp.hovered() { t.hover } else { t.tl_header_bg };
+    p.rect_filled(btn_r, 4.0, b_bg);
+    p.rect_stroke(btn_r, 4.0, Stroke::new(1.0, t.separator), egui::StrokeKind::Inside);
+    p.text(btn_r.center(), Align2::CENTER_CENTER, "⚙ Sequence Settings", Tokens::semibold(11.5), t.text);
+    if resp.clicked() {
+        let _ = crate::menus::invoke(app, &ui.ctx().clone(), "sequence.settings", serde_json::json!({}));
+    }
+    y += 38.0;
+
+    // Contextual Hint
+    let hint_r = Rect::from_min_size(pos2(rect.min.x + pad, y), vec2(rect.width() - pad * 2.0, 46.0));
+    p.rect_filled(hint_r, 4.0, Color32::from_rgba_unmultiplied(t.accent.r(), t.accent.g(), t.accent.b(), 16));
+    p.text(pos2(rect.min.x + pad + 10.0, y + 8.0), Align2::LEFT_TOP, "Tip: Select a clip on the timeline", Tokens::semibold(11.0), t.accent);
+    p.text(pos2(rect.min.x + pad + 10.0, y + 24.0), Align2::LEFT_TOP, "Inspect transform, motion, and effects here", Tokens::ui(10.5), t.text_dim);
+}
+
 pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let clips = selected_clips(app);
     let Some((clip, it, kind)) = clips.first().cloned() else {
-        crate::dock::placeholder(ui, rect, &t, tl!("Select a clip to see its properties"));
+        show_sequence_properties(app, ui, rect, &t);
         return;
     };
     let ph = app.session.playhead();
@@ -1045,6 +1112,9 @@ pub(crate) fn row_fill(r: Rect) -> Rect {
 /// keeps it.
 pub(crate) fn run(app: &mut FilmcraftApp, ctx: &egui::Context, actions: Vec<(String, Value)>) {
     let (down, press) = ctx.input(|i| (i.pointer.any_down(), i.pointer.press_start_time()));
+    if down && !actions.is_empty() {
+        app.grading_drag_active = true;
+    }
     let key = egui::Id::new("effect-controls-drag-step");
     let begun = ctx.data(|d| d.get_temp::<Option<f64>>(key)).flatten();
     let mut wrote = false;

@@ -317,12 +317,16 @@ pub fn workspace(name: &str) -> DockNode {
     let bottom_editing = || hsplit(FixedA(64.0), tabs(&[Tools], 0), hsplit(FixedB(116.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0)));
     match name {
         "Fusion" | "Fusion Nodes" => vsplit(
-            Ratio(0.44),
-            hsplit(Ratio(0.5), tabs(&[Source, EffectControls], 0), tabs(&[Program], 0)),
+            Ratio(0.48),
             hsplit(
-                Ratio(0.72),
-                vsplit(Ratio(0.68), tabs(&[NodeGraph], 0), tabs(&[Timeline, Tools], 0)),
-                tabs(&[Properties, EssentialGraphics, Metadata], 0),
+                FixedB(310.0),
+                tabs(&[Program], 0),
+                tabs(&[Properties, EffectControls, Metadata], 0),
+            ),
+            vsplit(
+                Ratio(0.75),
+                tabs(&[NodeGraph], 0),
+                hsplit(FixedA(54.0), tabs(&[Tools], 0), hsplit(FixedB(108.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0))),
             ),
         ),
         "Assembly" => vsplit(
@@ -338,8 +342,8 @@ pub fn workspace(name: &str) -> DockNode {
             FixedB(340.0),
             vsplit(
                 Ratio(0.58),
-                hsplit(Ratio(0.42), tabs(&[LumetriScopes, Source, EffectControls], 0), tabs(&[Program], 0)),
-                hsplit(Ratio(0.3), tabs(&[Project, Info, Markers, History], 0), bottom_editing()),
+                hsplit(Ratio(0.40), tabs(&[LumetriScopes], 0), tabs(&[Program], 0)),
+                hsplit(Ratio(0.24), tabs(&[Project, Info, Markers, History], 0), bottom_editing()),
             ),
             tabs(&[LumetriColor, Effects], 0),
         ),
@@ -379,19 +383,19 @@ pub fn workspace(name: &str) -> DockNode {
             ),
             hsplit(Ratio(0.26), tabs(&[Project, MediaBrowser, Libraries, Info, Effects, Markers, History], 0), bottom_editing()),
         ),
-        // Editing (default), Learning, Review — Premiere 26 factory layout:
-        // top: Source group | Program | Properties; bottom: Project group | Tools | Timeline | Meters.
+        // Editing (default), Learning, Review — Pro Studio Layout:
+        // top: Source group (38%) | Program hero (62%) | Properties (300px); bottom: Project group | Tools | Timeline | Meters.
         _ => vsplit(
-            Ratio(0.57),
+            Ratio(0.56),
             hsplit(
-                FixedB(450.0),
-                hsplit(Ratio(0.5), tabs(&[Source, EffectControls, NodeGraph, AudioClipMixer, Metadata], 0), tabs(&[Program], 0)),
+                FixedB(300.0),
+                hsplit(Ratio(0.38), tabs(&[Source, EffectControls, AudioClipMixer, Metadata], 0), tabs(&[Program], 0)),
                 tabs(&[Properties, EssentialGraphics, Text], 0),
             ),
             hsplit(
-                Ratio(0.29),
+                Ratio(0.26),
                 tabs(&[Project, MediaBrowser, Libraries, Info, Effects, Markers, History], 0),
-                hsplit(FixedA(64.0), tabs(&[Tools], 0), hsplit(FixedB(116.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0))),
+                hsplit(FixedA(54.0), tabs(&[Tools], 0), hsplit(FixedB(108.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0))),
             ),
         ),
     }

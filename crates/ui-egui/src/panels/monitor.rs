@@ -60,7 +60,22 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         }
         Which::Source => {
             let Some(item) = app.session.state.source_item else {
-                crate::dock::placeholder(ui, rect, &t, tl!("(no clips)"));
+                let p = ui.painter().with_clip_rect(rect);
+                p.rect_filled(rect, t.radius, t.panel_bg);
+                let center = rect.center();
+                let icon_r = Rect::from_center_size(center - vec2(0.0, 24.0), vec2(28.0, 28.0));
+                icons::paint(&p, icon_r, Icon::Film, t.text_dim);
+                p.text(center + vec2(0.0, 8.0), Align2::CENTER_CENTER, "Source Viewer", Tokens::semibold(14.0), t.text);
+                p.text(center + vec2(0.0, 28.0), Align2::CENTER_CENTER, "Double-click any clip in the Project bin to preview and trim here", Tokens::ui(11.5), t.text_dim);
+                let btn_r = Rect::from_center_size(center + vec2(0.0, 60.0), vec2(160.0, 26.0));
+                let resp = ui.interact(btn_r, egui::Id::new("source-open-project-bin"), Sense::click());
+                let b_bg = if resp.hovered() { t.hover } else { t.tl_header_bg };
+                p.rect_filled(btn_r, 4.0, b_bg);
+                p.rect_stroke(btn_r, 4.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
+                p.text(btn_r.center(), Align2::CENTER_CENTER, "📂 Open Project Bin", Tokens::semibold(11.5), t.accent);
+                if resp.clicked() {
+                    app.ui.dock.activate(crate::dock::PanelKind::Project);
+                }
                 return;
             };
             let Some(pi) = app.session.project.item(item) else { return };
@@ -177,16 +192,16 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         ui.painter().rect_filled(pic, 0.0, t.monitor_bg);
         let playing = if which == Which::Program { app.playback.playing } else { app.source_playback.clock.playing };
         let active_scrub = app.is_scrubbing();
-        let in_motion = playing || active_scrub;
-        let res = if active_scrub {
-            PlaybackRes::Quarter
+        let in_motion = playing || active_scrub || app.grading_drag_active;
+        let res = if active_scrub || app.grading_drag_active {
+            PlaybackRes::Half
         } else {
             mv.effective_res(in_motion)
         };
         // frame pixels per screen pixel along the axis that needs the most of them
         let screen_scale = (pic.width() * ppp / frame_size.0.max(1) as f32).max(pic.height() * ppp / frame_size.1.max(1) as f32).min(1.0);
         let scale = quantize_scale(res.scale().min(screen_scale.max(1.0 / 32.0)));
-        let scale = if cfg!(target_arch = "wasm32") && in_motion { scale.min(0.5) } else { scale };
+        let scale = if (cfg!(target_arch = "wasm32") && in_motion) || app.grading_drag_active { scale.min(0.5) } else { scale };
         let frame = rate.frame_at(time);
         let rev = match target {
             Target::Item(i) => app.item_revision(i),
@@ -201,7 +216,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             (_, t) => t,
         };
         // Draft decoding (opt-in, while scrubbing, or always on single-threaded wasm32): only while in motion at 1/2 resolution or lower.
-        let draft = crate::frames::draft_playback(in_motion, scale, app.session.prefs.playback.draft_decode || active_scrub || cfg!(target_arch = "wasm32"));
+        let draft = crate::frames::draft_playback(in_motion, scale, app.session.prefs.playback.draft_decode || active_scrub || app.grading_drag_active || cfg!(target_arch = "wasm32"));
         let key = FrameKey { target, frame, size: size_key, revision: rev, draft };
         let project = app.session.project.clone();
         if playing {

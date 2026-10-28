@@ -447,6 +447,8 @@ pub struct FilmcraftApp {
     /// Whether a timeline drag was active on the previous frame.
     pub(crate) collab_had_drag: bool,
     pub monitor_scrubbing: bool,
+    /// Whether an interactive Lumetri/color control is being dragged.
+    pub grading_drag_active: bool,
     /// Last timestamp local presence was broadcast.
     last_presence_send: web_time::Instant,
     /// GPU compositor (when running on wgpu): device state + compositor + the egui texture it feeds.
@@ -755,6 +757,7 @@ impl FilmcraftApp {
             collab_drop_ghost: None,
             collab_had_drag: false,
             monitor_scrubbing: false,
+            grading_drag_active: false,
             last_presence_send: web_time::Instant::now(),
             gpu: None,
             watched_render: None,
@@ -3238,10 +3241,12 @@ impl eframe::App for FilmcraftApp {
         }
         if ui.input(|i| !i.pointer.any_down() && !i.pointer.any_pressed()) {
             self.monitor_scrubbing = false;
+            self.grading_drag_active = false;
         }
         let is_interacting = ui.input(|i| i.pointer.any_down() || i.pointer.any_pressed())
             || self.tl.drag.is_some()
             || self.monitor_scrubbing
+            || self.grading_drag_active
             || self.collab_drop_ghost.is_some();
 
         // A panic in one panel must not close the app (losing unsaved work) or leave a blank

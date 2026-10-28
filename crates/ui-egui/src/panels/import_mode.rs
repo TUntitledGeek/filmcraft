@@ -45,17 +45,73 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Deep panel surface
     p.rect_filled(rect, t.radius, t.panel_bg);
 
-    // Header
-    p.text(rect.min + vec2(28.0, 32.0), Align2::LEFT_CENTER, "Project Hub", Tokens::semibold(22.0), t.text);
+    let ctx = ui.ctx().clone();
+
+    // Header Title & Subtitle
+    p.text(rect.min + vec2(28.0, 32.0), Align2::LEFT_CENTER, "Project Hub", Tokens::semibold(24.0), t.text);
     p.text(
         rect.min + vec2(28.0, 58.0),
         Align2::LEFT_CENTER,
-        "Create a new project from presets, open recent work, or manage cloud-synced projects.",
+        "Create high-performance projects, manage synced directories, and launch studio templates.",
         Tokens::ui(13.0),
         t.text_dim,
     );
 
-    let ctx = ui.ctx().clone();
+    // Quick Action Header Buttons
+    let mut btn_x = rect.max.x - 28.0;
+
+    // Button 3: Link Folder
+    let link_w = 120.0;
+    btn_x -= link_w;
+    let link_r = Rect::from_min_size(pos2(btn_x, rect.min.y + 26.0), vec2(link_w, 32.0));
+    let lresp = ui.interact(link_r, egui::Id::new("hub-hdr-link-folder"), Sense::click());
+    app.auto.add("hub.action.link_folder", link_r, "Link Folder");
+    let lbg = if lresp.hovered() { t.hover } else { t.tl_header_bg };
+    p.rect_filled(link_r, 6.0, lbg);
+    p.rect_stroke(link_r, 6.0, egui::Stroke::new(1.0, t.separator), egui::StrokeKind::Inside);
+    p.text(link_r.center(), Align2::CENTER_CENTER, "📁 Link Folder", Tokens::semibold(12.0), t.text);
+    if lresp.clicked() {
+        app.collab_dialog_open = true;
+    }
+
+    // Button 2: Load Demo
+    let demo_w = 140.0;
+    btn_x -= demo_w + 10.0;
+    let demo_r = Rect::from_min_size(pos2(btn_x, rect.min.y + 26.0), vec2(demo_w, 32.0));
+    let dresp = ui.interact(demo_r, egui::Id::new("hub-hdr-load-demo"), Sense::click());
+    app.auto.add("hub.action.load_demo", demo_r, "Load Demo Edit");
+    let dbg = if dresp.hovered() { t.accent_hover } else { t.accent };
+    p.rect_filled(demo_r, 6.0, dbg);
+    p.text(demo_r.center(), Align2::CENTER_CENTER, "🎬 Load Demo Edit", Tokens::semibold(12.0), Color32::WHITE);
+    if dresp.clicked() {
+        if crate::menus::invoke(app, &ctx, "file.openDemoProject", json!({})).is_ok() {
+            app.ui.mode = crate::state::Mode::Edit;
+            app.ui.status = "Opened FilmCraft Studio Pro Demo Project.".into();
+        }
+    }
+
+    // Button 1: New Project
+    let new_w = 120.0;
+    btn_x -= new_w + 10.0;
+    let new_r = Rect::from_min_size(pos2(btn_x, rect.min.y + 26.0), vec2(new_w, 32.0));
+    let nresp = ui.interact(new_r, egui::Id::new("hub-hdr-new-project"), Sense::click());
+    app.auto.add("hub.action.new_project", new_r, "New Project");
+    let nbg = if nresp.hovered() { t.hover } else { t.tl_header_bg };
+    p.rect_filled(new_r, 6.0, nbg);
+    p.rect_stroke(new_r, 6.0, egui::Stroke::new(1.0, t.separator), egui::StrokeKind::Inside);
+    p.text(new_r.center(), Align2::CENTER_CENTER, "+ New Project", Tokens::semibold(12.0), t.text);
+    if nresp.clicked() {
+        if crate::menus::invoke(app, &ctx, "file.newProject", json!({"name": "Untitled Studio Project"})).is_ok() {
+            let _ = crate::menus::invoke(app, &ctx, "file.newSequence", json!({
+                "name": "Sequence 01",
+                "width": 1920,
+                "height": 1080,
+                "fps": 23.976
+            }));
+            app.ui.mode = crate::state::Mode::Edit;
+            app.ui.status = "Created new project.".into();
+        }
+    }
 
     // SECTION 1: New Project Creator Presets
     let presets: [(&str, u32, u32, f64, &str, Icon, Color32); 4] = [

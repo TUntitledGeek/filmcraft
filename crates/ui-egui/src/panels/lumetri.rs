@@ -239,6 +239,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             app.auto.add(&id, r, label);
         }
     }
+    if ui.input(|i| i.pointer.any_down()) && !actions.is_empty() {
+        app.grading_drag_active = true;
+    }
     // a dragged value is one undo step, as in Effect Controls
     crate::panels::effect_controls::run(app, ui.ctx(), actions.into_iter().map(|a| ("effects.setParam".to_string(), a)).collect());
     for sec in sections {

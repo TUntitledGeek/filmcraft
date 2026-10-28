@@ -673,18 +673,21 @@ impl FrameServer {
                     break;
                 }
                 if let Some(limit) = max_prio {
-                    // While in motion (playback or scrubbing), drop older pending monitor frame requests
-                    // for stale ticks on the same sequence so only the newest target tick is decoded.
-                    let mut latest_monitor_frames: std::collections::HashMap<Target, i64> = std::collections::HashMap::new();
+                    // While in motion (playback, scrubbing, or color grading), drop older pending monitor
+                    // frame requests for stale ticks or stale revisions so only the newest state is rendered.
+                    let mut latest_monitor_frames: std::collections::HashMap<Target, (i64, u64)> = std::collections::HashMap::new();
                     for j in q.iter() {
                         if matches!(j.key.target, Target::Sequence(_) | Target::SequencePlan(_)) && j.prio <= limit {
-                            latest_monitor_frames.insert(j.key.target, j.key.frame);
+                            let entry = latest_monitor_frames.entry(j.key.target).or_insert((j.key.frame, j.key.revision));
+                            if j.key.revision > entry.1 || (j.key.revision == entry.1 && j.key.frame != entry.0) {
+                                *entry = (j.key.frame, j.key.revision);
+                            }
                         }
                     }
                     if !latest_monitor_frames.is_empty() {
                         q.retain(|j| {
-                            if let Some(&latest_frame) = latest_monitor_frames.get(&j.key.target) {
-                                if j.prio <= limit && j.key.frame != latest_frame {
+                            if let Some(&(latest_frame, latest_rev)) = latest_monitor_frames.get(&j.key.target) {
+                                if j.prio <= limit && (j.key.revision < latest_rev || (j.key.frame != latest_frame && j.key.revision == latest_rev)) {
                                     return false;
                                 }
                             }
