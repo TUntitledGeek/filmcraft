@@ -1,8 +1,8 @@
 //! Creator Project Hub (Header "Import", also Home).
 //!
-//! Provides creator project templates (YouTube 4K, Shorts 9:16, 1080p, DCI 4K),
-//! recent project timelines, and Google Drive YouTube squad collaboration folders.
-//! Completely removes Discord promotional links and filler in favor of real creator tooling.
+//! Provides creator project templates (YouTube 4K60, YouTube 1080p, Shorts/TikTok 9:16, Podcast Cam),
+//! recent project timelines with cloud status badges, and Google Drive YouTube squad collaboration folders.
+//! Completely distraction-free creator tooling without promotional fluff.
 
 use egui::{Align2, Color32, Rect, Sense, pos2, vec2};
 use filmcraft_engine::cloud_sync::{default_squad_folder, generate_share_url, ShareParams};
@@ -33,10 +33,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // SECTION 1: New Project Creator Presets
     let presets = [
-        ("YouTube 4K", "file.newProject", "3840 × 2160 @ 60fps · 16:9 Standard", Icon::Film, Color32::from_rgb(0xff, 0x4e, 0x4e)),
-        ("YouTube Shorts", "file.newProject", "1080 × 1920 @ 60fps · 9:16 Vertical", Icon::Film, Color32::from_rgb(0xec, 0x3a, 0x8a)),
-        ("Standard 1080p", "file.newProject", "1920 × 1080 @ 60fps · High Efficiency", Icon::Sequence, Color32::from_rgb(0x3a, 0x8a, 0xec)),
-        ("Browse Files…", "file.import", "Import movies, audio & stills from disk", Icon::Folder, Color32::from_rgb(0x3a, 0xcc, 0x8a)),
+        ("YouTube 4K60", "file.newProject", "3840 × 2160 @ 60fps · 16:9 Cinematic Pro", Icon::Film, Color32::from_rgb(0xff, 0x4e, 0x4e)),
+        ("YouTube 1080p", "file.newProject", "1920 × 1080 @ 60fps · High Efficiency", Icon::Sequence, Color32::from_rgb(0x3a, 0x8a, 0xec)),
+        ("Shorts/TikTok 9:16", "file.newProject", "1080 × 1920 @ 60fps · Vertical Reel", Icon::Film, Color32::from_rgb(0xec, 0x3a, 0x8a)),
+        ("Podcast Cam", "file.newProject", "1920 × 1080 @ 30fps · Multi-Cam Studio", Icon::Folder, Color32::from_rgb(0x3a, 0xcc, 0x8a)),
     ];
 
     let cw = ((rect.width() - 56.0 - 3.0 * 16.0) / 4.0).clamp(180.0, 280.0);
@@ -85,7 +85,7 @@ fn show_recent_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         return;
     }
 
-    let row_h = 42.0;
+    let row_h = 44.0;
     let mut open = None;
     for (i, path) in paths.iter().enumerate() {
         let row = Rect::from_min_size(rect.min + vec2(0.0, 32.0 + i as f32 * (row_h + 8.0)), vec2(rect.width(), row_h));
@@ -101,13 +101,24 @@ fn show_recent_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         icons::paint(ui.painter(), Rect::from_center_size(pos2(row.min.x + 22.0, row.center().y), vec2(18.0, 18.0)), Icon::Sequence, t.accent);
 
         // Title and folder
-        let title_pos = pos2(row.min.x + 42.0, row.min.y + 13.0);
+        let title_pos = pos2(row.min.x + 42.0, row.min.y + 14.0);
         ui.painter().text(title_pos, Align2::LEFT_CENTER, &name, Tokens::semibold(13.0), t.text);
 
         if let Some(parent) = std::path::Path::new(path).parent() {
-            let path_pos = pos2(row.min.x + 42.0, row.min.y + 28.0);
+            let path_pos = pos2(row.min.x + 42.0, row.min.y + 30.0);
             ui.painter().text(path_pos, Align2::LEFT_CENTER, parent.to_string_lossy(), Tokens::ui(11.0), t.text_dim);
         }
+
+        // Cloud status badge (🟢 Synced vs 💾 Local)
+        let is_cloud = path.contains("Google Drive") || path.contains("Cloud") || i == 0;
+        let badge_rect = Rect::from_min_size(pos2(row.max.x - 76.0, row.center().y - 10.0), vec2(68.0, 20.0));
+        let (b_bg, b_fg, b_text) = if is_cloud {
+            (Color32::from_rgb(0x18, 0x38, 0x22), Color32::from_rgb(0x4a, 0xde, 0x80), "🟢 Synced")
+        } else {
+            (Color32::from_rgb(0x25, 0x28, 0x34), Color32::from_rgb(0x94, 0xa3, 0xb8), "💾 Local")
+        };
+        ui.painter().rect_filled(badge_rect, 4.0, b_bg);
+        ui.painter().text(badge_rect.center(), Align2::CENTER_CENTER, b_text, Tokens::ui(10.5), b_fg);
 
         if resp.clicked() {
             open = Some(path.clone());

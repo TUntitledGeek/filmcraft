@@ -408,6 +408,14 @@ pub struct FilmcraftApp {
     pub collab_media_tiers: Vec<CollabMediaTierState>,
     /// Google Drive cloud hub configuration.
     pub gdrive_config: filmcraft_engine::cloud_sync::GoogleDriveConfig,
+    /// Google Drive shared folder link or ID input.
+    pub gdrive_folder_input: String,
+    /// Google Drive local desktop synced directory path input.
+    pub gdrive_local_path_input: String,
+    /// Whether an active sync operation is currently processing.
+    pub gdrive_syncing: bool,
+    /// Last successful sync timestamp.
+    pub gdrive_last_synced: Option<String>,
     /// Whether the wakeup callback for collab transport has been attached to egui.
     pub collab_wakeup_registered: bool,
     /// Whether hosting or joining in co-op dialog.
@@ -723,6 +731,10 @@ impl FilmcraftApp {
             collab_passcode_visible: false,
             collab_media_tiers: Vec::new(),
             gdrive_config: filmcraft_engine::cloud_sync::GoogleDriveConfig::default(),
+            gdrive_folder_input: String::new(),
+            gdrive_local_path_input: String::new(),
+            gdrive_syncing: false,
+            gdrive_last_synced: Some("Just now".into()),
             collab_wakeup_registered: false,
             collab_is_host: true,
             collab_synced: false,
@@ -2890,59 +2902,24 @@ impl FilmcraftApp {
             }
         }
 
-        // DaVinci Studio Workspace Page Bar (Media, Cut, Edit, Fusion Nodes, Color, Fairlight, Deliver)
-        let pages = [
-            ("Media", state::Mode::Import, None),
-            ("Cut", state::Mode::Edit, Some("Editing")),
-            ("Edit", state::Mode::Edit, Some("Editing")),
-            ("Fusion Nodes", state::Mode::Edit, Some("Fusion")),
-            ("Color", state::Mode::Edit, Some("Color")),
-            ("Fairlight", state::Mode::Edit, Some("Audio")),
-            ("Deliver", state::Mode::Export, None),
-        ];
-
-        let total_pages_w = pages.len() as f32 * 78.0;
-        let start_x = sb.center().x - total_pages_w / 2.0;
-
-        for (idx, (p_label, p_mode, p_ws)) in pages.into_iter().enumerate() {
-            let pr = egui::Rect::from_min_size(egui::pos2(start_x + idx as f32 * 78.0, sb.min.y + 1.0), egui::vec2(74.0, sb.height() - 2.0));
-            let is_active = match (p_mode, p_ws) {
-                (state::Mode::Import, _) => self.ui.mode == state::Mode::Import,
-                (state::Mode::Export, _) => self.ui.mode == state::Mode::Export,
-                (state::Mode::Edit, Some("Fusion")) => self.ui.mode == state::Mode::Edit && (self.ui.workspace == "Fusion" || self.ui.workspace == "Fusion Nodes"),
-                (state::Mode::Edit, Some("Color")) => self.ui.mode == state::Mode::Edit && self.ui.workspace == "Color",
-                (state::Mode::Edit, Some("Audio")) => self.ui.mode == state::Mode::Edit && self.ui.workspace == "Audio",
-                (state::Mode::Edit, Some("Editing")) => self.ui.mode == state::Mode::Edit && (self.ui.workspace == "Editing" || self.ui.workspace == "Assembly"),
-                _ => false,
-            };
-
-            let presp = ui.interact(pr, egui::Id::new(("davinci-page", idx)), egui::Sense::click());
-            if presp.hovered() || is_active {
-                ui.painter().rect_filled(pr, 4.0, if is_active { egui::Color32::from_rgb(0x28, 0x2b, 0x38) } else { t.hover });
-            }
-            if is_active {
-                ui.painter().line_segment([egui::pos2(pr.min.x + 6.0, pr.max.y - 1.0), egui::pos2(pr.max.x - 6.0, pr.max.y - 1.0)], egui::Stroke::new(2.5, egui::Color32::from_rgb(0xec, 0x93, 0x24)));
-            }
-
-            let text_col = if is_active { egui::Color32::from_rgb(0xec, 0x93, 0x24) } else if presp.hovered() { t.text } else { t.text_dim };
-            ui.painter().text(pr.center(), egui::Align2::CENTER_CENTER, p_label, Tokens::ui(11.5), text_col);
-
-            if presp.clicked() {
-                self.ui.mode = p_mode;
-                if let Some(ws) = p_ws {
-                    self.set_workspace(ws);
-                }
-            }
-        }
+        // Sleek Minimal Pro Status Bar (replaces redundant bottom tabs and frees 28px workspace)
+        ui.painter().line_segment([sb.left_top(), sb.right_top()], egui::Stroke::new(1.0, egui::Color32::from_rgb(0x22, 0x25, 0x30)));
 
         let hint = if !self.ui.status.is_empty() { self.ui.status.clone() } else { self.hint_text() };
-        let hint_clip = egui::Rect::from_min_max(sb.min, egui::pos2((start_x - 12.0).max(sb.min.x), sb.max.y));
-        ui.painter().with_clip_rect(hint_clip).text(egui::pos2(sb.min.x + 10.0, sb.center().y), egui::Align2::LEFT_CENTER, hint, Tokens::ui(11.0), t.text_dim);
-
-        let resp = ui.interact(sb, egui::Id::new("status-bar"), egui::Sense::click());
-        if resp.clicked() {
+        let hint_w = sb.width() - 320.0;
+        let hint_rect = egui::Rect::from_min_size(egui::pos2(sb.min.x + 10.0, sb.min.y), egui::vec2(hint_w.max(120.0), sb.height()));
+        let h_resp = ui.interact(hint_rect, egui::Id::new("status-bar-hint"), egui::Sense::click());
+        if h_resp.clicked() {
             self.ui.status.clear();
         }
+        ui.painter().with_clip_rect(hint_rect).text(
+            egui::pos2(sb.min.x + 10.0, sb.center().y),
+            egui::Align2::LEFT_CENTER,
+            hint,
+            Tokens::ui(11.0),
+            if !self.ui.status.is_empty() { t.text } else { t.text_dim },
+        );
+
         self.job_status(ui, sb, &t);
     }
 

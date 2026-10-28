@@ -1,7 +1,7 @@
-//! The header bar (Premiere 26 layout, 38 pt): Home and Import / Edit / Export on the left, the
-//! document title centred, the workspace name and quick actions on the right. On macOS the menus
-//! live in the native menu bar (set up by the app); elsewhere a compact in-window menu bar follows
-//! the mode tabs.
+//! Responsive 3-Zone Header Bar (Premiere 26 layout, 38 pt):
+//! - Zone Left: Home icon + in-window menus (`File`, `Edit`, `Clip`, etc.), auto-collapsing to `[ ☰ Menu ▾ ]` if width < 1400px.
+//! - Zone Center: Centered Mode Switcher Pills (`[◫ Media Hub]`, `[▶ Edit Timeline]`, `[☊ Fusion Nodes]`, `[🎨 Color]`, `[⇗ Export]`).
+//! - Zone Right: Combined Project Title & Google Drive capsule, Workspaces dropdown, Quick Export, Appearance toggle, Fullscreen toggle.
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 
@@ -23,9 +23,35 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let max = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
     }
-    let mut x = rect.min.x + if app.integrated_titlebar { 104.0 } else { 14.0 };
-    // Home
-    let home = Rect::from_center_size(pos2(x + 10.0, rect.center().y), vec2(26.0, 26.0));
+
+    let total_w = rect.width();
+
+    // =========================================================================
+    // ZONE CENTER: Centered Mode Switcher Pills
+    // =========================================================================
+    let mode_tabs = [
+        (Mode::Import, "import", "◫ Media Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+        (Mode::Edit, "edit", "▶ Edit Timeline", Some("Editing"), Color32::from_rgb(0x38, 0x7c, 0xf2)),
+        (Mode::Edit, "fusion", "☊ Fusion Nodes", Some("Fusion"), Color32::from_rgb(0xec, 0x93, 0x24)),
+        (Mode::Edit, "color", "🎨 Color", Some("Color"), Color32::from_rgb(0xec, 0x93, 0x24)),
+        (Mode::Export, "export", "⇗ Export", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+    ];
+
+    // Measure pills to center them precisely
+    let pill_widths: Vec<f32> = mode_tabs.iter().map(|(_, _, label, _, _)| {
+        let galley = p.layout_no_wrap(label.to_string(), Tokens::ui(12.5), Color32::WHITE);
+        galley.size().x + 20.0
+    }).collect();
+    let center_spacing = 6.0;
+    let center_total_w: f32 = pill_widths.iter().sum::<f32>() + (mode_tabs.len() as f32 - 1.0) * center_spacing;
+    let center_start_x = (rect.center().x - center_total_w / 2.0).max(rect.min.x + 220.0);
+    let center_end_x = center_start_x + center_total_w;
+
+    // =========================================================================
+    // ZONE LEFT: Home + In-Window Menus (auto-collapses to [ ☰ Menu ▾ ] if < 1400px)
+    // =========================================================================
+    let left_start_x = rect.min.x + if app.integrated_titlebar { 104.0 } else { 14.0 };
+    let home = Rect::from_center_size(pos2(left_start_x + 13.0, rect.center().y), vec2(26.0, 26.0));
     let hresp = ui.interact(home, egui::Id::new("hdr-home"), Sense::click()).on_hover_text(tl!("Home"));
     app.auto.add("header.home", home, "Home");
     if hresp.hovered() {
@@ -35,16 +61,31 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if hresp.clicked() {
         app.ui.mode = Mode::Import;
     }
-    x = home.max.x + 16.0;
-    // Studio Pro Mode Switcher Tabs
-    let mode_tabs = [
-        (Mode::Import, "import", "◫ Media Hub", None),
-        (Mode::Edit, "edit", "▶ Edit Timeline", Some("Editing")),
-        (Mode::Edit, "fusion", "☊ Fusion Nodes", Some("Fusion")),
-        (Mode::Edit, "color", "🎨 Color", Some("Color")),
-        (Mode::Export, "export", "⇗ Export", None),
-    ];
-    for (m, id_tag, label_text, target_ws) in mode_tabs {
+
+    let menus_start_x = home.max.x + 12.0;
+    let left_avail_w = (center_start_x - 14.0 - menus_start_x).max(0.0);
+
+    if app.ui.show_menu_bar && left_avail_w > 50.0 {
+        if total_w < 1400.0 || left_avail_w < 440.0 {
+            // Auto-collapse into compact dropdown [ ☰ Menu ▾ ]
+            let btn_rect = Rect::from_min_size(pos2(menus_start_x, rect.min.y + 7.0), vec2(84.0, rect.height() - 14.0));
+            let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(btn_rect));
+            mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(0x20, 0x23, 0x2c);
+            crate::menus::collapsed_menu_button(app, &mut mu);
+        } else {
+            // Full expanded in-window menus
+            let menu_rect = Rect::from_min_max(pos2(menus_start_x, rect.min.y + 7.0), pos2(center_start_x - 10.0, rect.max.y - 7.0));
+            let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(menu_rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
+            mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+            mu.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+            mu.style_mut().visuals.override_text_color = Some(t.text_dim);
+            crate::menus::menu_bar(app, &mut mu);
+        }
+    }
+
+    // Draw the mode tabs in Zone Center
+    let mut cx = center_start_x;
+    for (i, (m, id_tag, label_text, target_ws, underline_col)) in mode_tabs.into_iter().enumerate() {
         let is_active = match (m, target_ws) {
             (Mode::Import, _) => app.ui.mode == Mode::Import,
             (Mode::Export, _) => app.ui.mode == Mode::Export,
@@ -52,58 +93,38 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             (Mode::Edit, Some("Color")) => app.ui.mode == Mode::Edit && app.ui.workspace == "Color",
             (Mode::Edit, _) => app.ui.mode == Mode::Edit && app.ui.workspace != "Fusion" && app.ui.workspace != "Fusion Nodes" && app.ui.workspace != "Color",
         };
-        let galley = p.layout_no_wrap(label_text.to_string(), Tokens::ui(12.5), if is_active { Color32::from_rgb(0xf8, 0xfa, 0xfc) } else { t.tab_text });
-        let gw = galley.size().x;
-        let r = Rect::from_min_size(pos2(x - 4.0, rect.min.y + 5.0), vec2(gw + 18.0, rect.height() - 10.0));
+        let pw = pill_widths[i];
+        let r = Rect::from_min_size(pos2(cx, rect.min.y + 5.0), vec2(pw, rect.height() - 10.0));
         let resp = ui.interact(r, egui::Id::new(("studio-hdr-mode", id_tag)), Sense::click());
         app.auto.add(&format!("header.mode.{}", id_tag), r, label_text);
-        
+
         if is_active {
             p.rect_filled(r, 4.0, Color32::from_rgb(0x22, 0x25, 0x32));
             p.rect_stroke(r, 4.0, Stroke::new(1.0, Color32::from_rgb(0x32, 0x37, 0x48)), StrokeKind::Inside);
-            let bar_col = if id_tag == "fusion" || id_tag == "color" { Color32::from_rgb(0xec, 0x93, 0x24) } else { Color32::from_rgb(0x38, 0x7c, 0xf2) };
-            p.line_segment([pos2(r.min.x + 6.0, r.max.y - 1.0), pos2(r.max.x - 6.0, r.max.y - 1.0)], Stroke::new(2.0, bar_col));
+            p.line_segment([pos2(r.min.x + 6.0, r.max.y - 1.0), pos2(r.max.x - 6.0, r.max.y - 1.0)], Stroke::new(2.5, underline_col));
         } else if resp.hovered() {
             p.rect_filled(r, 4.0, t.hover);
         }
-        
+
         let col = if is_active { Color32::from_rgb(0xf8, 0xfa, 0xfc) } else if resp.hovered() { t.text } else { t.tab_text };
-        p.galley_with_override_text_color(pos2(r.center().x - gw / 2.0, rect.center().y - galley.size().y / 2.0), galley, col);
-        
+        p.text(r.center(), Align2::CENTER_CENTER, label_text, Tokens::ui(12.5), col);
+
         if resp.clicked() {
             app.ui.mode = m;
             if let Some(ws) = target_ws {
                 app.set_workspace(ws);
             }
         }
-        x = r.max.x + 6.0;
+        cx = r.max.x + center_spacing;
     }
-    let mut left_end = x;
-    // In-window menus when there is no native menu bar.
-    if app.ui.show_menu_bar {
-        let menu_rect = Rect::from_min_max(pos2(x + 6.0, rect.min.y + 7.0), pos2(x + 520.0, rect.max.y - 7.0));
-        let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(menu_rect).layout(egui::Layout::left_to_right(egui::Align::Center)));
-        mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-        mu.style_mut().visuals.widgets.inactive.bg_stroke = Stroke::NONE;
-        mu.style_mut().visuals.override_text_color = Some(t.text_dim);
-        crate::menus::menu_bar(app, &mut mu);
-        left_end = mu.min_rect().max.x;
-    }
-    // Document title badge in center
-    let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
-    let title_badge = format!("🎬 {} · ☁ Google Drive", title_raw);
-    let title_w = 260.0;
-    let tr = Rect::from_center_size(pos2(rect.center().x, rect.center().y), vec2(title_w, 22.0));
-    p.rect_filled(tr, 11.0, Color32::from_rgb(0x10, 0x11, 0x16));
-    p.rect_stroke(tr, 11.0, Stroke::new(1.0, Color32::from_rgb(0x27, 0x2a, 0x36)), StrokeKind::Inside);
-    p.circle_filled(pos2(tr.min.x + 10.0, tr.center().y), 3.0, Color32::from_rgb(0x10, 0xb9, 0x81));
-    p.text(pos2(tr.min.x + 18.0, tr.center().y), Align2::LEFT_CENTER, title_badge, Tokens::ui(11.0), t.text);
-    let title = title_raw;
-    // Right cluster: icons at ~38 pt pitch, then workspace name in caps.
+
+    // =========================================================================
+    // ZONE RIGHT: Capsule, Workspaces, Quick Export, Appearance, Fullscreen
+    // =========================================================================
     let mut rx = rect.max.x - 14.0;
-    let mut btn = |ui: &mut egui::Ui, icon: Icon, id: &str, tip: &str, app: &mut FilmcraftApp| -> egui::Response {
-        let r = Rect::from_center_size(pos2(rx - 14.0, rect.center().y), vec2(28.0, 28.0));
-        rx -= 38.0;
+    let btn = |ui: &mut egui::Ui, icon: Icon, id: &str, tip: &str, app: &mut FilmcraftApp, rx_pos: &mut f32| -> egui::Response {
+        let r = Rect::from_center_size(pos2(*rx_pos - 14.0, rect.center().y), vec2(28.0, 28.0));
+        *rx_pos -= 36.0;
         let resp = ui.interact(r, egui::Id::new(("hdr", id)), Sense::click()).on_hover_text(tip);
         app.auto.add(&format!("header.{id}"), r, tip);
         if resp.hovered() {
@@ -112,86 +133,89 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         icons::paint(ui.painter(), r.shrink(6.0), icon, if resp.hovered() { t.text } else { t.text_dim });
         resp
     };
-    if btn(ui, Icon::Fullscreen, "fullscreen", tl!("Full screen"), app).clicked() {
+
+    // Fullscreen toggle
+    if btn(ui, Icon::Fullscreen, "fullscreen", tl!("Full screen"), app, &mut rx).clicked() {
         let fs = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
     }
-    if btn(ui, Icon::Speaker, "volume", tl!("Volume"), app).clicked() {
-        app.ui.status = tl!("Master volume: use the Audio Track Mixer").into();
-    }
-    if btn(ui, Icon::Search, "search", tl!("Search"), app).clicked() {
-        app.show_panel(crate::dock::PanelKind::Effects);
-    }
-    if btn(ui, Icon::Bell, "notifications", tl!("Progress"), app).clicked() {
-        app.ui.mode = Mode::Export;
-    }
-    // Co-op Editing: button to open live collaboration dialog
-    let collab_active = app.collab.is_some();
-    let collab_tip = if collab_active { "Co-op Session (Active)" } else { "Start or Join Co-op Session" };
-    let resp_collab = btn(ui, Icon::Globe, "coop", collab_tip, app);
-    if resp_collab.clicked() {
-        app.collab_dialog_open = !app.collab_dialog_open;
-    }
-    // Quick Export: a popup with File Name & Location, a preset list and Export (Premiere 26)
-    let qx = rect.max.x - 14.0 - 4.0 * 38.0; // the fifth button from the right
-    if btn(ui, Icon::Export, "quickExport", tl!("Quick Export"), app).clicked() {
-        app.ui.export.quick_open = !app.ui.export.quick_open;
-        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("quick-export-toggled"), true));
-    }
-    crate::panels::export_mode::quick_export(app, ui.ctx(), pos2(qx - 340.0, rect.max.y + 4.0));
-    // Appearance Mode: click for the next one (Auto, Light, Dark); the icon shows the current one.
+
+    // Appearance toggle
     let (icon, mode) = match app.session.prefs.appearance.appearance_mode.as_str() {
         "auto" => (Icon::Monitor, tl!("Sync with system")),
         "light" => (Icon::Sun, tl!("Light")),
         _ => (Icon::Moon, tl!("Dark")),
     };
     let tip = format!("{}: {mode}", tl!("Appearance Mode"));
-    let appearance = btn(ui, icon, "appearance", &tip, app);
+    let appearance = btn(ui, icon, "appearance", &tip, app, &mut rx);
     appearance.context_menu(|ui| crate::panels::settings::appearance_context_menu(app, ui));
     if appearance.clicked() {
         crate::panels::settings::cycle_appearance(app, ui.ctx());
     }
-    let ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app);
-    // workspace name (caps)
+
+    // Quick Export
+    let qx = rx - 14.0;
+    if btn(ui, Icon::Export, "quickExport", tl!("Quick Export"), app, &mut rx).clicked() {
+        app.ui.export.quick_open = !app.ui.export.quick_open;
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("quick-export-toggled"), true));
+    }
+    crate::panels::export_mode::quick_export(app, ui.ctx(), pos2(qx - 340.0, rect.max.y + 4.0));
+
+    // Workspace switcher button & label
+    let ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app, &mut rx);
     let ws = crate::i18n::t(&app.ui.workspace).to_uppercase();
     let wg = p.layout_no_wrap(ws.clone(), Tokens::ui(11.0), t.text_dim);
-    let wr = Rect::from_min_size(pos2(rx - wg.size().x + 10.0, rect.center().y - 10.0), vec2(wg.size().x + 8.0, 20.0));
+    let wr = Rect::from_min_size(pos2(rx - wg.size().x + 6.0, rect.center().y - 10.0), vec2(wg.size().x + 8.0, 20.0));
+    rx = wr.min.x - 12.0;
     let wresp = ui.interact(wr, egui::Id::new("hdr-ws-name"), Sense::click());
     app.auto.add("header.workspaceName", wr, &ws);
     p.galley_with_override_text_color(pos2(wr.min.x + 4.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.text } else { t.text_dim });
-    // Google Drive Squad Sync: One-click live cloud syncing and co-op editing
-    {
-        let label = if app.collab.is_some() { "👥 Squad: Live" } else { "☁ Google Drive" };
-        let g = p.layout_no_wrap(label.to_string(), Tokens::ui(12.0), Color32::WHITE);
-        let w = g.size().x + 34.0;
-        let r = Rect::from_min_size(pos2(wr.min.x - w - 14.0, rect.center().y - 12.0), vec2(w, 24.0));
-        let resp = ui.interact(r, egui::Id::new("hdr-gdrive-sync"), Sense::click()).on_hover_text("Google Drive Squad Sync & 1-Click Co-Op");
-        app.auto.add("header.gdrive", r, "Google Drive Squad Sync");
-        let btn_bg = if app.collab.is_some() { Color32::from_rgb(0x28, 0x90, 0x48) } else if resp.hovered() { t.accent_hover } else { Color32::from_rgb(0x20, 0x60, 0xc0) };
-        ui.painter().rect_filled(r, 12.0, btn_bg);
-        icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 14.0, r.center().y), vec2(14.0, 14.0)), Icon::Globe, Color32::WHITE);
-        ui.painter().galley(pos2(r.min.x + 25.0, r.center().y - g.size().y / 2.0), g, Color32::WHITE);
-        // Localized menus and user titles can be wider than English. Use the actual gap.
-        let left = left_end + 12.0;
-        let right = r.min.x - 12.0;
-        if right > left + 40.0 {
-            let mut job = egui::text::LayoutJob::simple_singleline(title, Tokens::ui(14.0), t.tab_text_active);
-            job.wrap.max_width = right - left;
-            job.wrap.max_rows = 1;
-            let galley = p.layout_job(job);
-            let half = galley.size().x / 2.0;
-            let center = if rect.center().x - half >= left && rect.center().x + half <= right { rect.center().x } else { (left + right) / 2.0 };
-            p.with_clip_rect(Rect::from_min_max(pos2(left, rect.min.y), pos2(right, rect.max.y))).galley(
-                pos2(center - half, rect.center().y - galley.size().y / 2.0),
-                galley,
-                t.tab_text_active,
-            );
-        }
 
-        if resp.clicked() {
-            app.collab_dialog_open = !app.collab_dialog_open;
+    // Interactive Combined Project Title & Google Drive Capsule
+    let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
+    let (status_text, dot_color) = if app.collab.is_some() {
+        ("👥 Squad: Live", Color32::from_rgb(0x10, 0xb9, 0x81))
+    } else if app.gdrive_config.is_authenticated() {
+        ("☁ Google Drive: Synced", Color32::from_rgb(0x10, 0xb9, 0x81))
+    } else {
+        ("☁ Google Drive: Local", Color32::from_rgb(0xf5, 0x9e, 0x0b))
+    };
+
+    let capsule_label = format!("🎬 {title_raw} · {status_text}");
+    let cg = p.layout_no_wrap(capsule_label.clone(), Tokens::ui(11.5), t.text);
+    let desired_capsule_w = cg.size().x + 32.0;
+    let min_capsule_x = center_end_x + 12.0;
+    let max_capsule_w = (rx - min_capsule_x).max(60.0);
+    let capsule_w = desired_capsule_w.min(max_capsule_w);
+
+    if capsule_w >= 80.0 {
+        let cr = Rect::from_min_size(pos2(rx - capsule_w, rect.center().y - 12.0), vec2(capsule_w, 24.0));
+        let cresp = ui.interact(cr, egui::Id::new("hdr-gdrive-capsule"), Sense::click()).on_hover_text("Open Google Drive & Squad Hub");
+        app.auto.add("header.gdrive_capsule", cr, "Google Drive & Squad Hub");
+
+        let capsule_bg = if cresp.hovered() { t.hover } else { Color32::from_rgb(0x15, 0x18, 0x22) };
+        p.rect_filled(cr, 12.0, capsule_bg);
+        p.rect_stroke(cr, 12.0, Stroke::new(1.0, Color32::from_rgb(0x28, 0x2e, 0x3e)), StrokeKind::Inside);
+
+        // Status dot
+        p.circle_filled(pos2(cr.min.x + 12.0, cr.center().y), 3.5, dot_color);
+
+        // Clipped text to prevent any overflow
+        let text_clip = Rect::from_min_max(pos2(cr.min.x + 22.0, cr.min.y), cr.max);
+        p.with_clip_rect(text_clip).text(
+            pos2(cr.min.x + 22.0, cr.center().y),
+            Align2::LEFT_CENTER,
+            capsule_label,
+            Tokens::ui(11.5),
+            if cresp.hovered() { Color32::WHITE } else { t.text },
+        );
+
+        if cresp.clicked() {
+            app.collab_dialog_open = true;
         }
     }
+
+    // Workspace popup menu
     let popup_id = egui::Id::new("workspaces-popup");
     if ws_resp.clicked() || wresp.clicked() {
         ui.ctx().data_mut(|d| d.insert_temp(popup_id, true));

@@ -940,6 +940,31 @@ pub fn menu_bar(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
     }
 }
 
+/// Draw a compact collapsed menu dropdown button containing all top-level menus.
+pub fn collapsed_menu_button(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("interface-language"), app.ui.language));
+    let items = menu_items(app);
+    let labels = app.session.prefs.labels.clone();
+    let ctx = ui.ctx().clone();
+    let mut clicked: Option<String> = None;
+    ui.menu_button("☰ Menu ▾", |ui| {
+        ui.set_min_width(200.0);
+        for top in MENUS {
+            let mine: Vec<&MenuItem> = items.iter().filter(|i| i.path.first().map(String::as_str) == Some(top)).collect();
+            ui.menu_button(app.ui.language.tr(top), |ui| {
+                ui.set_min_width(260.0);
+                if mine.is_empty() {
+                    ui.add_enabled(false, egui::Button::new(tl!("(empty)")));
+                }
+                menu_level(ui, &mine, 1, &mut clicked, &mut app.auto, &labels);
+            });
+        }
+    });
+    if let Some(id) = clicked {
+        let _ = invoke(app, &ctx, &id, json!({}));
+    }
+}
+
 /// Like a native menu bar (Windows, macOS): while one top-level menu is open, hovering another
 /// top-level title opens that menu instead (#1500). egui's `MenuBar` only switches on click.
 fn switch_on_hover(ctx: &egui::Context, titles: &[egui::Response]) {
