@@ -169,7 +169,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     pill(ui, Rect::from_min_size(head.min + vec2(pill_w + 6.0, 0.0), vec2(pill_w, 24.0)), &format!("{} · {}", seq_name(app), it.name), true);
 
     let node_btn_r = Rect::from_min_size(head.min + vec2(pill_w * 2.0 + 12.0, 0.0), vec2(node_btn_w, 24.0));
-    let nresp = ui.interact(node_btn_r, egui::Id::new("ec-open-fusion-nodes"), Sense::click()).on_hover_text("Open DaVinci Fusion Node Compositor for this clip");
+    let nresp =
+        ui.interact(node_btn_r, egui::Id::new("ec-open-fusion-nodes"), Sense::click()).on_hover_text("Open DaVinci Fusion Node Compositor for this clip");
     let nbg = if nresp.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x48) } else { Color32::from_rgb(0x28, 0x28, 0x34) };
     ui.painter().rect_filled(node_btn_r, 4.0, nbg);
     ui.painter().rect_stroke(node_btn_r, 4.0, Stroke::new(1.0, Color32::from_rgb(0xec, 0x93, 0x24)), egui::StrokeKind::Inside);
@@ -905,7 +906,8 @@ fn show_sequence_properties(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rec
     let b_bg = if resp.hovered() { t.hover } else { t.tl_header_bg };
     p.rect_filled(btn_r, 4.0, b_bg);
     p.rect_stroke(btn_r, 4.0, Stroke::new(1.0, t.separator), egui::StrokeKind::Inside);
-    p.text(btn_r.center(), Align2::CENTER_CENTER, "⚙ Sequence Settings", Tokens::semibold(11.5), t.text);
+    icons::paint(&p, Rect::from_center_size(pos2(btn_r.min.x + 18.0, btn_r.center().y), vec2(16.0, 16.0)), Icon::Gear, t.icon);
+    p.text(btn_r.center() + vec2(8.0, 0.0), Align2::CENTER_CENTER, "Sequence Settings", Tokens::semibold(11.5), t.text);
     if resp.clicked() {
         let _ = crate::menus::invoke(app, &ui.ctx().clone(), "sequence.settings", serde_json::json!({}));
     }
@@ -1112,7 +1114,20 @@ pub(crate) fn row_fill(r: Rect) -> Rect {
 /// keeps it.
 pub(crate) fn run(app: &mut FilmcraftApp, ctx: &egui::Context, actions: Vec<(String, Value)>) {
     let (down, press) = ctx.input(|i| (i.pointer.any_down(), i.pointer.press_start_time()));
-    if down && !actions.is_empty() {
+    if down
+        && actions.iter().any(|(cmd, p)| {
+            if cmd != "effects.setParam" {
+                return false;
+            }
+            let Some(clip) = p.get("clip").and_then(Value::as_u64) else { return false };
+            let Some((_, item)) = app.session.active_sequence().and_then(|s| s.find_item(ClipId(clip))) else { return false };
+            match p.get("effect") {
+                Some(Value::String(id)) => id == "lumetri",
+                Some(index) => index.as_u64().and_then(|i| usize::try_from(i).ok()).and_then(|i| item.effects.get(i)).is_some_and(|e| e.effect == "lumetri"),
+                None => false,
+            }
+        })
+    {
         app.grading_drag_active = true;
     }
     let key = egui::Id::new("effect-controls-drag-step");

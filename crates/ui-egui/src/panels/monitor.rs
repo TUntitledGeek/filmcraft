@@ -66,13 +66,21 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
                 let icon_r = Rect::from_center_size(center - vec2(0.0, 24.0), vec2(28.0, 28.0));
                 icons::paint(&p, icon_r, Icon::Film, t.text_dim);
                 p.text(center + vec2(0.0, 8.0), Align2::CENTER_CENTER, "Source Viewer", Tokens::semibold(14.0), t.text);
-                p.text(center + vec2(0.0, 28.0), Align2::CENTER_CENTER, "Double-click any clip in the Project bin to preview and trim here", Tokens::ui(11.5), t.text_dim);
+                p.text(
+                    center + vec2(0.0, 28.0),
+                    Align2::CENTER_CENTER,
+                    "Double-click any clip in the Project bin to preview and trim here",
+                    Tokens::ui(11.5),
+                    t.text_dim,
+                );
                 let btn_r = Rect::from_center_size(center + vec2(0.0, 60.0), vec2(160.0, 26.0));
                 let resp = ui.interact(btn_r, egui::Id::new("source-open-project-bin"), Sense::click());
                 let b_bg = if resp.hovered() { t.hover } else { t.tl_header_bg };
                 p.rect_filled(btn_r, 4.0, b_bg);
                 p.rect_stroke(btn_r, 4.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
-                p.text(btn_r.center(), Align2::CENTER_CENTER, "📂 Open Project Bin", Tokens::semibold(11.5), t.accent);
+                icons::paint(&p, Rect::from_center_size(pos2(btn_r.min.x + 18.0, btn_r.center().y), vec2(16.0, 16.0)), Icon::Folder, t.accent);
+                p.text(btn_r.center() + vec2(8.0, 0.0), Align2::CENTER_CENTER, "Open Project Bin", Tokens::semibold(11.5), t.accent);
+                app.auto.add("source.openProject", btn_r, "Open Project Bin");
                 if resp.clicked() {
                     app.ui.dock.activate(crate::dock::PanelKind::Project);
                 }
@@ -192,8 +200,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         ui.painter().rect_filled(pic, 0.0, t.monitor_bg);
         let playing = if which == Which::Program { app.playback.playing } else { app.source_playback.clock.playing };
         let active_scrub = app.is_scrubbing();
-        let in_motion = playing || active_scrub || app.grading_drag_active;
-        let res = if active_scrub || app.grading_drag_active {
+        let grading = which == Which::Program && app.grading_drag_active;
+        let in_motion = playing || active_scrub || grading;
+        let res = if grading {
+            PlaybackRes::Quarter
+        } else if active_scrub {
             PlaybackRes::Half
         } else {
             mv.effective_res(in_motion)
@@ -201,7 +212,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         // frame pixels per screen pixel along the axis that needs the most of them
         let screen_scale = (pic.width() * ppp / frame_size.0.max(1) as f32).max(pic.height() * ppp / frame_size.1.max(1) as f32).min(1.0);
         let scale = quantize_scale(res.scale().min(screen_scale.max(1.0 / 32.0)));
-        let scale = if (cfg!(target_arch = "wasm32") && in_motion) || app.grading_drag_active { scale.min(0.5) } else { scale };
+        let scale = if grading { scale.min(0.25) } else { scale };
         let frame = rate.frame_at(time);
         let rev = match target {
             Target::Item(i) => app.item_revision(i),
@@ -216,7 +227,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             (_, t) => t,
         };
         // Draft decoding (opt-in, while scrubbing, or always on single-threaded wasm32): only while in motion at 1/2 resolution or lower.
-        let draft = crate::frames::draft_playback(in_motion, scale, app.session.prefs.playback.draft_decode || active_scrub || app.grading_drag_active || cfg!(target_arch = "wasm32"));
+        let draft = crate::frames::draft_playback(playing || active_scrub, scale, app.session.prefs.playback.draft_decode || active_scrub);
         let key = FrameKey { target, frame, size: size_key, revision: rev, draft };
         let project = app.session.project.clone();
         if playing {
@@ -332,11 +343,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             crate::panels::masks::monitor_overlay(app, ui, pic, frame_size);
             crate::panels::transform_handles::monitor_overlay(app, ui, pic, frame_size);
         }
-        if let Some(collab) = &app.collab {
-            if let Ok(peers) = collab.peers.try_read() {
-                let peer_list: Vec<_> = peers.values().cloned().collect();
-                crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic, "program");
-            }
+        if let Some(collab) = &app.collab
+            && let Ok(peers) = collab.peers.try_read()
+        {
+            let peer_list: Vec<_> = peers.values().cloned().collect();
+            crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic, "program");
         }
     }
     if show_picture {
@@ -348,11 +359,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     }
     if which == Which::Source && show_picture {
         app.source_pic_rect = Some(pic);
-        if let Some(collab) = &app.collab {
-            if let Ok(peers) = collab.peers.try_read() {
-                let peer_list: Vec<_> = peers.values().cloned().collect();
-                crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic, "source");
-            }
+        if let Some(collab) = &app.collab
+            && let Ok(peers) = collab.peers.try_read()
+        {
+            let peer_list: Vec<_> = peers.values().cloned().collect();
+            crate::collab_overlay::paint_monitor_presence(ui.painter(), &peer_list, pic, "source");
         }
     }
     if which == Which::Source && show_picture && pic_resp.drag_started() && app.ui.tool != crate::state::Tool::Hand {
@@ -413,7 +424,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     if separate_source_drag {
         crate::panels::source_drag::controls(app, ui, Rect::from_min_size(pos2(row1.center().x - 52.0, settings_y + 26.0), vec2(104.0, 24.0)));
     }
-    let rresp = crate::widgets::dropdown_text(ui, rr, crate::i18n::t(res.label()), &t, egui::Id::new((prefix, "res")));
+    let grading_preview = which == Which::Program && app.grading_drag_active;
+    let resolution_label = if grading_preview { "1/4*" } else { crate::i18n::t(res.label()) };
+    let rresp = crate::widgets::dropdown_text(ui, rr, resolution_label, &t, egui::Id::new((prefix, "res"))).on_hover_text(if grading_preview {
+        "Interactive grading preview (1/4). Paused quality returns on release."
+    } else {
+        "Playback resolution"
+    });
     app.auto.add(&format!("{prefix}.resolution"), rr, "Select Playback Resolution");
     egui::Popup::menu(&rresp).show(|ui| {
         for r in PlaybackRes::ALL {
@@ -535,19 +552,18 @@ fn cpu_texture(
         .map(|img| (key, img))
         .or_else(|| (1..=8).map(|d| FrameKey { frame: key.frame.saturating_sub(d), ..key }).find_map(|k| app.frames.get(&k).map(|img| (k, img))))
         .or_else(|| (1..=8).map(|d| FrameKey { frame: key.frame.saturating_add(d), ..key }).find_map(|k| app.frames.get(&k).map(|img| (k, img))))
-        .or_else(|| key.draft.then(|| FrameKey { draft: false, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
-        .or_else(|| (!key.draft).then(|| FrameKey { draft: true, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| key.draft.then_some(FrameKey { draft: false, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
+        .or_else(|| (!key.draft).then_some(FrameKey { draft: true, ..key }).and_then(|k| app.frames.get(&k).map(|img| (k, img))))
         .or_else(|| {
             // Scale-transition guard: when pausing/settling between 0.5 (draft) and 1.0 (full),
             // check if the alternate resolution is already cached so we never blank
-            [500, 250, 1000].into_iter()
-                .filter(|&sz| sz != key.size)
-                .find_map(|sz| {
-                    app.frames.get(&FrameKey { size: sz, ..key })
-                        .or_else(|| app.frames.get(&FrameKey { size: sz, draft: true, ..key }))
-                        .or_else(|| app.frames.get(&FrameKey { size: sz, draft: false, ..key }))
-                        .map(|img| (FrameKey { size: sz, ..key }, img))
-                })
+            [500, 250, 1000].into_iter().filter(|&sz| sz != key.size).find_map(|sz| {
+                app.frames
+                    .get(&FrameKey { size: sz, ..key })
+                    .or_else(|| app.frames.get(&FrameKey { size: sz, draft: true, ..key }))
+                    .or_else(|| app.frames.get(&FrameKey { size: sz, draft: false, ..key }))
+                    .map(|img| (FrameKey { size: sz, ..key }, img))
+            })
         })
         .or_else(|| asked.iter().find_map(|k| app.frames.get(k).map(|img| (*k, img))));
     match found {
@@ -560,11 +576,10 @@ fn cpu_texture(
             (Some(tex), Some(k))
         }
         None => {
-            let existing = app.texture_existing(name)
-                .or_else(|| {
-                    let base_name = if name.contains("source") { "monitor-source" } else { "monitor-program" };
-                    app.texture_existing(base_name)
-                });
+            let existing = app.texture_existing(name).or_else(|| {
+                let base_name = if name.contains("source") { "monitor-source" } else { "monitor-program" };
+                app.texture_existing(base_name)
+            });
             (existing.map(|(id, _)| id), app.texture_key(name))
         }
     }

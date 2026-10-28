@@ -95,6 +95,17 @@ struct Job {
     prio: u32,
 }
 
+/// A future prefetch frame is not a replacement for the due frame. Coalesce revisions
+/// against foreground requests only; display order and the playback window are scheduled
+/// by `schedule_playback`, including reverse playback and preroll.
+fn coalesce_monitor_revisions(queue: &mut VecDeque<Job>, limit: u32) {
+    let mut newest = HashMap::<Target, u64>::new();
+    for job in queue.iter().filter(|job| !job.prefetch && job.prio <= limit) {
+        newest.entry(job.key.target).and_modify(|rev| *rev = (*rev).max(job.key.revision)).or_insert(job.key.revision);
+    }
+    queue.retain(|job| job.prio > limit || newest.get(&job.key.target).is_none_or(|rev| job.key.revision >= *rev));
+}
+
 struct Shared {
     queue: Mutex<VecDeque<Job>>,
     cv: Condvar,
@@ -420,7 +431,7 @@ impl FrameServer {
             profiling: AtomicBool::new(false),
             records: Mutex::new(Vec::new()),
             render_cost: Mutex::new(0.0),
-            workers: workers.max(1),
+            workers: if cfg!(target_arch = "wasm32") { 1 } else { workers.max(1) },
             stats: Mutex::new(FrameStats::default()),
         });
         let repaint: Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>> = Arc::new(Mutex::new(None));
@@ -547,7 +558,7 @@ impl FrameServer {
             return;
         }
         self.shared.stats.lock().unwrap_or_else(|e| e.into_inner()).request_misses += 1;
-        if prio <= 10 {
+        if !prefetch && prio <= 10 {
             // A new frame on screen for this view replaces the one asked for before: scrubbing
             // asks for one per refresh, and without this the oldest position would decode
             // first (or keep a decoder busy seeking to it) while the newest waits.
@@ -557,7 +568,7 @@ impl FrameServer {
             // source frames, so it holds no decoder back, and when frames take longer than a
             // refresh, cancelling each one for the next would show nothing until the mouse rests.
             let same_view = |k: &FrameKey| k.target == key.target;
-            q.retain(|j| !(same_view(&j.key) && j.key.frame != key.frame && (j.prio == 0 || j.prefetch || j.prio <= 10)));
+            q.retain(|j| !(same_view(&j.key) && j.prio <= 10 && ((!j.prefetch && j.key.frame != key.frame) || j.key.revision < key.revision)));
             for (k, c, prefetch) in self.shared.in_flight.lock().unwrap_or_else(|e| e.into_inner()).iter() {
                 if !prefetch && same_view(k) && k.frame != key.frame {
                     c.store(true, Ordering::Relaxed);
@@ -657,8 +668,8 @@ impl FrameServer {
         self.pump_cooperative(budget, None)
     }
 
-    /// Cooperative pump on wasm32: respects a maximum priority threshold and budget to keep
-    /// UI interaction, drag latency, and input processing at 60 FPS without jank.
+    /// Cooperative pump on wasm32. The budget is checked between jobs; one expensive job can
+    /// exceed it. It is not a hard upper bound on main-thread latency.
     pub fn pump_cooperative(&self, budget: Duration, max_prio: Option<u32>) -> usize {
         if cfg!(not(target_arch = "wasm32")) {
             return 0;
@@ -673,35 +684,14 @@ impl FrameServer {
                     break;
                 }
                 if let Some(limit) = max_prio {
-                    // While in motion (playback, scrubbing, or color grading), drop older pending monitor
-                    // frame requests for stale ticks or stale revisions so only the newest state is rendered.
-                    let mut latest_monitor_frames: std::collections::HashMap<Target, (i64, u64)> = std::collections::HashMap::new();
-                    for j in q.iter() {
-                        if matches!(j.key.target, Target::Sequence(_) | Target::SequencePlan(_)) && j.prio <= limit {
-                            let entry = latest_monitor_frames.entry(j.key.target).or_insert((j.key.frame, j.key.revision));
-                            if j.key.revision > entry.1 || (j.key.revision == entry.1 && j.key.frame != entry.0) {
-                                *entry = (j.key.frame, j.key.revision);
-                            }
-                        }
-                    }
-                    if !latest_monitor_frames.is_empty() {
-                        q.retain(|j| {
-                            if let Some(&(latest_frame, latest_rev)) = latest_monitor_frames.get(&j.key.target) {
-                                if j.prio <= limit && (j.key.revision < latest_rev || (j.key.frame != latest_frame && j.key.revision == latest_rev)) {
-                                    return false;
-                                }
-                            }
-                            true
-                        });
-                    }
+                    coalesce_monitor_revisions(&mut q, limit);
                 }
                 let best = q.iter().enumerate().min_by_key(|(i, j)| (j.prio, *i)).map(|(i, _)| i).unwrap_or(0);
-                if let Some(limit) = max_prio {
-                    if let Some(j) = q.get(best) {
-                        if j.prio > limit {
-                            break;
-                        }
-                    }
+                if let Some(limit) = max_prio
+                    && let Some(j) = q.get(best)
+                    && j.prio > limit
+                {
+                    break;
                 }
                 match q.remove(best) {
                     Some(job) => job,
@@ -716,7 +706,9 @@ impl FrameServer {
             } else {
                 retry.push(job);
             }
-            if (max_prio.is_none() || budget <= Duration::from_millis(2)) && done >= 1 {
+            // Yield after each completed job. In particular, playback cannot spend the rest
+            // of a UI pass rendering additional speculative frames after an expensive job.
+            if done >= 1 {
                 break;
             }
             if t0.elapsed() >= budget {
@@ -1019,6 +1011,41 @@ fn render_job(job: &Job, pool: &Arc<MediaPool>, services: &Arc<dyn Services>, pr
 mod tests {
     use super::{PlaybackMeter, Target, background_work, playback_plan};
     use filmcraft_project::ItemId;
+
+    fn queued(frame: i64, revision: u64, prefetch: bool) -> super::Job {
+        super::Job {
+            key: super::FrameKey { target: Target::Sequence(ItemId(1)), frame, revision, size: 500, draft: false },
+            queued: super::Instant::now(),
+            cancel: Default::default(),
+            prefetch,
+            catch_up: None,
+            time: filmcraft_time::Tick::ZERO,
+            scale: 0.5,
+            project: filmcraft_engine::Session::default().project,
+            prio: if prefetch { 1 } else { 0 },
+        }
+    }
+
+    #[test]
+    fn coalescing_preserves_due_frame_and_prefetch_in_both_directions() {
+        for next in [9, 11] {
+            let mut queue = std::collections::VecDeque::from([queued(10, 3, false), queued(next, 3, true)]);
+            super::coalesce_monitor_revisions(&mut queue, 10);
+            assert_eq!(queue.len(), 2, "preroll and playback need the due frame AND the prefetched frame");
+            assert_eq!(queue.front().unwrap().key.frame, 10);
+        }
+    }
+
+    #[test]
+    fn coalescing_discards_old_grading_revisions_without_prefetch_promoting_itself() {
+        let mut queue = std::collections::VecDeque::from([queued(10, 2, false), queued(10, 3, false), queued(11, 3, true)]);
+        super::coalesce_monitor_revisions(&mut queue, 10);
+        assert_eq!(queue.len(), 2);
+        assert!(queue.iter().all(|job| job.key.revision == 3));
+        let mut queue = std::collections::VecDeque::from([queued(10, 2, false), queued(11, 3, true)]);
+        super::coalesce_monitor_revisions(&mut queue, 10);
+        assert_eq!(queue.len(), 2, "speculation cannot cancel the foreground request");
+    }
 
     #[test]
     fn only_item_thumbnails_are_background_work() {

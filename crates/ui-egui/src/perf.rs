@@ -44,6 +44,9 @@ pub fn stats(app: &FilmcraftApp) -> Value {
         "frame": app.program_picture().map(|k| k.frame),
         "revision": app.program_picture().map(|k| k.revision),
         "projectRevision": app.session.revision,
+        "renderScale": app.program_picture().map(|k| k.size as f64 / 1000.0),
+        "draft": app.program_picture().map(|k| k.draft),
+        "gradingDragActive": app.grading_drag_active,
         "playheadFrame": app.session.active_sequence().map(|q| q.settings.frame_rate.frame_at(app.session.playhead())),
     });
     v["ui"] = json!({"fps": app.fps, "frameMs": if app.fps > 0.0 { 1000.0 / app.fps as f64 } else { 0.0 }});

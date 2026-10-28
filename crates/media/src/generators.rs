@@ -76,43 +76,7 @@ impl Generator {
     fn has_video(&self) -> bool {
         !matches!(self, Generator::Tone { .. })
     }
-    fn cache_kind(&self) -> u8 {
-        match self {
-            Generator::Demo(DemoScene::OceanSunset) => 1,
-            Generator::Demo(DemoScene::Aurora) => 2,
-            Generator::Demo(DemoScene::CityNight) => 3,
-            Generator::Demo(DemoScene::Dunes) => 4,
-            Generator::Demo(DemoScene::Plasma) => 5,
-            Generator::Demo(DemoScene::Forest) => 6,
-            Generator::BarsAndTone => 7,
-            Generator::CountingLeader => 8,
-            Generator::BlackVideo => 9,
-            Generator::TransparentVideo => 10,
-            Generator::ColorMatte { .. } => 11,
-            Generator::Tone { .. } => 12,
-        }
-    }
 }
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct DraftKey {
-    gen_kind: u8,
-    frame: i64,
-    w: u32,
-    h: u32,
-}
-
-struct DraftRingCache {
-    entries: std::collections::VecDeque<(DraftKey, Arc<VideoFrame>, usize)>,
-    current_bytes: usize,
-}
-
-static DRAFT_CACHE: std::sync::Mutex<DraftRingCache> = std::sync::Mutex::new(DraftRingCache {
-    entries: std::collections::VecDeque::new(),
-    current_bytes: 0,
-});
-
-const MAX_DRAFT_CACHE_BYTES: usize = 32 * 1024 * 1024; // 32 MB hard cap
 
 /// A generator bound to a frame size/rate/duration.
 pub struct GeneratorSource {
@@ -185,47 +149,11 @@ impl MediaSource for GeneratorSource {
         let rate = v.frame_rate;
         let frame = rate.frame_at(req.time.max(Tick::ZERO));
         let is_draft = crate::cancel::draft();
-        let scale = if is_draft {
-            req.scale.min(0.25).clamp(1.0 / 64.0, 1.0)
-        } else if cfg!(target_arch = "wasm32") {
-            req.scale.min(0.5).clamp(1.0 / 64.0, 1.0)
-        } else {
-            req.scale.clamp(1.0 / 64.0, 1.0)
-        };
+        let scale = if is_draft { req.scale.min(0.25).clamp(1.0 / 64.0, 1.0) } else { req.scale.clamp(1.0 / 64.0, 1.0) };
         let bucket = (scale * 64.0).round() as u16;
         let s = bucket as f32 / 64.0;
         let (w, h) = (((v.width as f32 * s).round() as u32).max(2), ((v.height as f32 * s).round() as u32).max(2));
         let t = rate.tick_of(frame).seconds() as f32;
-        if w <= 960 {
-            let draft_key = DraftKey {
-                gen_kind: self.generator.cache_kind(),
-                frame,
-                w,
-                h,
-            };
-            if let Ok(cache) = DRAFT_CACHE.lock() {
-                if let Some((_, frame_arc, _)) = cache.entries.iter().find(|(k, _, _)| *k == draft_key) {
-                    return Ok(frame_arc.clone());
-                }
-            }
-            let frame_res = self.cache.get_or_insert_with((frame, bucket, is_draft), || {
-                let px = render(&self.generator, w, h, t, frame, rate);
-                Ok(Arc::new(VideoFrame::rgba8(w, h, px).with_pts(rate.tick_of(frame))))
-            });
-            if let Ok(ref f) = frame_res {
-                let frame_bytes = (w as usize) * (h as usize) * 4;
-                if let Ok(mut cache) = DRAFT_CACHE.lock() {
-                    while !cache.entries.is_empty() && cache.current_bytes + frame_bytes > MAX_DRAFT_CACHE_BYTES {
-                        if let Some((_, _, old_bytes)) = cache.entries.pop_front() {
-                            cache.current_bytes = cache.current_bytes.saturating_sub(old_bytes);
-                        }
-                    }
-                    cache.current_bytes += frame_bytes;
-                    cache.entries.push_back((draft_key, f.clone(), frame_bytes));
-                }
-            }
-            return frame_res;
-        }
 
         self.cache.get_or_insert_with((frame, bucket, is_draft), || {
             let px = render(&self.generator, w, h, t, frame, rate);
@@ -333,6 +261,7 @@ fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
+#[cfg(test)]
 fn vnoise(x: f32, y: f32) -> f32 {
     let (xi, yi) = (x.floor(), y.floor());
     let (xf, yf) = (x - xi, y - yi);
@@ -346,12 +275,50 @@ fn vnoise(x: f32, y: f32) -> f32 {
     (a + (b - a) * u) + ((c + (d - c) * u) - (a + (b - a) * u)) * v
 }
 
-fn fbm(x: f32, y: f32, oct: u32) -> f32 {
+/// Adjacent pixels repeatedly sample the same noise lattice corners. Cache their exact hash
+/// values per row instead of recomputing four 64-bit hashes per pixel per octave. The cache
+/// is local to a rendering task, has no locks, and changes neither sampling nor image quality.
+struct NoiseCache {
+    corners: [Option<(i64, i64, f32)>; 256],
+}
+
+impl NoiseCache {
+    fn new() -> Self {
+        Self { corners: [None; 256] }
+    }
+    fn corner(&mut self, x: f32, y: f32) -> f32 {
+        let (x, y) = (x as i64, y as i64);
+        let slot = ((x.wrapping_mul(17) ^ y.wrapping_mul(31)) & 255) as usize;
+        let Some(entry) = self.corners.get_mut(slot) else { return hash(x.wrapping_mul(73_856_093) ^ y.wrapping_mul(19_349_663)) };
+        if let Some((cx, cy, value)) = *entry
+            && cx == x
+            && cy == y
+        {
+            return value;
+        }
+        let value = hash(x.wrapping_mul(73_856_093) ^ y.wrapping_mul(19_349_663));
+        *entry = Some((x, y, value));
+        value
+    }
+    fn sample(&mut self, x: f32, y: f32) -> f32 {
+        let (xi, yi) = (x.floor(), y.floor());
+        let (xf, yf) = (x - xi, y - yi);
+        let u = xf * xf * (3.0 - 2.0 * xf);
+        let v = yf * yf * (3.0 - 2.0 * yf);
+        let a = self.corner(xi, yi);
+        let b = self.corner(xi + 1.0, yi);
+        let c = self.corner(xi, yi + 1.0);
+        let d = self.corner(xi + 1.0, yi + 1.0);
+        (a + (b - a) * u) + ((c + (d - c) * u) - (a + (b - a) * u)) * v
+    }
+}
+
+fn fbm(x: f32, y: f32, oct: u32, cache: &mut NoiseCache) -> f32 {
     let mut s = 0.0;
     let mut a = 0.5;
     let (mut fx, mut fy) = (x, y);
     for _ in 0..oct {
-        s += a * vnoise(fx, fy);
+        s += a * cache.sample(fx, fy);
         fx = fx * 2.03 + 1.7;
         fy = fy * 2.01 + 9.2;
         a *= 0.5;
@@ -361,6 +328,46 @@ fn fbm(x: f32, y: f32, oct: u32) -> f32 {
 
 fn to8(c: [f32; 3]) -> [u8; 4] {
     [(c[0].clamp(0.0, 1.0) * 255.0) as u8, (c[1].clamp(0.0, 1.0) * 255.0) as u8, (c[2].clamp(0.0, 1.0) * 255.0) as u8, 255]
+}
+
+struct DemoColumn {
+    aurora: [(f32, f32); 3],
+    mountain: f32,
+    dunes: [(f32, [f32; 3]); 4],
+}
+
+/// These scene features depend on x and time, never y. Evaluate once per column rather
+/// than once per pixel. Retain the same arithmetic and all detail octaves at full quality.
+fn demo_columns(scene: DemoScene, width: usize, t: f32, draft: bool) -> Vec<DemoColumn> {
+    if !matches!(scene, DemoScene::Aurora | DemoScene::Dunes) {
+        return Vec::new();
+    }
+    let mut noise = NoiseCache::new();
+    (0..width)
+        .map(|x| {
+            let u = x as f32 / width as f32;
+            let mut column = DemoColumn { aurora: [(0.0, 0.0); 3], mountain: 0.0, dunes: [(0.0, [0.0; 3]); 4] };
+            if scene == DemoScene::Aurora {
+                for (i, pair) in column.aurora.iter_mut().enumerate() {
+                    let fi = i as f32;
+                    let base =
+                        0.28 + 0.08 * fi + 0.06 * (u * 3.0 + t * 0.15 + fi).sin() + 0.05 * fbm(u * 3.0 + t * 0.05, fi, if draft { 1 } else { 3 }, &mut noise);
+                    let ray = 0.5 + 0.5 * fbm(u * 40.0 + t * 0.4 + fi * 10.0, fi, if draft { 1 } else { 2 }, &mut noise);
+                    *pair = (base, ray);
+                }
+                column.mountain = 0.72 + 0.08 * fbm(u * 3.0, 3.3, if draft { 1 } else { 5 }, &mut noise) + 0.05 * (u * 5.0).sin();
+            } else {
+                for (k, pair) in column.dunes.iter_mut().enumerate() {
+                    let fk = k as f32;
+                    let x = u * (1.0 + fk * 0.6) + t * 0.01 * (fk + 1.0);
+                    let ridge = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, if draft { 1 } else { 3 }, &mut noise);
+                    let shade = 0.5 + 0.5 * ((x * 6.0 + fk).cos());
+                    *pair = (ridge, lerp3([0.78, 0.45, 0.22], [0.98, 0.72, 0.45], shade));
+                }
+            }
+            column
+        })
+        .collect()
 }
 
 /// Render a generator frame as straight-alpha sRGB RGBA8.
@@ -379,6 +386,7 @@ pub fn render(g: &Generator, w: u32, h: u32, t: f32, frame: i64, rate: FrameRate
         Generator::Demo(scene) => {
             let scene = *scene;
             let is_draft = crate::cancel::draft() && wu <= 960;
+            let columns = demo_columns(scene, wu, t, is_draft);
             let cancelled = AtomicBool::new(false);
             px.par_chunks_mut(wu * 4).enumerate().for_each(|(y, row)| {
                 if cancelled.load(Ordering::Relaxed) {
@@ -389,9 +397,10 @@ pub fn render(g: &Generator, w: u32, h: u32, t: f32, frame: i64, rate: FrameRate
                     return;
                 }
                 let v = y as f32 / hu as f32;
+                let mut noise = NoiseCache::new();
                 for x in 0..wu {
                     let u = x as f32 / wu as f32;
-                    let c = demo_pixel(scene, u, v, wu as f32 / hu as f32, t, is_draft);
+                    let c = demo_pixel(scene, u, v, wu as f32 / hu as f32, t, is_draft, &mut noise, columns.get(x));
                     row[x * 4..x * 4 + 4].copy_from_slice(&to8(c));
                 }
             });
@@ -490,7 +499,7 @@ fn leader(px: &mut [u8], w: usize, h: usize, t: f32, _frame: i64, _rate: FrameRa
     draw_text(px, w, h, (w as i32 - tw) / 2, (h as i32 - dh) / 2, dh, &s, [20, 20, 20, 255]);
 }
 
-fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: bool) -> [f32; 3] {
+fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: bool, noise: &mut NoiseCache, column: Option<&DemoColumn>) -> [f32; 3] {
     match scene {
         DemoScene::OceanSunset => {
             let horizon = 0.58;
@@ -509,14 +518,14 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
                 }
                 // wispy clouds
                 let oct = if is_draft { 1 } else { 4 };
-                let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, oct);
+                let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, oct, noise);
                 let cm = smoothstep(0.15, 0.45, cl) * smoothstep(0.1, 0.45, v) * (1.0 - smoothstep(0.45, 0.55, v));
                 lerp3(c, [0.55, 0.28, 0.35], cm * 0.55)
             } else {
                 let k = (v - horizon) / (1.0 - horizon);
                 let mut c = lerp3([0.35, 0.18, 0.28], [0.03, 0.05, 0.12], k.powf(0.7));
                 let oct = if is_draft { 1 } else { 3 };
-                let wave = fbm(u * 18.0 * (1.0 - k * 0.6) + t * 0.3, (v - horizon) * 90.0 / (0.3 + k) - t * 1.4, oct);
+                let wave = fbm(u * 18.0 * (1.0 - k * 0.6) + t * 0.3, (v - horizon) * 90.0 / (0.3 + k) - t * 1.4, oct, noise);
                 let dx = (u - sun[0]) * aspect;
                 let path = (-dx * dx * 160.0 / (0.2 + k * 2.0)).exp();
                 let sparkle = smoothstep(0.05, 0.4, wave) * path;
@@ -541,15 +550,19 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
             let oct2 = if is_draft { 1 } else { 2 };
             for (i, col) in [[0.2, 1.0, 0.55], [0.55, 0.3, 1.0], [0.1, 0.9, 0.8]].iter().enumerate() {
                 let fi = i as f32;
-                let base = 0.28 + 0.08 * fi + 0.06 * (u * 3.0 + t * 0.15 + fi).sin() + 0.05 * fbm(u * 3.0 + t * 0.05, fi, oct1);
+                let (base, ray) = column.and_then(|c| c.aurora.get(i)).copied().unwrap_or_else(|| {
+                    (
+                        0.28 + 0.08 * fi + 0.06 * (u * 3.0 + t * 0.15 + fi).sin() + 0.05 * fbm(u * 3.0 + t * 0.05, fi, oct1, noise),
+                        0.5 + 0.5 * fbm(u * 40.0 + t * 0.4 + fi * 10.0, fi, oct2, noise),
+                    )
+                });
                 let dy = v - base;
-                let ray = 0.5 + 0.5 * fbm(u * 40.0 + t * 0.4 + fi * 10.0, fi, oct2);
                 let a = (-dy * dy * 90.0).exp() * if dy > 0.0 { 1.0 } else { (dy * 12.0).exp() } * ray;
                 c = lerp3(c, *col, (a * 0.8).min(1.0));
             }
             // mountains
             let m_oct = if is_draft { 1 } else { 5 };
-            let m = 0.72 + 0.08 * fbm(u * 3.0, 3.3, m_oct) + 0.05 * (u * 5.0).sin();
+            let m = column.map(|c| c.mountain).unwrap_or_else(|| 0.72 + 0.08 * fbm(u * 3.0, 3.3, m_oct, noise) + 0.05 * (u * 5.0).sin());
             if v > m {
                 let snow = smoothstep(0.02, 0.0, v - m) * 0.3;
                 c = lerp3([0.02, 0.03, 0.05], [0.4, 0.5, 0.6], snow);
@@ -601,10 +614,12 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
             for k in 0..max_k {
                 let fk = k as f32;
                 let x = u * (1.0 + fk * 0.6) + t * 0.01 * (fk + 1.0);
-                let ridge = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, oct);
-                if v > ridge {
+                let (ridge, base) = column.and_then(|c| c.dunes.get(k)).copied().unwrap_or_else(|| {
+                    let ridge = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, oct, noise);
                     let shade = 0.5 + 0.5 * ((x * 6.0 + fk).cos());
-                    let base = lerp3([0.78, 0.45, 0.22], [0.98, 0.72, 0.45], shade);
+                    (ridge, lerp3([0.78, 0.45, 0.22], [0.98, 0.72, 0.45], shade))
+                });
+                if v > ridge {
                     c = lerp3(base, [0.55, 0.28, 0.15], (v - ridge).min(0.2) * 2.0 * (fk / 3.0));
                 }
             }
@@ -621,7 +636,7 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
             let mut c = lerp3([0.75, 0.82, 0.8], [0.35, 0.45, 0.4], v);
             // god rays
             let oct1 = if is_draft { 1 } else { 2 };
-            let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, oct1);
+            let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, oct1, noise);
             c = lerp3(c, [1.0, 0.97, 0.85], ray * (1.0 - v) * 0.35);
             let trunk_count = if is_draft { 2 } else { 5 };
             for k in 0..trunk_count {
@@ -638,7 +653,7 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
                 }
             }
             let oct2 = if is_draft { 1 } else { 3 };
-            let mist = smoothstep(0.55, 1.0, v) * (0.6 + 0.4 * fbm(u * 3.0 + t * 0.1, v * 5.0, oct2));
+            let mist = smoothstep(0.55, 1.0, v) * (0.6 + 0.4 * fbm(u * 3.0 + t * 0.1, v * 5.0, oct2, noise));
             lerp3(c, [0.85, 0.88, 0.86], mist * 0.6)
         }
     }
@@ -647,6 +662,49 @@ fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32, is_draft: b
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_noise_is_bit_exact_including_collisions_and_negative_coordinates() {
+        let mut cache = NoiseCache::new();
+        for y in -30..30 {
+            for x in -300..300 {
+                let (x, y) = (x as f32 * 0.217, y as f32 * 0.371);
+                assert_eq!(cache.sample(x, y).to_bits(), vnoise(x, y).to_bits());
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_columns_preserve_every_pixel_at_full_and_draft_quality() {
+        for scene in [DemoScene::Aurora, DemoScene::Dunes] {
+            for draft in [false, true] {
+                for time in [0.0, 3.5, 12.25] {
+                    let columns = demo_columns(scene, 96, time, draft);
+                    for y in 0..54 {
+                        let mut noise = NoiseCache::new();
+                        for x in 0..96 {
+                            let (u, v) = (x as f32 / 96.0, y as f32 / 54.0);
+                            let reference = demo_pixel(scene, u, v, 96.0 / 54.0, time, draft, &mut noise, None);
+                            let prepared = demo_pixel(scene, u, v, 96.0 / 54.0, time, draft, &mut noise, columns.get(x));
+                            assert_eq!(to8(reference), to8(prepared), "{scene:?}, draft={draft}, time={time}, ({x}, {y})");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn source_cache_reuses_footage_and_keeps_different_mattes_separate() {
+        let source = GeneratorSource::demo(DemoScene::OceanSunset);
+        let request = FrameRequest { time: Tick::ZERO, scale: 0.0625 };
+        let first = source.video_frame(request).unwrap();
+        assert!(Arc::ptr_eq(&first, &source.video_frame(request).unwrap()));
+        let matte = |color| GeneratorSource::new(Generator::ColorMatte { color }, 64, 36, FrameRate::FPS_24, Tick(TICKS_PER_SECOND));
+        let red = matte([1.0, 0.0, 0.0, 1.0]).video_frame(request).unwrap();
+        let blue = matte([0.0, 0.0, 1.0, 1.0]).video_frame(request).unwrap();
+        assert_ne!(red.to_rgba8(), blue.to_rgba8());
+    }
 
     #[test]
     fn deterministic_and_scaled() {
@@ -660,9 +718,7 @@ mod tests {
     #[test]
     fn draft_mode_scales_and_renders() {
         let g = GeneratorSource::demo(DemoScene::OceanSunset);
-        let a = crate::cancel::with_draft(true, || {
-            g.video_frame(FrameRequest { time: Tick(TICKS_PER_SECOND), scale: 0.5 }).unwrap()
-        });
+        let a = crate::cancel::with_draft(true, || g.video_frame(FrameRequest { time: Tick(TICKS_PER_SECOND), scale: 0.5 }).unwrap());
         // Draft clamp downsamples to 0.25 max for instant responsive scrubbing
         assert_eq!((a.width, a.height), (480, 270));
         assert_eq!(a.to_rgba8().len(), 480 * 270 * 4);

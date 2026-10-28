@@ -71,9 +71,14 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         if open_section(ui, app, &e, "Basic Correction", "basic_on", "basic", &mut sections) {
             lut_combo(ui, app, &e, "input_lut", tl!("Input LUT"), true, &mut lut_actions);
             sub(ui, &t, tl!("Color"));
-            slider(ui, &e, mt, "temperature", tl!("Temperature"), Some(Gradient::Temp), &t, &mut actions, clip, idx);
-            slider(ui, &e, mt, "tint", tl!("Tint"), Some(Gradient::Tint), &t, &mut actions, clip, idx);
-            slider(ui, &e, mt, "saturation", tl!("Saturation"), None, &t, &mut actions, clip, idx);
+            for (id, label, gradient) in [
+                ("temperature", tl!("Temperature"), Some(Gradient::Temp)),
+                ("tint", tl!("Tint"), Some(Gradient::Tint)),
+                ("saturation", tl!("Saturation"), None),
+            ] {
+                let row = slider(ui, &e, mt, id, label, gradient, &t, &mut actions, clip, idx);
+                auto_rows.push((format!("lumetri.param.{id}"), row, label));
+            }
             sub(ui, &t, tl!("Light"));
             for (id, label) in [
                 ("exposure", tl!("Exposure")),
@@ -83,7 +88,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 ("whites", tl!("Whites")),
                 ("blacks", tl!("Blacks")),
             ] {
-                slider(ui, &e, mt, id, label, None, &t, &mut actions, clip, idx);
+                let row = slider(ui, &e, mt, id, label, None, &t, &mut actions, clip, idx);
+                auto_rows.push((format!("lumetri.param.{id}"), row, label));
             }
             if hdr {
                 sub(ui, &t, tl!("HDR"));
@@ -471,13 +477,11 @@ fn slider(
     );
     let (_, nv) =
         crate::widgets::hot_number(&mut vui, egui::Id::new(("lval", clip.0, id)), v, (soft_max - soft_min) / 300.0, (min, max), decimals as usize, "", t);
-    let target_v = out.or(nv).map(|v_raw| {
-        (v_raw * 10f64.powi(decimals as i32)).round() / 10f64.powi(decimals as i32)
-    });
-    if let Some(new_val) = target_v {
-        if (new_val - v).abs() > 1e-6 {
-            actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": new_val}));
-        }
+    let target_v = out.or(nv).map(|v_raw| (v_raw * 10f64.powi(decimals as i32)).round() / 10f64.powi(decimals as i32));
+    if let Some(new_val) = target_v
+        && (new_val - v).abs() > 1e-6
+    {
+        actions.push(json!({"clip": clip.0, "effect": idx, "param": id, "value": new_val}));
     }
     row
 }
