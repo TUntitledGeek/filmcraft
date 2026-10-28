@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const dir = path.resolve(__dirname, 'target/web/dist');
-const port = 8766;
+const port = parseInt(process.env.PORT || process.argv[2] || '8770', 10);
 
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
