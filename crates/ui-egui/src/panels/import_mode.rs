@@ -11,6 +11,33 @@ use crate::FilmcraftApp;
 use crate::icons::{self, Icon};
 use crate::theme::Tokens;
 
+/// Check if a path exists using the engine's host services (safe on desktop and browser virtual files).
+pub fn service_file_exists(app: &FilmcraftApp, path: &str) -> bool {
+    app.session.services.file_size(path).is_ok() || app.session.services.read_file(path).is_ok()
+}
+
+/// Resolve candidate file location across bound directory, web virtual files (/files/...), and local path.
+pub fn resolve_file_path(app: &FilmcraftApp, candidate_dir: &str, file_name: &str) -> Option<String> {
+    if !candidate_dir.is_empty() {
+        let combined = if candidate_dir.ends_with('/') || candidate_dir.ends_with('\\') {
+            format!("{candidate_dir}{file_name}")
+        } else {
+            format!("{candidate_dir}/{file_name}")
+        };
+        if service_file_exists(app, &combined) {
+            return Some(combined);
+        }
+    }
+    let web_path = format!("/files/{file_name}");
+    if service_file_exists(app, &web_path) {
+        return Some(web_path);
+    }
+    if service_file_exists(app, file_name) {
+        return Some(file_name.to_string());
+    }
+    None
+}
+
 pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let p = ui.painter().with_clip_rect(rect);
@@ -116,15 +143,14 @@ fn show_recent_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             ui.painter().text(path_pos, Align2::LEFT_CENTER, parent.to_string_lossy(), Tokens::ui(11.0), t.text_dim);
         }
 
-        // Cloud status badge (🟢 Synced vs 💾 Local)
+        // Truthful cloud status badge (🟢 Synced vs 📁 Linked vs 💾 Local)
         let is_bound_path = app.gdrive_config.active_folder_name.as_deref().map_or(false, |dir| path.starts_with(dir));
-        let is_cloud = is_bound_path || path.contains("Google Drive") || path.contains("Cloud") || path.contains("gdrive");
         let badge_rect = Rect::from_min_size(pos2(row.max.x - 76.0, row.center().y - 10.0), vec2(68.0, 20.0));
-        let (b_bg, b_fg, b_text) = if is_cloud {
-            if app.gdrive_config.is_authenticated() || is_bound_path {
+        let (b_bg, b_fg, b_text) = if is_bound_path {
+            if app.gdrive_last_synced.is_some() {
                 (Color32::from_rgb(0x18, 0x38, 0x22), Color32::from_rgb(0x4a, 0xde, 0x80), "🟢 Synced")
             } else {
-                (Color32::from_rgb(0x2d, 0x2e, 0x18), Color32::from_rgb(0xde, 0xcd, 0x4a), "☁ Cloud")
+                (Color32::from_rgb(0x18, 0x28, 0x48), Color32::from_rgb(0x60, 0xb0, 0xec), "📁 Linked")
             }
         } else {
             (Color32::from_rgb(0x25, 0x28, 0x34), Color32::from_rgb(0x94, 0xa3, 0xb8), "💾 Local")
@@ -150,27 +176,86 @@ fn show_recent_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
 }
 
+#[derive(Clone, Debug)]
+struct CloudEntry {
+    name: String,
+    size_bytes: u64,
+    is_project: bool,
+    is_sample: bool,
+}
+
 fn show_cloud_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let p = ui.painter().with_clip_rect(rect);
-    let squad = default_squad_folder();
+
+    let candidate_dir = app.gdrive_config.active_folder_name.as_deref().unwrap_or("").trim().to_string();
+    let local_input = app.gdrive_local_path_input.trim().to_string();
+    let active_dir = if !candidate_dir.is_empty() { candidate_dir } else { local_input };
+
+    // Discover real files if directory is bound/provided
+    let mut discovered: Vec<CloudEntry> = Vec::new();
+    if !active_dir.is_empty() {
+        if let Some(Ok(entries)) = app.session.services.list_entries(&active_dir) {
+            for entry in entries {
+                let name = entry.name;
+                let is_proj = name.ends_with(".fcproj") || name.ends_with(".filmcraft");
+                let is_media = name.ends_with(".mp4") || name.ends_with(".mov") || name.ends_with(".m2ts")
+                    || name.ends_with(".wav") || name.ends_with(".mp3") || name.ends_with(".png") || name.ends_with(".jpg");
+                if is_proj || is_media {
+                    let full = if active_dir.ends_with('/') || active_dir.ends_with('\\') {
+                        format!("{active_dir}{name}")
+                    } else {
+                        format!("{active_dir}/{name}")
+                    };
+                    let sz = app.session.services.file_size(&full).unwrap_or(entry.size.unwrap_or(0));
+                    discovered.push(CloudEntry {
+                        name,
+                        size_bytes: sz,
+                        is_project: is_proj,
+                        is_sample: false,
+                    });
+                }
+            }
+        }
+    }
+
+    let has_discovered = !discovered.is_empty();
+    let (entries, is_sample_catalog) = if has_discovered {
+        (discovered, false)
+    } else {
+        let squad = default_squad_folder();
+        let samples = squad.project_files.into_iter().map(|f| {
+            let is_proj = f.name.ends_with(".fcproj") || f.name.ends_with(".filmcraft");
+            CloudEntry {
+                name: f.name,
+                size_bytes: f.size_bytes,
+                is_project: is_proj,
+                is_sample: true,
+            }
+        }).collect();
+        (samples, true)
+    };
 
     // Section title & Sync status
-    let folder_title = if let Some(name) = &app.gdrive_config.active_folder_name {
-        name.clone()
+    let folder_title = if !active_dir.is_empty() {
+        active_dir.to_string()
     } else if let Some(id) = &app.gdrive_config.active_folder_id {
         let short: String = id.chars().take(8).collect();
         format!("Google Drive ({short})")
     } else {
-        "Google Drive & Cloud Storage".to_string()
+        "Cloud Storage & Sample Projects".to_string()
     };
     p.text(rect.min + vec2(0.0, 12.0), Align2::LEFT_CENTER, &folder_title, Tokens::semibold(15.0), t.text);
 
-    let (badge_bg, badge_fg, badge_text) = if app.gdrive_syncing {
+    let (badge_bg, badge_fg, badge_text) = if is_sample_catalog && active_dir.is_empty() && !app.gdrive_config.is_authenticated() {
+        (Color32::from_rgb(0x28, 0x2b, 0x35), Color32::from_rgb(0x94, 0xa3, 0xb8), "○ Sample Templates")
+    } else if app.gdrive_syncing {
         (Color32::from_rgb(0x18, 0x28, 0x48), Color32::from_rgb(0x60, 0xb0, 0xec), "● Syncing...")
+    } else if app.gdrive_last_synced.is_some() {
+        (Color32::from_rgb(0x18, 0x48, 0x28), Color32::from_rgb(0x60, 0xec, 0x90), "● Remote Synced")
     } else if app.gdrive_config.is_authenticated() {
         (Color32::from_rgb(0x18, 0x48, 0x28), Color32::from_rgb(0x60, 0xec, 0x90), "● Connected")
-    } else if app.gdrive_config.active_folder_id.is_some() || app.gdrive_config.active_folder_name.is_some() {
+    } else if !active_dir.is_empty() {
         (Color32::from_rgb(0x38, 0x30, 0x18), Color32::from_rgb(0xec, 0xc0, 0x60), "● Directory Linked")
     } else {
         (Color32::from_rgb(0x28, 0x2b, 0x35), Color32::from_rgb(0x94, 0xa3, 0xb8), "○ Not Connected")
@@ -185,58 +270,46 @@ fn show_cloud_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     p.rect_stroke(box_r, 8.0, egui::Stroke::new(1.0, t.separator), egui::StrokeKind::Inside);
 
     let mut y = box_r.min.y + 8.0;
-    for (idx, file) in squad.project_files.iter().enumerate() {
+    for (idx, file) in entries.iter().enumerate() {
         let row = Rect::from_min_size(pos2(box_r.min.x + 8.0, y), vec2(box_r.width() - 16.0, 48.0));
         let resp = ui.interact(row, egui::Id::new(("cloud-file", idx)), Sense::click());
+        app.auto.add(&format!("hub.cloud.row.{idx}"), row, &file.name);
 
         if resp.hovered() {
             p.rect_filled(row, 6.0, t.hover);
         }
 
         // Icon
-        let is_proj = file.name.ends_with(".fcproj") || file.name.ends_with(".filmcraft");
-        let icon = if is_proj { Icon::Sequence } else { Icon::Film };
+        let icon = if file.is_project { Icon::Sequence } else { Icon::Film };
         icons::paint(&p, Rect::from_center_size(pos2(row.min.x + 20.0, row.center().y), vec2(18.0, 18.0)), icon, Color32::from_rgb(0x3a, 0x8a, 0xec));
 
         // Name & size info
         p.text(pos2(row.min.x + 42.0, row.min.y + 15.0), Align2::LEFT_CENTER, &file.name, Tokens::semibold(12.5), t.text);
-        let kind_str = if is_proj { "Project File" } else { "Media Asset" };
+        let kind_str = if file.is_sample {
+            if file.is_project { "Sample Project Template (Demo)" } else { "Sample Media Asset (Demo)" }
+        } else {
+            if file.is_project { "Cloud Project File" } else { "Cloud Media Asset" }
+        };
         let meta_str = format!("{:.1} MB · {}", file.size_bytes as f64 / 1_000_000.0, kind_str);
         p.text(pos2(row.min.x + 42.0, row.min.y + 32.0), Align2::LEFT_CENTER, meta_str, Tokens::ui(10.5), t.text_dim);
 
         // Action button
-        let btn_label = if is_proj { "Open" } else { "Import" };
+        let btn_label = if file.is_project { "Open" } else { "Import" };
         let btn_w = 75.0;
         let btn_r = Rect::from_min_size(pos2(row.max.x - btn_w - 8.0, row.center().y - 12.0), vec2(btn_w, 24.0));
         let bresp = ui.interact(btn_r, egui::Id::new(("open-cloud-file", idx)), Sense::click());
+        app.auto.add(&format!("hub.cloud.action.{idx}"), btn_r, btn_label);
+        app.auto.add(&format!("hub.cloud.open.{idx}"), btn_r, btn_label);
+
         let bcolor = if bresp.hovered() { t.accent_hover } else { t.accent };
         p.rect_filled(btn_r, 4.0, bcolor);
         p.text(btn_r.center(), Align2::CENTER_CENTER, btn_label, Tokens::semibold(11.0), Color32::WHITE);
 
         if bresp.clicked() || resp.clicked() {
             let ctx = ui.ctx().clone();
-            let bound_candidate = app.gdrive_config.active_folder_name.as_deref().unwrap_or("").trim();
-            let input_candidate = app.gdrive_local_path_input.trim();
-            let candidate_dir = if !bound_candidate.is_empty() {
-                bound_candidate
-            } else {
-                input_candidate
-            };
-
-            if is_proj {
-                let candidate_path = std::path::Path::new(candidate_dir).join(&file.name);
-                if !candidate_dir.is_empty() && candidate_path.exists() {
-                    match crate::menus::invoke(app, &ctx, "file.open", json!({"path": candidate_path.to_string_lossy()})) {
-                        Ok(_) => {
-                            app.ui.mode = crate::state::Mode::Edit;
-                            app.ui.status = format!("Opened project: {}", file.name);
-                        }
-                        Err(e) => {
-                            app.ui.status = format!("Failed to open {}: {e}", file.name);
-                        }
-                    }
-                } else if std::path::Path::new(&file.name).exists() {
-                    match crate::menus::invoke(app, &ctx, "file.open", json!({"path": file.name})) {
+            if file.is_project {
+                if let Some(target_path) = resolve_file_path(app, &active_dir, &file.name) {
+                    match crate::menus::invoke(app, &ctx, "file.open", json!({"path": target_path})) {
                         Ok(_) => {
                             app.ui.mode = crate::state::Mode::Edit;
                             app.ui.status = format!("Opened project: {}", file.name);
@@ -246,20 +319,11 @@ fn show_cloud_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                         }
                     }
                 } else {
-                    app.ui.status = format!("Cannot open cloud project '{}': file is not cached locally. Bind a local directory or sync to open.", file.name);
+                    app.ui.status = format!("Cannot open project '{}': file is not available locally. Bind a directory or sync to open.", file.name);
                 }
             } else {
-                let candidate_path = std::path::Path::new(candidate_dir).join(&file.name);
-                let target_path = if !candidate_dir.is_empty() && candidate_path.exists() {
-                    Some(candidate_path.to_string_lossy().to_string())
-                } else if std::path::Path::new(&file.name).exists() {
-                    Some(file.name.clone())
-                } else {
-                    None
-                };
-
-                if let Some(path) = target_path {
-                    match crate::menus::invoke(app, &ctx, "file.import", json!({"paths": [path]})) {
+                if let Some(target_path) = resolve_file_path(app, &active_dir, &file.name) {
+                    match crate::menus::invoke(app, &ctx, "file.import", json!({"paths": [target_path]})) {
                         Ok(_) => {
                             app.ui.mode = crate::state::Mode::Edit;
                             app.ui.status = format!("Imported media into project: {}", file.name);
@@ -288,6 +352,7 @@ fn show_cloud_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if link_resp.clicked() {
         let room_id = if app.collab_room_input.trim().is_empty() { "FC-LIVE".to_string() } else { app.collab_room_input.trim().to_string() };
         let host_name = if app.collab_name_input.trim().is_empty() { "Editor".to_string() } else { app.collab_name_input.trim().to_string() };
+        let squad = default_squad_folder();
         let params = ShareParams {
             room_id,
             drive_id: squad.folder_id,

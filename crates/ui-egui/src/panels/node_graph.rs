@@ -172,6 +172,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     // Canvas background
     p.rect_filled(canvas_rect, 0.0, Color32::from_rgb(0x15, 0x15, 0x18));
+    app.node_canvas_rect = Some(canvas_rect);
 
     // Handle Fit button logic if clicked
     if resp_fit.clicked() && !graph.nodes.is_empty() {
@@ -205,9 +206,6 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let space_down = ui.input(|i| i.key_down(egui::Key::Space));
     if canvas_resp.dragged_by(egui::PointerButton::Middle) || (space_down && canvas_resp.dragged_by(egui::PointerButton::Primary)) {
         canvas_state.pan += canvas_resp.drag_delta();
-        if app.playback.playing {
-            let _ = crate::menus::invoke(app, ui.ctx(), "playback.stop", serde_json::json!({}));
-        }
     }
 
     let mouse_hover = ui.input(|i| i.pointer.hover_pos()).unwrap_or(pos2(-1000.0, -1000.0));

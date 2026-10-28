@@ -434,6 +434,8 @@ pub struct FilmcraftApp {
     pub(crate) program_pic_rect: Option<egui::Rect>,
     /// Last source monitor picture rect for cursor normalization.
     pub(crate) source_pic_rect: Option<egui::Rect>,
+    /// Last node graph canvas rect for interaction & navigation bounds.
+    pub node_canvas_rect: Option<egui::Rect>,
     /// Currently visible dock panel content rects for context-aware cursor presence.
     pub(crate) visible_panels: Vec<(String, egui::Rect)>,
     /// Last soft locks leased by the local peer on tracks.
@@ -734,7 +736,7 @@ impl FilmcraftApp {
             gdrive_folder_input: String::new(),
             gdrive_local_path_input: String::new(),
             gdrive_syncing: false,
-            gdrive_last_synced: Some("Just now".into()),
+            gdrive_last_synced: None,
             collab_wakeup_registered: false,
             collab_is_host: true,
             collab_synced: false,
@@ -744,6 +746,7 @@ impl FilmcraftApp {
             collab_join_prompt: None,
             program_pic_rect: None,
             source_pic_rect: None,
+            node_canvas_rect: None,
             visible_panels: Vec::new(),
             collab_last_locks: Vec::new(),
             collab_drop_ghost: None,
@@ -1738,12 +1741,17 @@ impl FilmcraftApp {
                 if divider_focused && matches!(k, egui::Key::ArrowLeft | egui::Key::ArrowRight | egui::Key::ArrowUp | egui::Key::ArrowDown) {
                     continue;
                 }
-                // Suppress playback shortcuts when pointer is down dragging/navigating in Fusion canvas,
-                // or when the node graph canvas has active focus (per specification: spacebar is reserved
-                // for node canvas pan navigation).
+                // Suppress playback shortcuts when interacting with or hovering in Fusion canvas,
+                // or when the node graph canvas has active focus (spacebar is reserved for node canvas pan navigation).
                 let is_fusion = self.ui.workspace == "Fusion" || self.ui.workspace == "Fusion Nodes";
                 let is_node_focused = self.ui.focused == crate::dock::PanelKind::NodeGraph;
-                if matches!(k, egui::Key::Space) && (is_node_focused || (is_fusion && (i.pointer.primary_down() || i.pointer.middle_down()))) {
+                let is_hovering_node_canvas = self.node_canvas_rect.map_or(false, |r| {
+                    i.pointer.hover_pos().map_or(false, |pos| r.contains(pos))
+                });
+                let suppress_space_for_node_graph = is_node_focused
+                    || is_hovering_node_canvas
+                    || (is_fusion && self.ui.focused != crate::dock::PanelKind::Timeline && self.ui.focused != crate::dock::PanelKind::Program);
+                if matches!(k, egui::Key::Space) && suppress_space_for_node_graph {
                     continue;
                 }
                 // Only allow repeat events for directional/deletion actions. Toggle commands like

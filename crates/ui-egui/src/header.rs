@@ -227,10 +227,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
     let (status_text, short_status, dot_color) = if app.collab.is_some() {
         ("👥 Collab: Live", "Collab", Color32::from_rgb(0x10, 0xb9, 0x81))
-    } else if app.gdrive_config.is_authenticated() {
+    } else if app.gdrive_last_synced.is_some() {
         ("☁ Google Drive: Synced", "Synced", Color32::from_rgb(0x10, 0xb9, 0x81))
+    } else if app.gdrive_config.is_authenticated() {
+        ("☁ Google Drive: Connected", "Online", Color32::from_rgb(0x10, 0xb9, 0x81))
     } else if app.gdrive_config.active_folder_name.is_some() || app.gdrive_config.active_folder_id.is_some() {
-        ("📁 Synced Folder", "Linked", Color32::from_rgb(0x38, 0x82, 0xf6))
+        ("📁 Linked Folder", "Linked", Color32::from_rgb(0x38, 0x82, 0xf6))
     } else {
         ("💾 Storage: Local", "Local", Color32::from_rgb(0xf5, 0x9e, 0x0b))
     };

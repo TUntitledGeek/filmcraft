@@ -262,7 +262,7 @@ fn test_fusion_space_pointer_navigation_suppresses_playback() {
     let mut s = Session::default();
     s.execute("file.openDemoProject", json!({})).unwrap();
     let mut app = FilmcraftApp::new(s);
-    app.ui.workspace = "Fusion".to_string();
+    app.set_workspace("Fusion");
     let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
     harness.step();
 
@@ -445,3 +445,229 @@ fn test_distinct_project_serialization_and_opening() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+
+
+#[test]
+fn test_fusion_spacebar_unfocused_canvas_panning_no_playback_toggle() {
+    use filmcraft_ui_egui::dock::PanelKind;
+
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let mut app = FilmcraftApp::new(s);
+    app.set_workspace("Fusion");
+    // Start with NodeGraph UNFOCUSED (e.g. EffectControls focused)
+    app.ui.focused = PanelKind::EffectControls;
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    assert!(!harness.state().playback.playing, "Initially paused");
+
+    // Position pointer over node canvas
+    let canvas_rect = harness.state().node_canvas_rect.expect("Node canvas rect must be registered");
+    let canvas_center = canvas_rect.center();
+    harness.input_mut().events.push(egui::Event::PointerMoved(canvas_center));
+    harness.step();
+
+    // Sequence: 1. Hold Space key FIRST (while mouse button is NOT pressed)
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    // Verify Spacebar did NOT trigger playback toggle
+    assert!(!harness.state().playback.playing, "Holding Space over unfocused node canvas must NOT start playback");
+
+    // Sequence: 2. Press primary mouse button and drag to pan
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: canvas_center,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.input_mut().events.push(egui::Event::PointerMoved(canvas_center + egui::vec2(30.0, 20.0)));
+    harness.step();
+
+    // Playback must STILL not be playing
+    assert!(!harness.state().playback.playing, "Panning canvas with Space+Primary must not trigger playback");
+
+    // Release mouse and space
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: canvas_center + egui::vec2(30.0, 20.0),
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: false,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+    assert!(!harness.state().playback.playing, "Releasing pan must not toggle playback");
+}
+
+#[test]
+fn test_project_hub_ui_open_and_import_buttons_with_distinct_projects() {
+    let dir = std::env::temp_dir().join(format!("fc_hub_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let path_a = dir.join("ProjectAlpha.fcproj");
+    let path_b = dir.join("ProjectBeta.filmcraft"); // Testing .filmcraft extension alias!
+
+    // Create ProjectAlpha with unique sequence
+    {
+        let mut s = Session::default();
+        s.execute("file.newProject", json!({"name": "ProjectAlpha"})).unwrap();
+        s.execute("file.newSequence", json!({"name": "AlphaSequence", "width": 1920, "height": 1080, "fps": 24.0})).unwrap();
+        s.execute("file.saveAs", json!({"path": path_a.to_string_lossy()})).unwrap();
+    }
+
+    // Create ProjectBeta with unique sequence
+    {
+        let mut s = Session::default();
+        s.execute("file.newProject", json!({"name": "ProjectBeta"})).unwrap();
+        s.execute("file.newSequence", json!({"name": "BetaSequence", "width": 3840, "height": 2160, "fps": 60.0})).unwrap();
+        s.execute("file.saveAs", json!({"path": path_b.to_string_lossy()})).unwrap();
+    }
+
+    // Launch app in Mode::Import with linked directory
+    let s = Session::default();
+    let mut app = FilmcraftApp::new(s);
+    app.ui.mode = Mode::Import;
+    app.gdrive_config.active_folder_name = Some(dir.to_string_lossy().to_string());
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    // Verify discovery listed the two project files
+    let row_elements = harness.state().auto.query("hub.cloud.row.");
+    assert!(row_elements.len() >= 2, "Discovered cloud items must be at least 2, found {}", row_elements.len());
+
+    // Click Open button for ProjectAlpha via UI interact
+    let open_0 = harness.state().auto.query("hub.cloud.open.0");
+    assert!(!open_0.is_empty(), "hub.cloud.open.0 must exist");
+    let btn_rect = open_0[0].rect;
+    let btn_pos = pos2(btn_rect[0] + btn_rect[2] / 2.0, btn_rect[1] + btn_rect[3] / 2.0);
+
+    harness.input_mut().events.push(egui::Event::PointerMoved(btn_pos));
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: btn_pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: btn_pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    // Verify UI transitioned to Edit mode and ProjectAlpha was loaded
+    assert_eq!(harness.state().ui.mode, Mode::Edit, "Clicking Open must transition to Edit mode");
+    assert_eq!(harness.state().session.project.name, "ProjectAlpha", "ProjectAlpha must be loaded");
+    let active_seq = harness.state().session.state.active_sequence.unwrap();
+    assert_eq!(harness.state().session.project.item(active_seq).unwrap().name, "AlphaSequence");
+    assert_eq!(harness.state().session.project.sequence(active_seq).unwrap().settings.width, 1920);
+
+    // Switch back to Project Hub (Import mode) and open ProjectBeta (.filmcraft alias)
+    harness.state_mut().ui.mode = Mode::Import;
+    harness.step();
+
+    let open_1 = harness.state().auto.query("hub.cloud.open.1");
+    assert!(!open_1.is_empty(), "hub.cloud.open.1 must exist");
+    let btn1_rect = open_1[0].rect;
+    let btn1_pos = pos2(btn1_rect[0] + btn1_rect[2] / 2.0, btn1_rect[1] + btn1_rect[3] / 2.0);
+
+    harness.input_mut().events.push(egui::Event::PointerMoved(btn1_pos));
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: btn1_pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: btn1_pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    assert_eq!(harness.state().ui.mode, Mode::Edit, "Clicking Open on .filmcraft project must transition to Edit mode");
+    assert_eq!(harness.state().session.project.name, "ProjectBeta", "ProjectBeta must be loaded");
+    let active_seq_b = harness.state().session.state.active_sequence.unwrap();
+    assert_eq!(harness.state().session.project.item(active_seq_b).unwrap().name, "BetaSequence");
+    assert_eq!(harness.state().session.project.sequence(active_seq_b).unwrap().settings.width, 3840);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn test_unavailable_cloud_project_accurate_error() {
+    let s = Session::default();
+    let mut app = FilmcraftApp::new(s);
+    app.ui.mode = Mode::Import;
+    // No linked directory -> displays sample catalog where Squad_Montage_Ep4.filmcraft does not exist on disk
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    let open_0 = harness.state().auto.query("hub.cloud.open.0");
+    assert!(!open_0.is_empty(), "hub.cloud.open.0 must exist");
+    let btn_rect = open_0[0].rect;
+    let btn_pos = pos2(btn_rect[0] + btn_rect[2] / 2.0, btn_rect[1] + btn_rect[3] / 2.0);
+
+    harness.input_mut().events.push(egui::Event::PointerMoved(btn_pos));
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: btn_pos,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: btn_pos,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    // Assert UI did NOT falsely transition to Edit mode!
+    assert_eq!(harness.state().ui.mode, Mode::Import, "Unavailable file must stay in Import mode");
+    assert!(
+        harness.state().ui.status.contains("not available locally"),
+        "Status must truthfully report unavailable file, got: {}",
+        harness.state().ui.status
+    );
+}
+
+#[test]
+fn test_browser_safe_virtual_file_resolution() {
+    use filmcraft_ui_egui::panels::import_mode::{resolve_file_path, service_file_exists};
+
+    let s = Session::default();
+    let app = FilmcraftApp::new(s);
+
+    // Non-existent path returns None
+    assert!(!service_file_exists(&app, "non_existent_virtual_file.xyz"));
+    assert_eq!(resolve_file_path(&app, "", "non_existent_virtual_file.xyz"), None);
+}
+
+#[test]
+fn test_cloud_sync_status_truthfulness() {
+    let s = Session::default();
+    let app = FilmcraftApp::new(s);
+
+    // Default launch: gdrive_last_synced MUST be None (no fake "Just now")
+    assert_eq!(app.gdrive_last_synced, None, "Initial sync state must be None");
+    assert!(!app.gdrive_config.is_authenticated(), "Initially unauthenticated");
+}

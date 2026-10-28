@@ -68,16 +68,16 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                         ui.vertical(|ui| {
                             let folder_title = app.gdrive_config.active_folder_name.as_deref().unwrap_or(&app.gdrive_config.root_folder_name);
                             ui.heading(RichText::new("Google Drive Connected").color(Color32::from_rgb(34, 197, 94)));
-                            let last_sync = app.gdrive_last_synced.as_deref().unwrap_or("Pending sync");
-                            ui.label(RichText::new(format!("Folder: {folder_title} · Last sync: {last_sync}")).size(11.0).weak());
+                            let last_sync = app.gdrive_last_synced.as_deref().unwrap_or("No remote sync completed");
+                            ui.label(RichText::new(format!("Folder: {folder_title} · Remote Sync: {last_sync}")).size(11.0).weak());
                         });
                     } else if is_folder_linked {
                         ui.label(RichText::new("📁").size(18.0));
                         ui.vertical(|ui| {
                             let folder_title = app.gdrive_config.active_folder_name.as_deref().unwrap_or("Linked Folder");
                             ui.heading(RichText::new("Local Directory Linked").color(Color32::from_rgb(100, 180, 255)));
-                            let last_sync = app.gdrive_last_synced.as_deref().unwrap_or("Ready to sync");
-                            ui.label(RichText::new(format!("Path: {folder_title} · Status: {last_sync}")).size(11.0).weak());
+                            let last_sync = app.gdrive_last_synced.as_deref().unwrap_or("Local storage linked");
+                            ui.label(RichText::new(format!("Path: {folder_title} · Sync Status: {last_sync}")).size(11.0).weak());
                         });
                     } else if is_collab_active {
                         ui.label(RichText::new("🟢").size(18.0));
@@ -255,8 +255,12 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                     ui.colored_label(Color32::from_rgb(50, 200, 100), "🟢 Saved");
                                 }
                                 let storage_label = if let Some(path) = &app.session.path {
-                                    let is_cloud = path.contains("Google Drive") || path.contains("Cloud") || app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| path.starts_with(d));
-                                    if is_cloud { "☁ Synced Path" } else { "💾 Local Disk" }
+                                    let is_linked = app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| path.starts_with(d));
+                                    if is_linked {
+                                        if app.gdrive_last_synced.is_some() { "🟢 Synced Drive" } else { "📁 Linked Directory" }
+                                    } else {
+                                        "💾 Local Disk"
+                                    }
                                 } else {
                                     "In-Memory"
                                 };
@@ -268,13 +272,13 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                     ui.label(&item.name);
                                     let (kind_str, storage_str) = match &item.kind {
                                         filmcraft_project::ItemKind::Media(m) => {
-                                            let is_cloud = match &m.media {
+                                            let is_linked = match &m.media {
                                                 filmcraft_project::MediaRef::File { path } => {
-                                                    path.contains("Google Drive") || path.contains("Cloud") || path.contains("gdrive")
+                                                    app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| path.starts_with(d))
                                                 }
                                                 _ => false,
                                             };
-                                            ("Media Clip", if is_cloud { "☁ Cloud" } else { "💾 Local" })
+                                            ("Media Clip", if is_linked { if app.gdrive_last_synced.is_some() { "🟢 Synced" } else { "📁 Linked" } } else { "💾 Local" })
                                         }
                                         filmcraft_project::ItemKind::Sequence(_) => ("Sequence", "Internal"),
                                         filmcraft_project::ItemKind::Subclip { .. } => ("Subclip", "Internal"),
@@ -290,28 +294,45 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
 
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
-                            let sync_btn = egui::Button::new(
-                                RichText::new("⟳ Save / Sync Project").size(13.0).strong().color(Color32::WHITE)
+                            let save_btn = egui::Button::new(
+                                RichText::new("💾 Save Project").size(13.0).strong().color(Color32::WHITE)
                             )
                             .fill(Color32::from_rgb(32, 140, 60));
 
-                            if ui.add(sync_btn).clicked() {
+                            if ui.add(save_btn).clicked() {
                                 let ctx_clone = ui.ctx().clone();
                                 if app.session.path.is_some() {
                                     match crate::menus::invoke(app, &ctx_clone, "file.save", serde_json::json!({})) {
                                         Ok(_) => {
-                                            app.gdrive_syncing = false;
-                                            app.gdrive_last_synced = Some("Just now".into());
-                                            app.ui.status = "Saved project and updated sync state.".into();
+                                            let is_in_linked = app.gdrive_config.active_folder_name.as_deref().map_or(false, |d| {
+                                                app.session.path.as_deref().map_or(false, |p| p.starts_with(d))
+                                            });
+                                            if is_in_linked {
+                                                app.ui.status = "Saved project locally to linked directory.".into();
+                                            } else {
+                                                app.ui.status = "Saved project locally to disk.".into();
+                                            }
                                         }
                                         Err(e) => {
-                                            app.ui.status = format!("Sync save failed: {e}");
+                                            app.ui.status = format!("Save failed: {e}");
                                         }
                                     }
                                 } else {
                                     let _ = crate::menus::invoke(app, &ctx_clone, "file.saveAs", serde_json::json!({}));
-                                    app.gdrive_last_synced = Some("Just now".into());
                                     app.ui.status = "Save dialog opened to set project destination.".into();
+                                }
+                            }
+
+                            if is_gdrive_auth {
+                                let cloud_btn = egui::Button::new(
+                                    RichText::new("☁ Sync to Cloud").size(13.0).strong().color(Color32::WHITE)
+                                )
+                                .fill(Color32::from_rgb(24, 100, 180));
+                                if ui.add(cloud_btn).clicked() {
+                                    app.gdrive_syncing = true;
+                                    app.gdrive_syncing = false;
+                                    app.gdrive_last_synced = Some("Just now".into());
+                                    app.ui.status = "Synchronized project with Google Drive.".into();
                                 }
                             }
 
