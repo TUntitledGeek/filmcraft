@@ -149,6 +149,8 @@ fn saved_file(data: &Path) -> Value {
 fn save_switch_reset_rename_delete_and_restart() {
     let data = data_dir("cycle");
     let mut d = Driver::launch(&data);
+    // Exercise the retained traditional layout; new sessions now start in Clean Editing.
+    d.ok("ui.set", json!({"workspace": "Editing"}));
     assert_eq!(d.workspace(), "Editing");
     assert!(d.shows(PanelKind::Metadata));
 
@@ -166,10 +168,13 @@ fn save_switch_reset_rename_delete_and_restart() {
             "Assembly",
             "Audio",
             "Captions and Graphics",
+            "Classic Editing",
+            "Clean Editing",
             "Color",
             "Cutting",
             "Editing",
             "Effects",
+            "Fusion",
             "Learning",
             "Review",
             "Reset to Saved Layout",
@@ -238,6 +243,7 @@ fn save_switch_reset_rename_delete_and_restart() {
 fn save_rename_and_delete_through_the_dialogs() {
     let data = data_dir("dialogs");
     let mut d = Driver::launch(&data);
+    d.ok("ui.set", json!({"workspace": "Editing"}));
     d.ok("ui.panel.close", json!({"panel": "Metadata"}));
 
     // Save as New Workspace… asks for a name

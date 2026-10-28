@@ -41,13 +41,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         Some((id, it)) => (id, it),
         None => {
             p.rect_filled(rect, 0.0, Color32::from_rgb(0x16, 0x16, 0x18));
-            p.text(
-                rect.center(),
-                Align2::CENTER_CENTER,
-                "Select a video clip in the Timeline to open Fusion Nodes",
-                Tokens::ui(14.0),
-                t.text_dim,
-            );
+            p.text(rect.center(), Align2::CENTER_CENTER, "Select a video clip in the Timeline to open Fusion Nodes", Tokens::ui(14.0), t.text_dim);
             return;
         }
     };
@@ -60,14 +54,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // Load persistent canvas state
     let state_id = egui::Id::new("fusion_canvas_state");
-    let mut canvas_state = ui.ctx().data(|d| {
-        d.get_temp::<CanvasState>(state_id).unwrap_or(CanvasState {
-            pan: vec2(20.0, 20.0),
-            zoom: 1.0,
-            selected_node: None,
-            dragging_from: None,
-        })
-    });
+    let mut canvas_state = ui
+        .ctx()
+        .data(|d| d.get_temp::<CanvasState>(state_id).unwrap_or(CanvasState { pan: vec2(20.0, 20.0), zoom: 1.0, selected_node: None, dragging_from: None }));
 
     let mut modified = false;
 
@@ -82,7 +71,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     p.line_segment([toolbar_r.left_bottom(), toolbar_r.right_bottom()], Stroke::new(1.0, Color32::from_rgb(0x2c, 0x2c, 0x32)));
 
     // Title & Clip pill
-    p.text(toolbar_r.min + vec2(12.0, toolbar_h / 2.0), Align2::LEFT_CENTER, "☊ Fusion Nodes", Tokens::semibold(13.0), Color32::from_rgb(0xec, 0x93, 0x24));
+    p.text(toolbar_r.min + vec2(12.0, toolbar_h / 2.0), Align2::LEFT_CENTER, "Fusion Nodes", Tokens::semibold(13.0), t.text);
     let clip_label = format!("Clip: {}", item.name);
     p.text(toolbar_r.min + vec2(130.0, toolbar_h / 2.0), Align2::LEFT_CENTER, clip_label, Tokens::ui(12.0), t.text);
 
@@ -190,10 +179,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let bh = (max_y - min_y).max(100.0);
         let tz = ((canvas_rect.width() * 0.8) / bw).min((canvas_rect.height() * 0.8) / bh).clamp(0.35, 1.8);
         canvas_state.zoom = tz;
-        canvas_state.pan = vec2(
-            (canvas_rect.width() - bw * tz) / 2.0 - min_x * tz,
-            (canvas_rect.height() - bh * tz) / 2.0 - min_y * tz,
-        );
+        canvas_state.pan = vec2((canvas_rect.width() - bw * tz) / 2.0 - min_x * tz, (canvas_rect.height() - bh * tz) / 2.0 - min_y * tz);
     }
 
     // Canvas interaction (Pan & Zoom)
@@ -210,7 +196,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     let mouse_hover = ui.input(|i| i.pointer.hover_pos()).unwrap_or(pos2(-1000.0, -1000.0));
     let over_any_node = graph.nodes.iter().any(|n| {
-        let nr = Rect::from_min_size(canvas_rect.min + canvas_state.pan + vec2(n.pos[0] * canvas_state.zoom, n.pos[1] * canvas_state.zoom), vec2(130.0 * canvas_state.zoom, 80.0 * canvas_state.zoom));
+        let nr = Rect::from_min_size(
+            canvas_rect.min + canvas_state.pan + vec2(n.pos[0] * canvas_state.zoom, n.pos[1] * canvas_state.zoom),
+            vec2(130.0 * canvas_state.zoom, 80.0 * canvas_state.zoom),
+        );
         nr.contains(mouse_hover)
     });
     if canvas_resp.clicked() && !space_down && !over_any_node {
@@ -244,7 +233,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let to_n = node_map.get(&conn.to_node);
         if let (Some(fn_node), Some(tn_node)) = (from_n, to_n) {
             let start = canvas_rect.min + pan + vec2((fn_node.pos[0] + 130.0) * zoom, (fn_node.pos[1] + 36.0) * zoom);
-            
+
             // Calculate destination socket position
             let inputs = tn_node.node_type.default_inputs();
             let sock_idx = inputs.iter().position(|&s| s == conn.to_socket).unwrap_or(0);
@@ -259,7 +248,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 "Foreground" => Color32::from_rgb(0x3a, 0xcc, 0x5a), // Green
                 "Background" => Color32::from_rgb(0xf2, 0xa9, 0x24), // Yellow
                 "Mask" => Color32::from_rgb(0x3a, 0x8a, 0xf2),       // Blue
-                _ => Color32::from_rgb(0xd8, 0xd8, 0xd8),             // Standard signal
+                _ => Color32::from_rgb(0xd8, 0xd8, 0xd8),            // Standard signal
             };
 
             // Wire hover hit-testing (Alt-click or Right-click to disconnect)
@@ -290,7 +279,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if let Some((from_id, _)) = canvas_state.dragging_from {
         let snap_radius = 24.0 * zoom.clamp(0.8, 1.5);
         for n in &graph.nodes {
-            if n.id == from_id { continue; }
+            if n.id == from_id {
+                continue;
+            }
             let inputs = n.node_type.default_inputs();
             for (idx, _) in inputs.iter().enumerate() {
                 let sy = (n.pos[1] + 24.0 + 16.0 * (idx as f32 + 1.0)) * zoom;
@@ -300,20 +291,22 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     break;
                 }
             }
-            if snap_target_pos.is_some() { break; }
+            if snap_target_pos.is_some() {
+                break;
+            }
         }
     }
 
     // Active wire drag preview
-    if let Some((from_id, _)) = canvas_state.dragging_from {
-        if let Some(from_n) = node_map.get(&from_id) {
-            let start = canvas_rect.min + pan + vec2((from_n.pos[0] + 130.0) * zoom, (from_n.pos[1] + 36.0) * zoom);
-            let wire_end = snap_target_pos.unwrap_or(mouse_hover);
-            let cp1 = start + vec2(40.0 * zoom, 0.0);
-            let cp2 = wire_end - vec2(40.0 * zoom, 0.0);
-            draw_bezier(&p, start, cp1, cp2, wire_end, Stroke::new(4.0, Color32::from_rgba_unmultiplied(236, 147, 36, 80)));
-            draw_bezier(&p, start, cp1, cp2, wire_end, Stroke::new(2.0, Color32::from_rgb(0xec, 0x93, 0x24)));
-        }
+    if let Some((from_id, _)) = canvas_state.dragging_from
+        && let Some(from_n) = node_map.get(&from_id)
+    {
+        let start = canvas_rect.min + pan + vec2((from_n.pos[0] + 130.0) * zoom, (from_n.pos[1] + 36.0) * zoom);
+        let wire_end = snap_target_pos.unwrap_or(mouse_hover);
+        let cp1 = start + vec2(40.0 * zoom, 0.0);
+        let cp2 = wire_end - vec2(40.0 * zoom, 0.0);
+        draw_bezier(&p, start, cp1, cp2, wire_end, Stroke::new(4.0, Color32::from_rgba_unmultiplied(236, 147, 36, 80)));
+        draw_bezier(&p, start, cp1, cp2, wire_end, Stroke::new(2.0, Color32::from_rgb(0xec, 0x93, 0x24)));
     }
 
     // =========================================================================
@@ -386,7 +379,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         // Solo indicator dot
         let solo_r = Rect::from_center_size(node_rect.left_bottom() + vec2(14.0 * zoom, -12.0 * zoom), vec2(16.0 * zoom, 16.0 * zoom));
         let solo_resp = ui.interact(solo_r, egui::Id::new(("solo_dot", node_id.0)), Sense::click()).on_hover_text("Monitor 1 Solo");
-        p.circle_filled(solo_r.center(), 5.0 * zoom.clamp(0.6, 1.2), if node.solo { Color32::from_rgb(0x26, 0x80, 0xeb) } else { Color32::from_rgb(0x44, 0x44, 0x50) });
+        p.circle_filled(
+            solo_r.center(),
+            5.0 * zoom.clamp(0.6, 1.2),
+            if node.solo { Color32::from_rgb(0x26, 0x80, 0xeb) } else { Color32::from_rgb(0x44, 0x44, 0x50) },
+        );
         p.text(solo_r.center(), Align2::CENTER_CENTER, "1", Tokens::ui(8.0 * zoom.clamp(0.7, 1.2)), Color32::WHITE);
         if solo_resp.clicked() {
             toggle_solo = Some(i);
@@ -415,12 +412,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             // Snap feedback during wire dragging
             let snap_radius = 24.0 * zoom.clamp(0.8, 1.5);
             let in_snap = sock_pos.distance(mouse_hover) <= snap_radius;
-            if let Some((from_id, from_sock)) = canvas_state.dragging_from {
-                if from_id != node_id && in_snap {
-                    p.circle_stroke(sock_pos, 9.0 * zoom.clamp(0.8, 1.4), Stroke::new(2.5, Color32::from_rgb(0xec, 0x93, 0x24)));
-                    if ui.input(|i| i.pointer.any_released()) {
-                        dropped_connection = Some((from_id, from_sock, node_id, in_name));
-                    }
+            if let Some((from_id, from_sock)) = canvas_state.dragging_from
+                && from_id != node_id
+                && in_snap
+            {
+                p.circle_stroke(sock_pos, 9.0 * zoom.clamp(0.8, 1.4), Stroke::new(2.5, Color32::from_rgb(0xec, 0x93, 0x24)));
+                if ui.input(|i| i.pointer.any_released()) {
+                    dropped_connection = Some((from_id, from_sock, node_id, in_name));
                 }
             }
 
@@ -497,31 +495,31 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // 5. KEYBOARD SHORTCUTS: 1 / 2 (Solo) & Delete (Remove Node)
     // =========================================================================
     let keyboard_focused = ui.ctx().egui_wants_keyboard_input();
-    if let Some(sel_id) = canvas_state.selected_node {
-        if !keyboard_focused {
-            if ui.input(|i| i.key_pressed(egui::Key::Num1)) {
-                let was_solo = graph.nodes.iter().find(|n| n.id == sel_id).map(|n| n.solo).unwrap_or(false);
-                for n in &mut graph.nodes {
-                    n.solo = if n.id == sel_id { !was_solo } else { false };
-                }
-                modified = true;
+    if let Some(sel_id) = canvas_state.selected_node
+        && !keyboard_focused
+    {
+        if ui.input(|i| i.key_pressed(egui::Key::Num1)) {
+            let was_solo = graph.nodes.iter().find(|n| n.id == sel_id).map(|n| n.solo).unwrap_or(false);
+            for n in &mut graph.nodes {
+                n.solo = if n.id == sel_id { !was_solo } else { false };
             }
-            if ui.input(|i| i.key_pressed(egui::Key::Num2)) {
-                for n in &mut graph.nodes {
-                    n.solo = false;
-                }
-                modified = true;
+            modified = true;
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Num2)) {
+            for n in &mut graph.nodes {
+                n.solo = false;
             }
-            if ui.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) {
-                if let Some(pos) = graph.nodes.iter().position(|n| n.id == sel_id) {
-                    let ntype = &graph.nodes[pos].node_type;
-                    if *ntype != NodeType::MediaIn && *ntype != NodeType::MediaOut {
-                        graph.nodes.remove(pos);
-                        graph.connections.retain(|c| c.from_node != sel_id && c.to_node != sel_id);
-                        canvas_state.selected_node = None;
-                        modified = true;
-                    }
-                }
+            modified = true;
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace))
+            && let Some(pos) = graph.nodes.iter().position(|n| n.id == sel_id)
+        {
+            let ntype = &graph.nodes[pos].node_type;
+            if *ntype != NodeType::MediaIn && *ntype != NodeType::MediaOut {
+                graph.nodes.remove(pos);
+                graph.connections.retain(|c| c.from_node != sel_id && c.to_node != sel_id);
+                canvas_state.selected_node = None;
+                modified = true;
             }
         }
     }
@@ -550,141 +548,137 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             du.add_space(6.0);
 
             // Live parameter controls according to NodeType
-            egui::Grid::new("fusion_param_grid").num_columns(2).spacing([16.0, 6.0]).show(&mut du, |ui| {
-                match node.node_type {
-                    NodeType::Blur => {
-                        ui.label("Blur Radius:");
-                        let mut radius = get_float_param(node, "blurriness", get_float_param(node, "radius", 10.0));
-                        if ui.add(egui::Slider::new(&mut radius, 0.0..=100.0).suffix(" px")).changed() {
-                            set_float_param(node, "radius", radius);
-                            set_float_param(node, "blurriness", radius);
-                            modified = true;
-                        }
-                        ui.end_row();
+            egui::Grid::new("fusion_param_grid").num_columns(2).spacing([16.0, 6.0]).show(&mut du, |ui| match node.node_type {
+                NodeType::Blur => {
+                    ui.label("Blur Radius:");
+                    let mut radius = get_float_param(node, "blurriness", get_float_param(node, "radius", 10.0));
+                    if ui.add(egui::Slider::new(&mut radius, 0.0..=100.0).suffix(" px")).changed() {
+                        set_float_param(node, "radius", radius);
+                        set_float_param(node, "blurriness", radius);
+                        modified = true;
                     }
-                    NodeType::ColorGrade => {
-                        ui.label("Exposure:");
-                        let mut exp = get_float_param(node, "exposure", 0.0);
-                        if ui.add(egui::Slider::new(&mut exp, -5.0..=5.0).suffix(" EV")).changed() {
-                            set_float_param(node, "exposure", exp);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.end_row();
+                }
+                NodeType::ColorGrade => {
+                    ui.label("Exposure:");
+                    let mut exp = get_float_param(node, "exposure", 0.0);
+                    if ui.add(egui::Slider::new(&mut exp, -5.0..=5.0).suffix(" EV")).changed() {
+                        set_float_param(node, "exposure", exp);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Contrast:");
-                        let mut contrast = get_float_param(node, "contrast", 0.0);
-                        if ui.add(egui::Slider::new(&mut contrast, -100.0..=100.0)).changed() {
-                            set_float_param(node, "contrast", contrast);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.label("Contrast:");
+                    let mut contrast = get_float_param(node, "contrast", 0.0);
+                    if ui.add(egui::Slider::new(&mut contrast, -100.0..=100.0)).changed() {
+                        set_float_param(node, "contrast", contrast);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Saturation:");
-                        let mut sat = get_float_param(node, "saturation", 100.0);
-                        if ui.add(egui::Slider::new(&mut sat, 0.0..=200.0).suffix("%")).changed() {
-                            set_float_param(node, "saturation", sat);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.label("Saturation:");
+                    let mut sat = get_float_param(node, "saturation", 100.0);
+                    if ui.add(egui::Slider::new(&mut sat, 0.0..=200.0).suffix("%")).changed() {
+                        set_float_param(node, "saturation", sat);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Temperature:");
-                        let mut temp = get_float_param(node, "temperature", 0.0);
-                        if ui.add(egui::Slider::new(&mut temp, -100.0..=100.0)).changed() {
-                            set_float_param(node, "temperature", temp);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.label("Temperature:");
+                    let mut temp = get_float_param(node, "temperature", 0.0);
+                    if ui.add(egui::Slider::new(&mut temp, -100.0..=100.0)).changed() {
+                        set_float_param(node, "temperature", temp);
+                        modified = true;
                     }
-                    NodeType::Glow => {
-                        ui.label("Threshold:");
-                        let mut thres = get_float_param(node, "threshold", 0.7);
-                        if ui.add(egui::Slider::new(&mut thres, 0.0..=1.0)).changed() {
-                            set_float_param(node, "threshold", thres);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.end_row();
+                }
+                NodeType::Glow => {
+                    ui.label("Threshold:");
+                    let mut thres = get_float_param(node, "threshold", 0.7);
+                    if ui.add(egui::Slider::new(&mut thres, 0.0..=1.0)).changed() {
+                        set_float_param(node, "threshold", thres);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Intensity:");
-                        let mut inten = get_float_param(node, "intensity", 1.5);
-                        if ui.add(egui::Slider::new(&mut inten, 0.0..=5.0)).changed() {
-                            set_float_param(node, "intensity", inten);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.label("Intensity:");
+                    let mut inten = get_float_param(node, "intensity", 1.5);
+                    if ui.add(egui::Slider::new(&mut inten, 0.0..=5.0)).changed() {
+                        set_float_param(node, "intensity", inten);
+                        modified = true;
                     }
-                    NodeType::Sharpen => {
-                        ui.label("Amount:");
-                        let mut amt = get_float_param(node, "amount", 25.0);
-                        if ui.add(egui::Slider::new(&mut amt, 0.0..=100.0)).changed() {
-                            set_float_param(node, "amount", amt);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.end_row();
+                }
+                NodeType::Sharpen => {
+                    ui.label("Amount:");
+                    let mut amt = get_float_param(node, "amount", 25.0);
+                    if ui.add(egui::Slider::new(&mut amt, 0.0..=100.0)).changed() {
+                        set_float_param(node, "amount", amt);
+                        modified = true;
                     }
-                    NodeType::Merge => {
-                        ui.label("Opacity:");
-                        let mut opac = get_float_param(node, "opacity", 100.0);
-                        if ui.add(egui::Slider::new(&mut opac, 0.0..=100.0).suffix("%")).changed() {
-                            set_float_param(node, "opacity", opac);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.end_row();
+                }
+                NodeType::Merge => {
+                    ui.label("Opacity:");
+                    let mut opac = get_float_param(node, "opacity", 100.0);
+                    if ui.add(egui::Slider::new(&mut opac, 0.0..=100.0).suffix("%")).changed() {
+                        set_float_param(node, "opacity", opac);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Blend Mode:");
-                        let mut mode_idx = get_choice_param(node, "blend_mode", get_choice_param(node, "blend", 0));
-                        let modes = ["Normal", "Add", "Multiply", "Screen", "Overlay"];
-                        let current_label = modes.get(mode_idx as usize).unwrap_or(&"Normal");
-                        egui::ComboBox::from_id_salt("merge_blend_combo")
-                            .selected_text(*current_label)
-                            .show_ui(ui, |ui| {
-                                for (i, m) in modes.iter().enumerate() {
-                                    if ui.selectable_value(&mut mode_idx, i as u32, *m).clicked() {
-                                        set_choice_param(node, "blend_mode", mode_idx);
-                                        set_choice_param(node, "blend", mode_idx);
-                                        modified = true;
-                                    }
-                                }
-                            });
-                        ui.end_row();
-                    }
-                    NodeType::Keyer => {
-                        ui.label("Threshold:");
-                        let mut thres = get_float_param(node, "threshold", 0.15);
-                        if ui.add(egui::Slider::new(&mut thres, 0.0..=1.0)).changed() {
-                            set_float_param(node, "threshold", thres);
-                            modified = true;
+                    ui.label("Blend Mode:");
+                    let mut mode_idx = get_choice_param(node, "blend_mode", get_choice_param(node, "blend", 0));
+                    let modes = ["Normal", "Add", "Multiply", "Screen", "Overlay"];
+                    let current_label = modes.get(mode_idx as usize).unwrap_or(&"Normal");
+                    egui::ComboBox::from_id_salt("merge_blend_combo").selected_text(*current_label).show_ui(ui, |ui| {
+                        for (i, m) in modes.iter().enumerate() {
+                            if ui.selectable_value(&mut mode_idx, i as u32, *m).clicked() {
+                                set_choice_param(node, "blend_mode", mode_idx);
+                                set_choice_param(node, "blend", mode_idx);
+                                modified = true;
+                            }
                         }
-                        ui.end_row();
+                    });
+                    ui.end_row();
+                }
+                NodeType::Keyer => {
+                    ui.label("Threshold:");
+                    let mut thres = get_float_param(node, "threshold", 0.15);
+                    if ui.add(egui::Slider::new(&mut thres, 0.0..=1.0)).changed() {
+                        set_float_param(node, "threshold", thres);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Softness:");
-                        let mut soft = get_float_param(node, "softness", 0.05);
-                        if ui.add(egui::Slider::new(&mut soft, 0.0..=0.5)).changed() {
-                            set_float_param(node, "softness", soft);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.label("Softness:");
+                    let mut soft = get_float_param(node, "softness", 0.05);
+                    if ui.add(egui::Slider::new(&mut soft, 0.0..=0.5)).changed() {
+                        set_float_param(node, "softness", soft);
+                        modified = true;
                     }
-                    NodeType::Transform => {
-                        ui.label("Scale:");
-                        let mut scale = get_float_param(node, "scale", 100.0);
-                        if ui.add(egui::Slider::new(&mut scale, 0.0..=300.0).suffix("%")).changed() {
-                            set_float_param(node, "scale", scale);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.end_row();
+                }
+                NodeType::Transform => {
+                    ui.label("Scale:");
+                    let mut scale = get_float_param(node, "scale", 100.0);
+                    if ui.add(egui::Slider::new(&mut scale, 0.0..=300.0).suffix("%")).changed() {
+                        set_float_param(node, "scale", scale);
+                        modified = true;
+                    }
+                    ui.end_row();
 
-                        ui.label("Rotation:");
-                        let mut rot = get_float_param(node, "rotation", 0.0);
-                        if ui.add(egui::Slider::new(&mut rot, -180.0..=180.0).suffix("°")).changed() {
-                            set_float_param(node, "rotation", rot);
-                            modified = true;
-                        }
-                        ui.end_row();
+                    ui.label("Rotation:");
+                    let mut rot = get_float_param(node, "rotation", 0.0);
+                    if ui.add(egui::Slider::new(&mut rot, -180.0..=180.0).suffix("°")).changed() {
+                        set_float_param(node, "rotation", rot);
+                        modified = true;
                     }
-                    _ => {
-                        ui.label(RichText::new("Terminal node (outputs directly to timeline program stream).").weak());
-                        ui.end_row();
-                    }
+                    ui.end_row();
+                }
+                _ => {
+                    ui.label(RichText::new("Terminal node (outputs directly to timeline program stream).").weak());
+                    ui.end_row();
                 }
             });
         }
@@ -751,10 +745,10 @@ fn set_float_param(node: &mut filmcraft_project::node_graph::NodeInstance, key: 
 }
 
 fn get_choice_param(node: &filmcraft_project::node_graph::NodeInstance, key: &str, default: u32) -> u32 {
-    if let Some(p) = node.params.get(key) {
-        if let ParamValue::Choice(c) = p.value {
-            return c;
-        }
+    if let Some(p) = node.params.get(key)
+        && let ParamValue::Choice(c) = p.value
+    {
+        return c;
     }
     default
 }
@@ -788,12 +782,12 @@ fn get_selected_clip(app: &FilmcraftApp) -> Option<(ClipId, TrackItem)> {
 fn save_selected_clip(app: &mut FilmcraftApp, clip_id: ClipId, item: TrackItem) {
     let Some(seq_id) = app.session.state.active_sequence else { return };
     let project = Arc::make_mut(&mut app.session.project);
-    if let Some(seq) = project.sequence_mut(seq_id) {
-        if let Some((_, existing)) = seq.find_item_mut(clip_id) {
-            *existing = item;
-            app.session.revision += 1;
-            app.session.events.push(filmcraft_engine::Event::ProjectChanged { revision: app.session.revision });
-        }
+    if let Some(seq) = project.sequence_mut(seq_id)
+        && let Some((_, existing)) = seq.find_item_mut(clip_id)
+    {
+        *existing = item;
+        app.session.revision += 1;
+        app.session.events.push(filmcraft_engine::Event::ProjectChanged { revision: app.session.revision });
     }
 }
 
@@ -828,4 +822,3 @@ fn bezier_distance(p0: Pos2, p1: Pos2, p2: Pos2, p3: Pos2, pt: Pos2) -> f32 {
     }
     min_dist_sq.sqrt()
 }
-

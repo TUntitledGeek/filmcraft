@@ -433,6 +433,14 @@ pub struct UiState {
     pub tool: Tool,
     pub mode: Mode,
     pub workspace: String,
+    /// Pin contextual panes open in Clean Editing. Saved layouts bypass contextual hiding.
+    #[serde(default)]
+    pub pin_source: bool,
+    #[serde(default)]
+    pub pin_inspector: bool,
+    /// Reversible factory-layout preview. Never written into workspace preferences.
+    #[serde(skip)]
+    pub workspace_preview: Option<crate::dock::Layout>,
     pub dock: DockNode,
     #[serde(default)]
     pub floating: Vec<crate::dock::Floating>,
@@ -962,12 +970,15 @@ impl Default for UiState {
             language: crate::i18n::Language::default(),
             tool: Tool::Selection,
             mode: Mode::Edit,
-            workspace: "Editing".into(),
+            workspace: "Clean Editing".into(),
+            pin_source: false,
+            pin_inspector: false,
+            workspace_preview: None,
             floating: vec![],
             closed_floating: vec![],
-            dock: crate::dock::workspace("Editing"),
+            dock: crate::dock::workspace("Clean Editing"),
             focused: PanelKind::Timeline,
-            timeline: TimelineView::default(),
+            timeline: TimelineView { video_track_h: 40.0, audio_track_h: 32.0, split: 0.45, ..TimelineView::default() },
             program: MonitorView::default(),
             source: MonitorView::default(),
             project_search: String::new(),

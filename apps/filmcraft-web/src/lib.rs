@@ -27,6 +27,7 @@ pub mod opfs;
 pub mod recovery;
 pub mod recovery_policy;
 pub mod webcodecs;
+pub mod workspaces;
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -87,6 +88,7 @@ pub struct WebApp {
     pub app: FilmcraftApp,
     pub audio: Option<audio::Handle>,
     pub autosave: recovery::Autosave,
+    pub workspace_store: workspaces::Store,
 }
 
 impl eframe::App for WebApp {
@@ -109,6 +111,7 @@ impl eframe::App for WebApp {
             a.pump();
         }
         self.autosave.tick(&self.app.session, ctx);
+        self.workspace_store.tick(&mut self.app);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -121,25 +124,20 @@ fn query_flag(name: &str) -> bool {
 }
 
 fn query_param(name: &str) -> Option<String> {
-    web_sys::window()
-        .and_then(|w| w.location().search().ok())
-        .and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok())
-        .and_then(|p| p.get(name))
+    web_sys::window().and_then(|w| w.location().search().ok()).and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok()).and_then(|p| p.get(name))
 }
 
 fn url_hash_key() -> Option<String> {
-    web_sys::window()
-        .and_then(|w| w.location().hash().ok())
-        .and_then(|h| {
-            let trimmed = h.trim_start_matches('#');
-            if let Some(rest) = trimmed.strip_prefix("key=") {
-                Some(rest.to_string())
-            } else if !trimmed.is_empty() {
-                Some(trimmed.to_string())
-            } else {
-                None
-            }
-        })
+    web_sys::window().and_then(|w| w.location().hash().ok()).and_then(|h| {
+        let trimmed = h.trim_start_matches('#');
+        if let Some(rest) = trimmed.strip_prefix("key=") {
+            Some(rest.to_string())
+        } else if !trimmed.is_empty() {
+            Some(trimmed.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// Entry point (called by the page's bootstrap script once the wasm module is instantiated).
@@ -207,6 +205,9 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                     let _ = session.execute("file.openDemoProject", json!({}));
                 }
                 let mut app = FilmcraftApp::new(session);
+                if let Some(prefs) = workspaces::load() {
+                    app.workspaces = prefs;
+                }
                 import::install_hooks(&mut app);
                 // Settings ▸ General ▸ Interface Language ▸ System Language (#218): the browser's languages.
                 app.hooks.system_languages =
@@ -255,12 +256,10 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                                     }
                                 }
                             } else {
-                                let rand_suffix = (web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() % 1000) as u16;
+                                let rand_suffix =
+                                    (web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH).unwrap_or_default().as_millis() % 1000) as u16;
                                 app.collab_name_input = format!("Editor-{rand_suffix:03}");
-                                app.collab_join_prompt = Some(filmcraft_ui_egui::CollabJoinPrompt {
-                                    room_code: room.clone(),
-                                    passcode: key.clone(),
-                                });
+                                app.collab_join_prompt = Some(filmcraft_ui_egui::CollabJoinPrompt { room_code: room.clone(), passcode: key.clone() });
                             }
                         }
                     }
@@ -287,7 +286,8 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                 }
                 set_info("audio", json!(audio.is_some()));
                 set_info("restoredMedia", json!(restored));
-                Ok(Box::new(WebApp { app, audio, autosave: recovery::Autosave::default() }))
+                let workspace_store = workspaces::Store::new(&app.workspaces);
+                Ok(Box::new(WebApp { app, audio, autosave: recovery::Autosave::default(), workspace_store }))
             }),
         )
         .await?;

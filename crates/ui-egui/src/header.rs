@@ -42,11 +42,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
 
     let menus_start_x = home.max.x + 10.0;
-    let min_center_start_x = if app.ui.show_menu_bar {
-        if total_w < 1400.0 { menus_start_x + 84.0 + 12.0 } else { menus_start_x + 360.0 }
-    } else {
-        home.max.x + 14.0
-    };
+    let min_center_start_x =
+        if app.ui.show_menu_bar { if total_w < 1400.0 { menus_start_x + 84.0 + 12.0 } else { menus_start_x + 460.0 } } else { home.max.x + 14.0 };
 
     // =========================================================================
     // ZONE RIGHT FIXED CONTROLS WIDTH ESTIMATION
@@ -73,34 +70,37 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Dynamically choose label density based on available screen width
     let mode_tabs: Vec<(Mode, &'static str, &str, Option<&'static str>, Color32)> = if total_w >= 1200.0 {
         vec![
-            (Mode::Import, "import", "◫ Project Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
-            (Mode::Edit, "edit", "▶ Edit Timeline", Some("Editing"), Color32::from_rgb(0x38, 0x7c, 0xf2)),
-            (Mode::Edit, "fusion", "☊ Fusion Nodes", Some("Fusion"), Color32::from_rgb(0xec, 0x93, 0x24)),
-            (Mode::Edit, "color", "🎨 Color", Some("Color"), Color32::from_rgb(0xec, 0x93, 0x24)),
-            (Mode::Export, "export", "⇗ Export", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+            (Mode::Import, "import", "Project Hub", None, t.accent),
+            (Mode::Edit, "edit", "Edit", Some("Clean Editing"), t.accent),
+            (Mode::Edit, "fusion", "Fusion", Some("Fusion"), t.accent),
+            (Mode::Edit, "color", "Color", Some("Color"), t.accent),
+            (Mode::Export, "export", "Export", None, t.accent),
         ]
     } else if total_w >= 900.0 {
         vec![
-            (Mode::Import, "import", "◫ Project Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
-            (Mode::Edit, "edit", "▶ Edit", Some("Editing"), Color32::from_rgb(0x38, 0x7c, 0xf2)),
-            (Mode::Edit, "fusion", "☊ Fusion", Some("Fusion"), Color32::from_rgb(0xec, 0x93, 0x24)),
-            (Mode::Edit, "color", "🎨 Color", Some("Color"), Color32::from_rgb(0xec, 0x93, 0x24)),
-            (Mode::Export, "export", "⇗ Export", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+            (Mode::Import, "import", "Hub", None, t.accent),
+            (Mode::Edit, "edit", "Edit", Some("Clean Editing"), t.accent),
+            (Mode::Edit, "fusion", "Fusion", Some("Fusion"), t.accent),
+            (Mode::Edit, "color", "Color", Some("Color"), t.accent),
+            (Mode::Export, "export", "Export", None, t.accent),
         ]
     } else {
         vec![
-            (Mode::Import, "import", "◫", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
-            (Mode::Edit, "edit", "▶", Some("Editing"), Color32::from_rgb(0x38, 0x7c, 0xf2)),
-            (Mode::Edit, "fusion", "☊", Some("Fusion"), Color32::from_rgb(0xec, 0x93, 0x24)),
-            (Mode::Edit, "color", "🎨", Some("Color"), Color32::from_rgb(0xec, 0x93, 0x24)),
-            (Mode::Export, "export", "⇗", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+            (Mode::Import, "import", "", None, t.accent),
+            (Mode::Edit, "edit", "", Some("Clean Editing"), t.accent),
+            (Mode::Edit, "fusion", "", Some("Fusion"), t.accent),
+            (Mode::Edit, "color", "", Some("Color"), t.accent),
+            (Mode::Export, "export", "", None, t.accent),
         ]
     };
 
-    let pill_widths: Vec<f32> = mode_tabs.iter().map(|(_, _, label, _, _)| {
-        let galley = p.layout_no_wrap(label.to_string(), Tokens::ui(12.5), Color32::WHITE);
-        galley.size().x + if total_w >= 900.0 { 20.0 } else { 14.0 }
-    }).collect();
+    let pill_widths: Vec<f32> = mode_tabs
+        .iter()
+        .map(|(_, _, label, _, _)| {
+            let galley = p.layout_no_wrap(label.to_string(), Tokens::ui(12.5), Color32::WHITE);
+            galley.size().x + if total_w >= 900.0 { 42.0 } else { 32.0 }
+        })
+        .collect();
     let center_spacing = if total_w >= 900.0 { 6.0 } else { 4.0 };
     let center_total_w: f32 = pill_widths.iter().sum::<f32>() + (mode_tabs.len() as f32 - 1.0) * center_spacing;
 
@@ -121,7 +121,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             let bw = 84.0f32.min(left_avail_w);
             let btn_rect = Rect::from_min_size(pos2(menus_start_x, rect.min.y + 7.0), vec2(bw, rect.height() - 14.0));
             let mut mu = ui.new_child(egui::UiBuilder::new().max_rect(btn_rect));
-            mu.style_mut().visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(0x20, 0x23, 0x2c);
+            mu.style_mut().visuals.widgets.inactive.weak_bg_fill = t.control_surface;
             crate::menus::collapsed_menu_button(app, &mut mu);
         } else {
             let menu_rect = Rect::from_min_max(pos2(menus_start_x, rect.min.y + 7.0), pos2(center_start_x - 12.0, rect.max.y - 7.0));
@@ -156,12 +156,28 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             p.rect_filled(r, 4.0, t.hover);
         }
 
-        let col = if is_active { t.tab_text_active } else if resp.hovered() { t.text } else { t.tab_text };
-        p.text(r.center(), Align2::CENTER_CENTER, label_text, Tokens::ui(12.5), col);
+        let col = if is_active {
+            t.tab_text_active
+        } else if resp.hovered() {
+            t.text
+        } else {
+            t.tab_text
+        };
+        let icon = match id_tag {
+            "import" => Icon::Home,
+            "fusion" => Icon::Freeform,
+            "color" => Icon::Adjust,
+            "export" => Icon::Export,
+            _ => Icon::Sequence,
+        };
+        icons::paint(&p, Rect::from_center_size(pos2(r.min.x + 17.0, r.center().y), vec2(16.0, 16.0)), icon, col);
+        p.text(pos2(r.min.x + 31.0, r.center().y), Align2::LEFT_CENTER, label_text, Tokens::ui(12.5), col);
 
         if resp.clicked() {
             app.ui.mode = m;
-            if let Some(ws) = target_ws {
+            if let Some(ws) = target_ws
+                && app.ui.workspace != ws
+            {
                 app.set_workspace(ws);
             }
         }
@@ -214,11 +230,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Workspace switcher button & label
     let ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app, &mut rx);
     let mut wr = Rect::ZERO;
+    let mut w_clicked = false;
     if show_ws_name {
         let wg = p.layout_no_wrap(ws_str.clone(), Tokens::ui(11.0), t.text_dim);
         wr = Rect::from_min_size(pos2(rx - wg.size().x + 6.0, rect.center().y - 10.0), vec2(wg.size().x + 8.0, 20.0));
         rx = wr.min.x - 12.0;
         let wresp = ui.interact(wr, egui::Id::new("hdr-ws-name"), Sense::click());
+        w_clicked = wresp.clicked();
         app.auto.add("header.workspaceName", wr, &ws_str);
         p.galley_with_override_text_color(pos2(wr.min.x + 4.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.text } else { t.text_dim });
     }
@@ -226,23 +244,23 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Interactive Combined Project Title & Google Drive Capsule
     let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
     let (status_text, short_status, dot_color) = if app.collab.is_some() {
-        ("👥 Collab: Live", "Collab", Color32::from_rgb(0x10, 0xb9, 0x81))
+        ("Collab: Live", "Collab", Color32::from_rgb(0x10, 0xb9, 0x81))
     } else if app.gdrive_last_synced.is_some() {
-        ("☁ Google Drive: Synced", "Synced", Color32::from_rgb(0x10, 0xb9, 0x81))
+        ("Google Drive: Synced", "Synced", Color32::from_rgb(0x10, 0xb9, 0x81))
     } else if app.gdrive_config.is_authenticated() {
-        ("☁ Google Drive: Connected", "Online", Color32::from_rgb(0x10, 0xb9, 0x81))
+        ("Google Drive: Connected", "Online", Color32::from_rgb(0x10, 0xb9, 0x81))
     } else if app.gdrive_config.active_folder_name.is_some() || app.gdrive_config.active_folder_id.is_some() {
-        ("📁 Linked Folder", "Linked", Color32::from_rgb(0x38, 0x82, 0xf6))
+        ("Linked Folder", "Linked", Color32::from_rgb(0x38, 0x82, 0xf6))
     } else {
-        ("💾 Storage: Local", "Local", Color32::from_rgb(0xf5, 0x9e, 0x0b))
+        ("Local storage", "Local", t.text_dim)
     };
 
     let avail_capsule_space = (rx - (center_end_x + 14.0)).max(0.0);
     if avail_capsule_space >= 90.0 {
         let capsule_label = if avail_capsule_space >= 220.0 {
-            format!("🎬 {title_raw} · {status_text}")
+            format!("{title_raw} · {status_text}")
         } else if avail_capsule_space >= 140.0 {
-            format!("🎬 {title_raw} · {short_status}")
+            format!("{title_raw} · {short_status}")
         } else {
             status_text.to_string()
         };
@@ -264,13 +282,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
         // Clipped text to prevent any overflow
         let text_clip = Rect::from_min_max(pos2(cr.min.x + 20.0, cr.min.y), pos2(cr.max.x - 6.0, cr.max.y));
-        p.with_clip_rect(text_clip).text(
-            pos2(cr.min.x + 20.0, cr.center().y),
-            Align2::LEFT_CENTER,
-            capsule_label,
-            Tokens::ui(11.5),
-            if cresp.hovered() { Color32::WHITE } else { t.text },
-        );
+        p.with_clip_rect(text_clip).text(pos2(cr.min.x + 20.0, cr.center().y), Align2::LEFT_CENTER, capsule_label, Tokens::ui(11.5), t.text);
 
         if cresp.clicked() {
             app.collab_dialog_open = true;
@@ -279,7 +291,6 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // Workspace popup menu
     let popup_id = egui::Id::new("workspaces-popup");
-    let w_clicked = if show_ws_name { ui.ctx().data(|d| d.get_temp::<bool>(egui::Id::new("hdr-ws-name-clicked")).unwrap_or(false)) } else { false };
     if ws_resp.clicked() || w_clicked {
         ui.ctx().data_mut(|d| d.insert_temp(popup_id, true));
     }
@@ -297,14 +308,37 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     }
                 }
                 ui.separator();
+                if crate::dock::is_builtin(&app.ui.workspace) {
+                    let label = if app.ui.workspace_preview.is_some() { "Return to Previous Layout" } else { "Preview Factory Layout" };
+                    let preview = ui.button(label);
+                    app.auto.add_response("workspace.previewDefault", &preview, label);
+                    if preview.clicked() {
+                        if let Some(previous) = app.ui.workspace_preview.take() {
+                            app.ui.dock = previous.root;
+                            app.ui.floating = previous.floating;
+                        } else {
+                            app.ui.workspace_preview = Some(crate::dock::Layout { root: app.ui.dock.clone(), floating: app.ui.floating.clone() });
+                            app.ui.dock = crate::dock::workspace(&app.ui.workspace);
+                            app.ui.floating.clear();
+                        }
+                        app.ui.keys.maximized = None;
+                        ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
+                    }
+                }
                 if ui.button(tl!("Reset to Saved Layout")).clicked() {
                     let n = app.ui.workspace.clone();
                     app.set_workspace(&n);
                     ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
                 }
+                let save = ui.button("Save Layout As…");
+                app.auto.add_response("workspace.saveAs", &save, "Save Layout As");
+                if save.clicked() {
+                    let _ = crate::menus::invoke(app, ui.ctx(), "window.workspace.saveAs", serde_json::json!({}));
+                    ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
+                }
             });
         });
-        if area.response.clicked_elsewhere() && !ws_resp.clicked() {
+        if area.response.clicked_elsewhere() && !ws_resp.clicked() && !w_clicked {
             ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
         }
     }

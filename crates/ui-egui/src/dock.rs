@@ -180,7 +180,20 @@ fn vsplit(size: SplitSize, a: DockNode, b: DockNode) -> DockNode {
     DockNode::Split { vertical: true, size, a: Box::new(a), b: Box::new(b) }
 }
 
-pub const WORKSPACES: [&str; 9] = ["Editing", "Assembly", "Color", "Effects", "Audio", "Captions and Graphics", "Learning", "Review", "All Panels"];
+pub const WORKSPACES: [&str; 12] = [
+    "Clean Editing",
+    "Classic Editing",
+    "Editing",
+    "Assembly",
+    "Fusion",
+    "Color",
+    "Effects",
+    "Audio",
+    "Captions and Graphics",
+    "Learning",
+    "Review",
+    "All Panels",
+];
 
 /// The user's workspaces file, beside `preferences.json` in the data directory.
 pub const WORKSPACES_FILE: &str = "workspaces.json";
@@ -316,19 +329,16 @@ pub fn workspace(name: &str) -> DockNode {
     use SplitSize::*;
     let bottom_editing = || hsplit(FixedA(64.0), tabs(&[Tools], 0), hsplit(FixedB(116.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0)));
     match name {
-        "Fusion" | "Fusion Nodes" => vsplit(
-            Ratio(0.48),
+        "Clean Editing" => vsplit(
+            Ratio(0.64),
             hsplit(
-                FixedB(310.0),
-                tabs(&[Program], 0),
-                tabs(&[Properties, EffectControls, Metadata], 0),
+                FixedA(260.0),
+                tabs(&[Project, Effects, MediaBrowser], 0),
+                hsplit(FixedB(300.0), hsplit(Ratio(0.42), tabs(&[Source], 0), tabs(&[Program], 0)), tabs(&[Properties, EffectControls], 0)),
             ),
-            vsplit(
-                Ratio(0.75),
-                tabs(&[NodeGraph], 0),
-                hsplit(FixedA(54.0), tabs(&[Tools], 0), hsplit(FixedB(108.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0))),
-            ),
+            hsplit(FixedA(44.0), tabs(&[Tools], 0), hsplit(FixedB(70.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0))),
         ),
+        "Fusion" | "Fusion Nodes" => hsplit(Ratio(0.64), tabs(&[NodeGraph], 0), vsplit(Ratio(0.60), tabs(&[Program, Source], 0), tabs(&[Timeline], 0))),
         "Assembly" => vsplit(
             Ratio(0.52),
             hsplit(
@@ -341,9 +351,9 @@ pub fn workspace(name: &str) -> DockNode {
         "Color" => hsplit(
             FixedB(340.0),
             vsplit(
-                Ratio(0.58),
-                hsplit(Ratio(0.40), tabs(&[LumetriScopes], 0), tabs(&[Program], 0)),
-                hsplit(Ratio(0.24), tabs(&[Project, Info, Markers, History], 0), bottom_editing()),
+                Ratio(0.67),
+                hsplit(Ratio(0.73), tabs(&[Program], 0), tabs(&[LumetriScopes], 0)),
+                hsplit(FixedA(44.0), tabs(&[Tools], 0), tabs(&[Timeline], 0)),
             ),
             tabs(&[LumetriColor, Effects], 0),
         ),
@@ -383,7 +393,7 @@ pub fn workspace(name: &str) -> DockNode {
             ),
             hsplit(Ratio(0.26), tabs(&[Project, MediaBrowser, Libraries, Info, Effects, Markers, History], 0), bottom_editing()),
         ),
-        // Editing (default), Learning, Review — Pro Studio Layout:
+        // Editing/Classic Editing retain the previous default, including persisted layouts.
         // top: Source group (38%) | Program hero (62%) | Properties (300px); bottom: Project group | Tools | Timeline | Meters.
         _ => vsplit(
             Ratio(0.56),
@@ -538,7 +548,30 @@ pub fn layout_with_actions(
     reg: &mut crate::automation::Registry,
     actions: &mut Vec<craft_ui::docking::Action<PanelKind>>,
 ) {
-    layout_inner(ui, node, rect, t, path, &[], out, reg, actions);
+    layout_contextual(ui, node, rect, t, path, out, reg, actions, &[]);
+}
+
+/// Hide irrelevant groups for this frame only. The canonical tree, split ratios, panel IDs,
+/// and resize paths survive, so opening a source or selecting a clip restores its pane.
+pub fn layout_contextual(
+    ui: &mut egui::Ui,
+    node: &mut DockNode,
+    rect: Rect,
+    t: &Tokens,
+    path: &str,
+    out: &mut Vec<Group>,
+    reg: &mut crate::automation::Registry,
+    actions: &mut Vec<craft_ui::docking::Action<PanelKind>>,
+    hidden: &[PanelKind],
+) {
+    layout_inner(ui, node, rect, t, path, &[], out, reg, actions, hidden);
+}
+
+fn group_hidden(node: &DockNode, hidden: &[PanelKind]) -> bool {
+    match node {
+        DockNode::Tabs { panels, .. } => panels.iter().all(|panel| hidden.contains(panel)),
+        DockNode::Split { a, b, .. } => group_hidden(a, hidden) && group_hidden(b, hidden),
+    }
 }
 
 fn layout_inner(
@@ -551,6 +584,7 @@ fn layout_inner(
     out: &mut Vec<Group>,
     reg: &mut crate::automation::Registry,
     actions: &mut Vec<craft_ui::docking::Action<PanelKind>>,
+    hidden: &[PanelKind],
 ) {
     match node {
         DockNode::Tabs { panels, active } => {
@@ -559,6 +593,18 @@ fn layout_inner(
             out.push(Group { path: path.to_string(), rect, content, panels: panels.clone(), active: *active });
         }
         DockNode::Split { vertical, size, a, b } => {
+            let mut first_path = tree_path.to_vec();
+            first_path.push(false);
+            let mut second_path = tree_path.to_vec();
+            second_path.push(true);
+            if group_hidden(a, hidden) {
+                layout_inner(ui, b, rect, t, &format!("{path}b"), &second_path, out, reg, actions, hidden);
+                return;
+            }
+            if group_hidden(b, hidden) {
+                layout_inner(ui, a, rect, t, &format!("{path}a"), &first_path, out, reg, actions, hidden);
+                return;
+            }
             let axis = if *vertical { SplitAxis::Vertical } else { SplitAxis::Horizontal };
             let Some(split) = split_rect(rect, axis, size.shared(), t.gap, 20.0) else { return };
             let id = egui::Id::new(("dock-gutter", path.to_string()));
@@ -571,12 +617,8 @@ fn layout_inner(
             {
                 actions.push(craft_ui::docking::Action::ResizeSplit { path: tree_path.to_vec(), size: resized });
             }
-            let mut first_path = tree_path.to_vec();
-            first_path.push(false);
-            let mut second_path = tree_path.to_vec();
-            second_path.push(true);
-            layout_inner(ui, a, split.first, t, &format!("{path}a"), &first_path, out, reg, actions);
-            layout_inner(ui, b, split.second, t, &format!("{path}b"), &second_path, out, reg, actions);
+            layout_inner(ui, a, split.first, t, &format!("{path}a"), &first_path, out, reg, actions, hidden);
+            layout_inner(ui, b, split.second, t, &format!("{path}b"), &second_path, out, reg, actions, hidden);
         }
     }
 }

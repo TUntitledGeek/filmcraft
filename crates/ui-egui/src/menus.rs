@@ -947,7 +947,7 @@ pub fn collapsed_menu_button(app: &mut FilmcraftApp, ui: &mut egui::Ui) {
     let labels = app.session.prefs.labels.clone();
     let ctx = ui.ctx().clone();
     let mut clicked: Option<String> = None;
-    ui.menu_button("☰ Menu ▾", |ui| {
+    ui.menu_button("Menu", |ui| {
         ui.set_min_width(200.0);
         for top in MENUS {
             let mine: Vec<&MenuItem> = items.iter().filter(|i| i.path.first().map(String::as_str) == Some(top)).collect();

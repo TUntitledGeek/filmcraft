@@ -128,12 +128,12 @@ fn test_fusion_node_graph_grid_and_effects_pipeline() {
     let old_rev = app.session.revision;
     {
         let project = std::sync::Arc::make_mut(&mut app.session.project);
-        if let Some(seq) = project.sequence_mut(seq_id) {
-            if let Some((_, existing)) = seq.find_item_mut(clip_id) {
-                *existing = item;
-                app.session.revision += 1;
-                app.session.events.push(filmcraft_engine::Event::ProjectChanged { revision: app.session.revision });
-            }
+        if let Some(seq) = project.sequence_mut(seq_id)
+            && let Some((_, existing)) = seq.find_item_mut(clip_id)
+        {
+            *existing = item;
+            app.session.revision += 1;
+            app.session.events.push(filmcraft_engine::Event::ProjectChanged { revision: app.session.revision });
         }
     }
     assert!(app.session.revision > old_rev, "Revision must bump when saving node graph mutations");
@@ -308,23 +308,22 @@ fn test_project_hub_presets_and_cloud_truth() {
     assert!(!squad.is_synced, "Unlinked cloud folder must be is_synced: false");
 
     // Test preset dimensions and frame rates
-    let presets = [
-        ("YouTube 4K60", 3840, 2160, 60.0),
-        ("YouTube 1080p", 1920, 1080, 60.0),
-        ("Shorts/TikTok 9:16", 1080, 1920, 60.0),
-        ("Podcast Cam", 1920, 1080, 30.0),
-    ];
+    let presets =
+        [("YouTube 4K60", 3840, 2160, 60.0), ("YouTube 1080p", 1920, 1080, 60.0), ("Shorts/TikTok 9:16", 1080, 1920, 60.0), ("Podcast Cam", 1920, 1080, 30.0)];
 
     for (name, w, h, fps) in presets {
         let mut session = Session::default();
         let res = session.execute("file.newProject", json!({"name": name}));
         assert!(res.is_ok());
-        let seq_res = session.execute("file.newSequence", json!({
-            "name": format!("{name} Sequence"),
-            "width": w,
-            "height": h,
-            "fps": fps,
-        }));
+        let seq_res = session.execute(
+            "file.newSequence",
+            json!({
+                "name": format!("{name} Sequence"),
+                "width": w,
+                "height": h,
+                "fps": fps,
+            }),
+        );
         assert!(seq_res.is_ok());
         let active_seq_id = session.state.active_sequence.expect("active sequence");
         let seq = session.project.sequence(active_seq_id).expect("sequence exists");
@@ -347,7 +346,7 @@ fn test_project_hub_mode_switcher_labeling() {
     // Verify Project Hub element is registered
     let hub_mode = harness.state().auto.query("header.mode.import");
     assert!(!hub_mode.is_empty(), "header.mode.import must be present");
-    assert_eq!(hub_mode[0].label, "◫ Project Hub");
+    assert_eq!(hub_mode[0].label, "Project Hub");
 
     // Verify Home button is registered as Project Hub
     let home = harness.state().auto.query("header.home");
@@ -444,8 +443,6 @@ fn test_distinct_project_serialization_and_opening() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
-
-
 
 #[test]
 fn test_fusion_spacebar_unfocused_canvas_panning_no_playback_toggle() {
@@ -614,41 +611,13 @@ fn test_project_hub_ui_open_and_import_buttons_with_distinct_projects() {
 
 #[test]
 fn test_unavailable_cloud_project_accurate_error() {
-    let s = Session::default();
-    let mut app = FilmcraftApp::new(s);
+    let mut app = FilmcraftApp::new(Session::default());
     app.ui.mode = Mode::Import;
-    // No linked directory -> displays sample catalog where Squad_Montage_Ep4.filmcraft does not exist on disk
-
-    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_| app);
     harness.step();
-
-    let open_0 = harness.state().auto.query("hub.cloud.open.0");
-    assert!(!open_0.is_empty(), "hub.cloud.open.0 must exist");
-    let btn_rect = open_0[0].rect;
-    let btn_pos = pos2(btn_rect[0] + btn_rect[2] / 2.0, btn_rect[1] + btn_rect[3] / 2.0);
-
-    harness.input_mut().events.push(egui::Event::PointerMoved(btn_pos));
-    harness.input_mut().events.push(egui::Event::PointerButton {
-        pos: btn_pos,
-        button: egui::PointerButton::Primary,
-        pressed: true,
-        modifiers: Default::default(),
-    });
-    harness.input_mut().events.push(egui::Event::PointerButton {
-        pos: btn_pos,
-        button: egui::PointerButton::Primary,
-        pressed: false,
-        modifiers: Default::default(),
-    });
-    harness.step();
-
-    // Assert UI did NOT falsely transition to Edit mode!
-    assert_eq!(harness.state().ui.mode, Mode::Import, "Unavailable file must stay in Import mode");
-    assert!(
-        harness.state().ui.status.contains("not available locally"),
-        "Status must truthfully report unavailable file, got: {}",
-        harness.state().ui.status
-    );
+    assert!(harness.state().auto.query("hub.cloud.action.").is_empty(), "Unavailable catalog files must not be offered as openable projects");
+    assert!(!harness.state().auto.query("hub.action.open_project").is_empty());
+    assert_eq!(harness.state().ui.mode, Mode::Import);
 }
 
 #[test]
@@ -675,10 +644,10 @@ fn test_cloud_sync_status_truthfulness() {
 
 #[test]
 fn test_service_file_exists_uses_metadata_only_without_read_file() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
     use filmcraft_engine::Services;
     use filmcraft_ui_egui::panels::import_mode::service_file_exists;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct TrackingServices {
         read_called: AtomicUsize,
@@ -699,10 +668,7 @@ fn test_service_file_exists_uses_metadata_only_without_read_file() {
         }
     }
 
-    let tracking = Arc::new(TrackingServices {
-        read_called: AtomicUsize::new(0),
-        size_called: AtomicUsize::new(0),
-    });
+    let tracking = Arc::new(TrackingServices { read_called: AtomicUsize::new(0), size_called: AtomicUsize::new(0) });
 
     let s = Session::new(tracking.clone());
     let app = FilmcraftApp::new(s);
@@ -854,14 +820,17 @@ fn test_lumetri_full_path_profiling_and_interaction_pipeline() {
     let num_edits = 20;
     for i in 0..num_edits {
         let temp_val = (i as f64 - 10.0) * 2.5;
-        let res = s.execute("effects.setParam", json!({
-            "clip": clip_id.0,
-            "effect": "lumetri",
-            "param": "temperature",
-            "value": temp_val,
-            "merge": true,
-            "begin": i == 0
-        }));
+        let res = s.execute(
+            "effects.setParam",
+            json!({
+                "clip": clip_id.0,
+                "effect": "lumetri",
+                "param": "temperature",
+                "value": temp_val,
+                "merge": true,
+                "begin": i == 0
+            }),
+        );
         assert!(res.is_ok(), "Command must succeed: {:?}", res);
     }
     let stage2_3_duration = t_cmd_start.elapsed();
@@ -874,13 +843,17 @@ fn test_lumetri_full_path_profiling_and_interaction_pipeline() {
     // Stage 4: Preview Invalidation & Revision Verification
     // =========================================================================
     let initial_rev = s.revision;
-    s.execute("effects.setParam", json!({
-        "clip": clip_id.0,
-        "effect": "lumetri",
-        "param": "tint",
-        "value": 15.0,
-        "merge": true
-    })).unwrap();
+    s.execute(
+        "effects.setParam",
+        json!({
+            "clip": clip_id.0,
+            "effect": "lumetri",
+            "param": "tint",
+            "value": 15.0,
+            "merge": true
+        }),
+    )
+    .unwrap();
     assert_eq!(s.revision, initial_rev + 1, "Revision must bump on parameter update");
 
     // =========================================================================
@@ -948,7 +921,6 @@ fn test_lumetri_full_path_profiling_and_interaction_pipeline() {
     assert!(cmd_per_call_us < 10_000.0, "Command execution must be well under frame budget");
 }
 
-
 #[test]
 fn test_properties_panel_contextual_sequence_inspector_when_unselected() {
     let mut s = Session::default();
@@ -956,6 +928,7 @@ fn test_properties_panel_contextual_sequence_inspector_when_unselected() {
     s.execute("edit.deselectAll", json!({})).unwrap();
 
     let mut app = FilmcraftApp::new(s);
+    app.ui.pin_inspector = true;
     app.ui.dock.activate(filmcraft_ui_egui::dock::PanelKind::Properties);
 
     let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);

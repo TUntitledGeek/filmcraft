@@ -149,27 +149,19 @@ impl FilmcraftApp {
         panels::show(self, &mut child, panel, content);
 
         // Collaborative presence: render remote collaborator cursors in this active panel!
-        if let Some(collab) = &self.collab {
-            if let Ok(peers) = collab.peers.try_read() {
-                let panel_name = panel.id();
-                // Timeline has dedicated tracks overlay; ProgramPic / SourcePic are handled on monitor pic
-                if panel != PanelKind::Timeline {
-                    for peer in peers.values() {
-                        if peer.panel.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(&panel_name)) {
-                            if let Some([nx, ny]) = peer.cursor_norm {
-                                let cursor_pos = pos2(
-                                    content.min.x + nx * content.width(),
-                                    content.min.y + ny * content.height(),
-                                );
-                                let col = Color32::from_rgba_unmultiplied(
-                                    peer.color_rgba[0],
-                                    peer.color_rgba[1],
-                                    peer.color_rgba[2],
-                                    peer.color_rgba[3],
-                                );
-                                crate::collab_overlay::paint_pointer(&child.painter(), cursor_pos, col, &peer.name, peer.in_hand.as_deref());
-                            }
-                        }
+        if let Some(collab) = &self.collab
+            && let Ok(peers) = collab.peers.try_read()
+        {
+            let panel_name = panel.id();
+            // Timeline has dedicated tracks overlay; ProgramPic / SourcePic are handled on monitor pic
+            if panel != PanelKind::Timeline {
+                for peer in peers.values() {
+                    if peer.panel.as_deref().is_some_and(|p| p.eq_ignore_ascii_case(&panel_name))
+                        && let Some([nx, ny]) = peer.cursor_norm
+                    {
+                        let cursor_pos = pos2(content.min.x + nx * content.width(), content.min.y + ny * content.height());
+                        let col = Color32::from_rgba_unmultiplied(peer.color_rgba[0], peer.color_rgba[1], peer.color_rgba[2], peer.color_rgba[3]);
+                        crate::collab_overlay::paint_pointer(child.painter(), cursor_pos, col, &peer.name, peer.in_hand.as_deref());
                     }
                 }
             }
@@ -215,13 +207,36 @@ impl FilmcraftApp {
         order
     }
 
-    pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, body: Rect) {
+    pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, mut body: Rect) {
         self.visible_panels.clear();
         self.program_pic_rect = None;
         self.source_pic_rect = None;
         self.collab_drop_ghost = None;
         let t = self.tokens;
         let ctx = ui.ctx().clone();
+        if self.ui.workspace == "Clean Editing" {
+            let strip = Rect::from_min_size(body.min, vec2(body.width(), 32.0));
+            let mut toolbar =
+                ui.new_child(egui::UiBuilder::new().max_rect(strip.shrink2(vec2(10.0, 3.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
+            toolbar.label(egui::RichText::new("EDITING").size(10.0).color(t.text_dim));
+            toolbar.separator();
+            let source = toolbar
+                .toggle_value(&mut self.ui.pin_source, "Keep Source open")
+                .on_hover_text("Source opens automatically when you preview footage. Pin it here for a dual-monitor workflow.");
+            self.auto.add_response("editing.pinSource", &source, "Keep Source open");
+            let inspector = toolbar
+                .toggle_value(&mut self.ui.pin_inspector, "Keep Inspector open")
+                .on_hover_text("Clip properties appear when a timeline clip is selected. Pin the inspector to view sequence settings too.");
+            self.auto.add_response("editing.pinInspector", &inspector, "Keep Inspector open");
+            toolbar.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let classic = ui.small_button("Classic Editing");
+                self.auto.add_response("editing.classic", &classic, "Classic Editing");
+                if classic.clicked() {
+                    self.set_workspace("Classic Editing");
+                }
+            });
+            body.min.y = strip.max.y + 3.0;
+        }
         if let Some(panel) = self.pending_panel_raise.take()
             && let Some(owner) = self.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.panels.first())
         {
@@ -235,7 +250,21 @@ impl FilmcraftApp {
         };
         let mut groups = vec![];
         let mut layout_actions = Vec::new();
-        dock::layout_with_actions(ui, &mut dock, body, &t, "", &mut groups, &mut self.auto, &mut layout_actions);
+        let mut hidden = Vec::new();
+        // A saved/custom layout always keeps the user's geometry. Contextual hiding is a
+        // rendering policy of the new built-in preset, never a migration of their dock tree.
+        if maximized.is_none()
+            && self.ui.workspace == "Clean Editing"
+            && (self.ui.workspace_preview.is_some() || !self.workspaces.saved.iter().any(|s| s.name == self.ui.workspace))
+        {
+            if self.session.state.source_item.is_none() && !self.ui.pin_source {
+                hidden.push(PanelKind::Source);
+            }
+            if self.session.state.selection.is_empty() && !self.ui.pin_inspector {
+                hidden.extend([PanelKind::Properties, PanelKind::EffectControls]);
+            }
+        }
+        dock::layout_contextual(ui, &mut dock, body, &t, "", &mut groups, &mut self.auto, &mut layout_actions, &hidden);
         let seqs = dock::SeqTabs {
             open: self
                 .session
@@ -256,26 +285,21 @@ impl FilmcraftApp {
         let mut targets = vec![];
         for group in &groups {
             let chrome = dock::draw_group_chrome_details(ui, group, &seqs, &t, &mut self.auto);
-            if let Some(collab) = &self.collab {
-                if let Ok(peers) = collab.peers.try_read() {
-                    for (panel_kind, tab_rect) in &chrome.tabs {
-                        let panel_id = panel_kind.id();
-                        for peer in peers.values() {
-                            let is_on_panel = peer.panel.as_deref().is_some_and(|p| {
-                                p.eq_ignore_ascii_case(&panel_id)
-                                    || (panel_id == "Program" && p.eq_ignore_ascii_case("ProgramPic"))
-                                    || (panel_id == "Source" && p.eq_ignore_ascii_case("SourcePic"))
-                            });
-                            if is_on_panel && tab_rect.width() > 0.0 {
-                                let dot_col = Color32::from_rgba_unmultiplied(
-                                    peer.color_rgba[0],
-                                    peer.color_rgba[1],
-                                    peer.color_rgba[2],
-                                    peer.color_rgba[3],
-                                );
-                                let dot_pos = pos2(tab_rect.max.x - 6.0, tab_rect.min.y + 6.0);
-                                ui.painter().circle_filled(dot_pos, 3.0, dot_col);
-                            }
+            if let Some(collab) = &self.collab
+                && let Ok(peers) = collab.peers.try_read()
+            {
+                for (panel_kind, tab_rect) in &chrome.tabs {
+                    let panel_id = panel_kind.id();
+                    for peer in peers.values() {
+                        let is_on_panel = peer.panel.as_deref().is_some_and(|p| {
+                            p.eq_ignore_ascii_case(&panel_id)
+                                || (panel_id == "Program" && p.eq_ignore_ascii_case("ProgramPic"))
+                                || (panel_id == "Source" && p.eq_ignore_ascii_case("SourcePic"))
+                        });
+                        if is_on_panel && tab_rect.width() > 0.0 {
+                            let dot_col = Color32::from_rgba_unmultiplied(peer.color_rgba[0], peer.color_rgba[1], peer.color_rgba[2], peer.color_rgba[3]);
+                            let dot_pos = pos2(tab_rect.max.x - 6.0, tab_rect.min.y + 6.0);
+                            ui.painter().circle_filled(dot_pos, 3.0, dot_col);
                         }
                     }
                 }
@@ -288,6 +312,17 @@ impl FilmcraftApp {
         if maximized.is_none() {
             self.ui.dock = dock;
         }
+        // Apply editing gestures before monitors snapshot the project. Otherwise a Lumetri
+        // drag queued an obsolete revision first, spending a whole cooperative render job
+        // on the old value before the next UI pass could request the new one.
+        // This changes paint order only; docking geometry and persisted order stay intact.
+        groups.sort_by_key(|group| match group.panels.get(group.active) {
+            Some(PanelKind::Timeline) => 0,
+            Some(PanelKind::LumetriColor | PanelKind::EffectControls | PanelKind::Properties | PanelKind::NodeGraph) => 1,
+            Some(PanelKind::Project | PanelKind::MediaBrowser) => 2,
+            Some(PanelKind::Program | PanelKind::Source) => 3,
+            _ => 4,
+        });
         for group in &groups {
             if let Some(panel) = group.panels.get(group.active).copied() {
                 self.panel_body(ui, panel, group.content);
@@ -372,26 +407,21 @@ impl FilmcraftApp {
                 active: floating.active,
             };
             let chrome = dock::draw_group_chrome_details(ui, &group, seqs, &t, &mut self.auto);
-            if let Some(collab) = &self.collab {
-                if let Ok(peers) = collab.peers.try_read() {
-                    for (panel_kind, tab_rect) in &chrome.tabs {
-                        let panel_id = panel_kind.id();
-                        for peer in peers.values() {
-                            let is_on_panel = peer.panel.as_deref().is_some_and(|p| {
-                                p.eq_ignore_ascii_case(&panel_id)
-                                    || (panel_id == "Program" && p.eq_ignore_ascii_case("ProgramPic"))
-                                    || (panel_id == "Source" && p.eq_ignore_ascii_case("SourcePic"))
-                            });
-                            if is_on_panel && tab_rect.width() > 0.0 {
-                                let dot_col = Color32::from_rgba_unmultiplied(
-                                    peer.color_rgba[0],
-                                    peer.color_rgba[1],
-                                    peer.color_rgba[2],
-                                    peer.color_rgba[3],
-                                );
-                                let dot_pos = pos2(tab_rect.max.x - 6.0, tab_rect.min.y + 6.0);
-                                ui.painter().circle_filled(dot_pos, 3.0, dot_col);
-                            }
+            if let Some(collab) = &self.collab
+                && let Ok(peers) = collab.peers.try_read()
+            {
+                for (panel_kind, tab_rect) in &chrome.tabs {
+                    let panel_id = panel_kind.id();
+                    for peer in peers.values() {
+                        let is_on_panel = peer.panel.as_deref().is_some_and(|p| {
+                            p.eq_ignore_ascii_case(&panel_id)
+                                || (panel_id == "Program" && p.eq_ignore_ascii_case("ProgramPic"))
+                                || (panel_id == "Source" && p.eq_ignore_ascii_case("SourcePic"))
+                        });
+                        if is_on_panel && tab_rect.width() > 0.0 {
+                            let dot_col = Color32::from_rgba_unmultiplied(peer.color_rgba[0], peer.color_rgba[1], peer.color_rgba[2], peer.color_rgba[3]);
+                            let dot_pos = pos2(tab_rect.max.x - 6.0, tab_rect.min.y + 6.0);
+                            ui.painter().circle_filled(dot_pos, 3.0, dot_col);
                         }
                     }
                 }
