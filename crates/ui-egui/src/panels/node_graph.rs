@@ -198,10 +198,16 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Canvas interaction (Pan & Zoom)
     let canvas_id = egui::Id::new("fusion_canvas_view");
     let canvas_resp = ui.interact(canvas_rect, canvas_id, Sense::click_and_drag());
+    if canvas_resp.clicked() || canvas_resp.drag_started() {
+        app.ui.focused = crate::dock::PanelKind::NodeGraph;
+    }
 
     let space_down = ui.input(|i| i.key_down(egui::Key::Space));
     if canvas_resp.dragged_by(egui::PointerButton::Middle) || (space_down && canvas_resp.dragged_by(egui::PointerButton::Primary)) {
         canvas_state.pan += canvas_resp.drag_delta();
+        if app.playback.playing {
+            let _ = crate::menus::invoke(app, ui.ctx(), "playback.stop", serde_json::json!({}));
+        }
     }
 
     let mouse_hover = ui.input(|i| i.pointer.hover_pos()).unwrap_or(pos2(-1000.0, -1000.0));

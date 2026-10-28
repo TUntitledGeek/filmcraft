@@ -5,6 +5,7 @@
 //!   parameter syncing (Blur/Merge), solo toggling, and Arc::make_mut persistence.
 
 use egui::{Pos2, pos2};
+use egui_kittest::Harness;
 use filmcraft_engine::Session;
 use filmcraft_project::node_graph::{NodeGraph, NodeId, NodeType};
 use filmcraft_ui_egui::FilmcraftApp;
@@ -196,3 +197,251 @@ fn test_header_responsive_zones_at_narrow_and_wide_screens() {
         }
     }
 }
+
+#[test]
+fn test_spacebar_key_repeat_suppression_prevents_stutter() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let app = FilmcraftApp::new(s);
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    assert!(!harness.state().playback.playing, "Initially paused");
+
+    // 1. Initial Space press (repeat: false) -> toggles to playing
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+    assert!(harness.state().playback.playing, "Space press starts playback");
+
+    // 2. Simulated key repeats while holding space down (repeat: true)
+    // In old code without repeat filtering, each repeat toggled playback back and forth (stuttering).
+    // With repeat filtering, repeats are consumed and playback stays playing.
+    for _ in 0..5 {
+        harness.input_mut().events.push(egui::Event::Key {
+            key: egui::Key::Space,
+            physical_key: None,
+            pressed: true,
+            repeat: true,
+            modifiers: Default::default(),
+        });
+        harness.step();
+        assert!(harness.state().playback.playing, "Repeated space events must NOT toggle/stutter playback");
+    }
+
+    // 3. Key release
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: false,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+    assert!(harness.state().playback.playing, "Releasing space leaves playback playing");
+
+    // 4. Second distinct Space press (repeat: false) -> pauses playback
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+    assert!(!harness.state().playback.playing, "Second distinct space press pauses playback");
+}
+
+#[test]
+fn test_fusion_space_pointer_navigation_suppresses_playback() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let mut app = FilmcraftApp::new(s);
+    app.ui.workspace = "Fusion".to_string();
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    // Simulate pointer down while in Fusion workspace (e.g. user navigating/dragging canvas)
+    let center = egui::pos2(640.0, 360.0);
+    harness.input_mut().events.push(egui::Event::PointerMoved(center));
+    harness.input_mut().events.push(egui::Event::PointerButton {
+        pos: center,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    // Now press Space while pointer is down
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    // Playback should remain paused because Space during canvas drag is a pan gesture, not a toggle
+    assert!(!harness.state().playback.playing, "Space pressed during pointer down in Fusion must not start playback");
+}
+
+#[test]
+fn test_project_hub_presets_and_cloud_truth() {
+    use filmcraft_engine::cloud_sync::default_squad_folder;
+
+    let s = Session::default();
+    let app = FilmcraftApp::new(s);
+
+    // Verify no fake cloud tokens
+    assert!(app.gdrive_config.access_token.is_none(), "Must not possess fabricated access tokens");
+    assert!(!app.gdrive_config.is_authenticated(), "Must not report authenticated without actual login");
+
+    // Verify squad folder files default to unsynced
+    let squad = default_squad_folder();
+    assert!(!squad.project_files.is_empty());
+    assert!(!squad.is_synced, "Unlinked cloud folder must be is_synced: false");
+
+    // Test preset dimensions and frame rates
+    let presets = [
+        ("YouTube 4K60", 3840, 2160, 60.0),
+        ("YouTube 1080p", 1920, 1080, 60.0),
+        ("Shorts/TikTok 9:16", 1080, 1920, 60.0),
+        ("Podcast Cam", 1920, 1080, 30.0),
+    ];
+
+    for (name, w, h, fps) in presets {
+        let mut session = Session::default();
+        let res = session.execute("file.newProject", json!({"name": name}));
+        assert!(res.is_ok());
+        let seq_res = session.execute("file.newSequence", json!({
+            "name": format!("{name} Sequence"),
+            "width": w,
+            "height": h,
+            "fps": fps,
+        }));
+        assert!(seq_res.is_ok());
+        let active_seq_id = session.state.active_sequence.expect("active sequence");
+        let seq = session.project.sequence(active_seq_id).expect("sequence exists");
+        assert_eq!(seq.settings.width, w, "Width mismatch for {name}");
+        assert_eq!(seq.settings.height, h, "Height mismatch for {name}");
+        assert_eq!(seq.settings.frame_rate.as_f64(), fps, "FPS mismatch for {name}");
+    }
+}
+
+#[test]
+fn test_project_hub_mode_switcher_labeling() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let mut app = FilmcraftApp::new(s);
+    app.ui.mode = Mode::Import;
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    // Verify Project Hub element is registered
+    let hub_mode = harness.state().auto.query("header.mode.import");
+    assert!(!hub_mode.is_empty(), "header.mode.import must be present");
+    assert_eq!(hub_mode[0].label, "◫ Project Hub");
+
+    // Verify Home button is registered as Project Hub
+    let home = harness.state().auto.query("header.home");
+    assert!(!home.is_empty(), "header.home must be present");
+    assert_eq!(home[0].label, "Project Hub");
+}
+
+#[test]
+fn test_node_graph_canvas_focus_suppresses_spacebar_playback() {
+    use filmcraft_ui_egui::dock::PanelKind;
+
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let mut app = FilmcraftApp::new(s);
+    app.ui.workspace = "Fusion".to_string();
+    app.ui.focused = PanelKind::NodeGraph;
+
+    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 720.0)).build_eframe(move |_cc| app);
+    harness.step();
+
+    assert!(!harness.state().playback.playing, "Initially paused");
+
+    // Press Space when NodeGraph canvas has active focus
+    harness.input_mut().events.push(egui::Event::Key {
+        key: egui::Key::Space,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    });
+    harness.step();
+
+    // Spacebar should NOT trigger playback toggle when NodeGraph is focused
+    assert!(!harness.state().playback.playing, "Spacebar must not start playback when NodeGraph has focus");
+}
+
+#[test]
+fn test_cloud_projects_filenames_and_roles() {
+    use filmcraft_engine::cloud_sync::default_squad_folder;
+
+    let squad = default_squad_folder();
+    let names: Vec<&str> = squad.project_files.iter().map(|f| f.name.as_str()).collect();
+
+    // Match exact filenames from user screenshots and specification
+    assert!(names.contains(&"Squad_Montage_Ep4.filmcraft"), "Must include Squad_Montage_Ep4.filmcraft");
+    assert!(names.contains(&"Viral_Shorts_Pack_V2.filmcraft"), "Must include Viral_Shorts_Pack_V2.filmcraft");
+    assert!(names.contains(&"Clutch_Clip_Raw.mp4"), "Must include Clutch_Clip_Raw.mp4");
+
+    for file in &squad.project_files {
+        let is_proj = file.name.ends_with(".fcproj") || file.name.ends_with(".filmcraft");
+        if file.name.ends_with(".mp4") {
+            assert!(!is_proj, "MP4 file must be treated as media asset, not project file");
+        } else {
+            assert!(is_proj, "Project files must end with .filmcraft or .fcproj");
+        }
+    }
+}
+
+#[test]
+fn test_distinct_project_serialization_and_opening() {
+    let dir = std::env::temp_dir().join(format!("fc_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let path_a = dir.join("ProjectA.fcproj");
+    let path_b = dir.join("ProjectB.fcproj");
+
+    // 1. Create and save Project A
+    {
+        let mut session = Session::default();
+        session.execute("file.newProject", json!({"name": "ProjectA"})).unwrap();
+        session.execute("file.saveAs", json!({"path": path_a.to_string_lossy()})).unwrap();
+    }
+
+    // 2. Create and save Project B
+    {
+        let mut session = Session::default();
+        session.execute("file.newProject", json!({"name": "ProjectB"})).unwrap();
+        session.execute("file.saveAs", json!({"path": path_b.to_string_lossy()})).unwrap();
+    }
+
+    // 3. Open Project A in a fresh session
+    {
+        let mut session = Session::default();
+        session.execute("file.open", json!({"path": path_a.to_string_lossy()})).unwrap();
+        assert_eq!(session.project.name, "ProjectA", "Opening Project A must load ProjectA");
+    }
+
+    // 4. Open Project B in a fresh session
+    {
+        let mut session = Session::default();
+        session.execute("file.open", json!({"path": path_b.to_string_lossy()})).unwrap();
+        assert_eq!(session.project.name, "ProjectB", "Opening Project B must load ProjectB");
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+

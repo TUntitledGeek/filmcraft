@@ -31,8 +31,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     let left_start_x = rect.min.x + if app.integrated_titlebar { 104.0 } else { 14.0 };
     let home = Rect::from_center_size(pos2(left_start_x + 13.0, rect.center().y), vec2(26.0, 26.0));
-    let hresp = ui.interact(home, egui::Id::new("hdr-home"), Sense::click()).on_hover_text(tl!("Home"));
-    app.auto.add("header.home", home, "Home");
+    let hresp = ui.interact(home, egui::Id::new("hdr-home"), Sense::click()).on_hover_text(format!("Project Hub ({})", tl!("Home")));
+    app.auto.add("header.home", home, "Project Hub");
     if hresp.hovered() {
         p.rect_filled(home, 4.0, t.hover);
     }
@@ -52,7 +52,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // ZONE RIGHT FIXED CONTROLS WIDTH ESTIMATION
     // =========================================================================
     // Right buttons: Fullscreen (36) + Appearance (36) + Quick Export (36) + Workspaces (36) = 144
-    let ws_str = crate::i18n::t(&app.ui.workspace).to_uppercase();
+    let ws_str = match app.ui.mode {
+        Mode::Import => "PROJECT HUB".to_string(),
+        Mode::Export => "EXPORT".to_string(),
+        Mode::Edit => crate::i18n::t(&app.ui.workspace).to_uppercase(),
+    };
     let show_ws_name = total_w >= 1100.0;
     let ws_text_w = if show_ws_name {
         let wg = p.layout_no_wrap(ws_str.clone(), Tokens::ui(11.0), t.text_dim);
@@ -69,7 +73,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Dynamically choose label density based on available screen width
     let mode_tabs: Vec<(Mode, &'static str, &str, Option<&'static str>, Color32)> = if total_w >= 1200.0 {
         vec![
-            (Mode::Import, "import", "◫ Media Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+            (Mode::Import, "import", "◫ Project Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
             (Mode::Edit, "edit", "▶ Edit Timeline", Some("Editing"), Color32::from_rgb(0x38, 0x7c, 0xf2)),
             (Mode::Edit, "fusion", "☊ Fusion Nodes", Some("Fusion"), Color32::from_rgb(0xec, 0x93, 0x24)),
             (Mode::Edit, "color", "🎨 Color", Some("Color"), Color32::from_rgb(0xec, 0x93, 0x24)),
@@ -77,7 +81,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         ]
     } else if total_w >= 900.0 {
         vec![
-            (Mode::Import, "import", "◫ Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
+            (Mode::Import, "import", "◫ Project Hub", None, Color32::from_rgb(0x8b, 0x5c, 0xf6)),
             (Mode::Edit, "edit", "▶ Edit", Some("Editing"), Color32::from_rgb(0x38, 0x7c, 0xf2)),
             (Mode::Edit, "fusion", "☊ Fusion", Some("Fusion"), Color32::from_rgb(0xec, 0x93, 0x24)),
             (Mode::Edit, "color", "🎨 Color", Some("Color"), Color32::from_rgb(0xec, 0x93, 0x24)),
@@ -222,11 +226,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Interactive Combined Project Title & Google Drive Capsule
     let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
     let (status_text, short_status, dot_color) = if app.collab.is_some() {
-        ("👥 Squad: Live", "Squad", Color32::from_rgb(0x10, 0xb9, 0x81))
+        ("👥 Collab: Live", "Collab", Color32::from_rgb(0x10, 0xb9, 0x81))
     } else if app.gdrive_config.is_authenticated() {
         ("☁ Google Drive: Synced", "Synced", Color32::from_rgb(0x10, 0xb9, 0x81))
+    } else if app.gdrive_config.active_folder_name.is_some() || app.gdrive_config.active_folder_id.is_some() {
+        ("📁 Synced Folder", "Linked", Color32::from_rgb(0x38, 0x82, 0xf6))
     } else {
-        ("☁ Google Drive: Local", "Local", Color32::from_rgb(0xf5, 0x9e, 0x0b))
+        ("💾 Storage: Local", "Local", Color32::from_rgb(0xf5, 0x9e, 0x0b))
     };
 
     let avail_capsule_space = (rx - (center_end_x + 14.0)).max(0.0);
@@ -244,8 +250,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let capsule_w = desired_capsule_w.min(avail_capsule_space);
 
         let cr = Rect::from_min_size(pos2(rx - capsule_w, rect.center().y - 12.0), vec2(capsule_w, 24.0));
-        let cresp = ui.interact(cr, egui::Id::new("hdr-gdrive-capsule"), Sense::click()).on_hover_text("Open Google Drive & Squad Hub");
-        app.auto.add("header.gdrive_capsule", cr, "Google Drive & Squad Hub");
+        let cresp = ui.interact(cr, egui::Id::new("hdr-gdrive-capsule"), Sense::click()).on_hover_text("Cloud Storage & Collaboration Hub");
+        app.auto.add("header.gdrive_capsule", cr, "Cloud Storage & Collaboration Hub");
 
         let capsule_bg = if cresp.hovered() { t.hover } else { Color32::from_rgb(0x15, 0x18, 0x22) };
         p.rect_filled(cr, 12.0, capsule_bg);

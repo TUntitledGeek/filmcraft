@@ -1738,8 +1738,25 @@ impl FilmcraftApp {
                 if divider_focused && matches!(k, egui::Key::ArrowLeft | egui::Key::ArrowRight | egui::Key::ArrowUp | egui::Key::ArrowDown) {
                     continue;
                 }
+                // Suppress playback shortcuts when pointer is down dragging/navigating in Fusion canvas,
+                // or when the node graph canvas has active focus (per specification: spacebar is reserved
+                // for node canvas pan navigation).
+                let is_fusion = self.ui.workspace == "Fusion" || self.ui.workspace == "Fusion Nodes";
+                let is_node_focused = self.ui.focused == crate::dock::PanelKind::NodeGraph;
+                if matches!(k, egui::Key::Space) && (is_node_focused || (is_fusion && (i.pointer.primary_down() || i.pointer.middle_down()))) {
+                    continue;
+                }
+                // Only allow repeat events for directional/deletion actions. Toggle commands like
+                // playback.toggle must never repeat, preventing audio stutter when holding space.
+                let allow_repeat = matches!(k, egui::Key::ArrowLeft | egui::Key::ArrowRight | egui::Key::ArrowUp | egui::Key::ArrowDown | egui::Key::Backspace | egui::Key::Delete);
+                let is_repeat = i.events.iter().any(|e| match e {
+                    egui::Event::Key { key, pressed: true, repeat, .. } => *key == *k && *repeat,
+                    _ => false,
+                });
                 if i.consume_key(*m, *k) {
-                    fire.push(id.clone());
+                    if allow_repeat || !is_repeat {
+                        fire.push(id.clone());
+                    }
                 }
             }
         });

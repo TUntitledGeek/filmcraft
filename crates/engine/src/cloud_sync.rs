@@ -212,14 +212,14 @@ pub fn parse_share_url(url_or_query: &str) -> Option<ShareParams> {
     })
 }
 
-/// Returns a default mock YouTube Squad folder with sample collaboration projects.
+/// Returns a default cloud folder representation for shared collaboration projects.
 pub fn default_squad_folder() -> DriveSquadFolder {
     DriveSquadFolder {
-        folder_id: "squad_yt_collab_2026".into(),
-        name: "YouTube Squad Collab".into(),
+        folder_id: "shared_cloud_projects".into(),
+        name: "Shared Cloud Projects".into(),
         project_files: vec![
             CloudSyncFile {
-                file_id: "file_ep4_montage".into(),
+                file_id: "file_montage_ep4".into(),
                 name: "Squad_Montage_Ep4.filmcraft".into(),
                 mime_type: "application/json".into(),
                 size_bytes: 2_450_000,
@@ -235,7 +235,7 @@ pub fn default_squad_folder() -> DriveSquadFolder {
                 modified_time: "2026-10-27T14:15:00Z".into(),
             },
             CloudSyncFile {
-                file_id: "file_gaming_raw".into(),
+                file_id: "file_raw_media".into(),
                 name: "Clutch_Clip_Raw.mp4".into(),
                 mime_type: "video/mp4".into(),
                 size_bytes: 480_000_000,
@@ -243,8 +243,8 @@ pub fn default_squad_folder() -> DriveSquadFolder {
                 modified_time: "2026-10-27T12:00:00Z".into(),
             },
         ],
-        collaborators: vec!["Sebastian (You)".into(), "Alex".into(), "Marcus".into()],
-        is_synced: true,
+        collaborators: vec!["Editor".into()],
+        is_synced: false,
     }
 }
 
