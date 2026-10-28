@@ -76,6 +76,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     let toolbar_h = 36.0;
     let toolbar_r = Rect::from_min_size(rect.min, vec2(rect.width(), toolbar_h));
+    let drawer_h = if canvas_state.selected_node.is_some() { 160.0 } else { 0.0 };
+    let canvas_rect = Rect::from_min_max(pos2(rect.min.x, toolbar_r.max.y), pos2(rect.max.x, rect.max.y - drawer_h));
     p.rect_filled(toolbar_r, 0.0, Color32::from_rgb(0x1e, 0x1e, 0x22));
     p.line_segment([toolbar_r.left_bottom(), toolbar_r.right_bottom()], Stroke::new(1.0, Color32::from_rgb(0x2c, 0x2c, 0x32)));
 
@@ -154,10 +156,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         p.text(br.center(), Align2::CENTER_CENTER, label, Tokens::ui(11.0), Color32::WHITE);
 
         if bresp.clicked() {
-            let center_canvas_x = (rect.center().x - rect.min.x - canvas_state.pan.x) / canvas_state.zoom;
-            let center_canvas_y = (rect.center().y - rect.min.y - canvas_state.pan.y) / canvas_state.zoom;
+            let center_canvas_x = (canvas_rect.center().x - canvas_rect.min.x - canvas_state.pan.x) / canvas_state.zoom;
+            let center_canvas_y = (canvas_rect.center().y - canvas_rect.min.y - canvas_state.pan.y) / canvas_state.zoom;
+            let snapped_x = (center_canvas_x / 16.0).round() * 16.0;
+            let snapped_y = (center_canvas_y / 16.0).round() * 16.0;
             let new_name = format!("{}{}", ntype.label(), graph.nodes.len() + 1);
-            let nid = graph.add_node(&new_name, ntype, [center_canvas_x - 65.0, center_canvas_y - 40.0]);
+            let nid = graph.add_node(&new_name, ntype, [snapped_x - 64.0, snapped_y - 40.0]);
             canvas_state.selected_node = Some(nid);
             modified = true;
         }
@@ -166,9 +170,6 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     // 2. CANVAS VIEW & NAVIGATION
     // =========================================================================
-    let drawer_h = if canvas_state.selected_node.is_some() { 160.0 } else { 0.0 };
-    let canvas_rect = Rect::from_min_max(pos2(rect.min.x, toolbar_r.max.y), pos2(rect.max.x, rect.max.y - drawer_h));
-
     // Canvas background
     p.rect_filled(canvas_rect, 0.0, Color32::from_rgb(0x15, 0x15, 0x18));
 
@@ -203,7 +204,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         canvas_state.pan += canvas_resp.drag_delta();
     }
 
-    if canvas_resp.clicked() && !space_down {
+    let mouse_hover = ui.input(|i| i.pointer.hover_pos()).unwrap_or(pos2(-1000.0, -1000.0));
+    let over_any_node = graph.nodes.iter().any(|n| {
+        let nr = Rect::from_min_size(canvas_rect.min + canvas_state.pan + vec2(n.pos[0] * canvas_state.zoom, n.pos[1] * canvas_state.zoom), vec2(130.0 * canvas_state.zoom, 80.0 * canvas_state.zoom));
+        nr.contains(mouse_hover)
+    });
+    if canvas_resp.clicked() && !space_down && !over_any_node {
         canvas_state.selected_node = None;
     }
 
@@ -227,6 +233,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let pan = canvas_state.pan;
 
     let node_map: HashMap<NodeId, &filmcraft_project::node_graph::NodeInstance> = graph.nodes.iter().map(|n| (n.id, n)).collect();
+    let mut disconnect_input: Option<(NodeId, String)> = None;
 
     for conn in &graph.connections {
         let from_n = node_map.get(&conn.from_node);
@@ -244,15 +251,52 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             let cp1 = start + vec2(cp_dist, 0.0);
             let cp2 = end - vec2(cp_dist, 0.0);
 
-            let color = match conn.to_socket.as_str() {
+            let base_color = match conn.to_socket.as_str() {
                 "Foreground" => Color32::from_rgb(0x3a, 0xcc, 0x5a), // Green
                 "Background" => Color32::from_rgb(0xf2, 0xa9, 0x24), // Yellow
                 "Mask" => Color32::from_rgb(0x3a, 0x8a, 0xf2),       // Blue
                 _ => Color32::from_rgb(0xd8, 0xd8, 0xd8),             // Standard signal
             };
 
-            draw_bezier(&p, start, cp1, cp2, end, Stroke::new(4.0 * zoom.clamp(0.5, 1.2), Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60)));
-            draw_bezier(&p, start, cp1, cp2, end, Stroke::new(2.0 * zoom.clamp(0.6, 1.2), color));
+            // Wire hover hit-testing (Alt-click or Right-click to disconnect)
+            let wire_dist = bezier_distance(start, cp1, cp2, end, mouse_hover);
+            let is_wire_hovered = canvas_rect.contains(mouse_hover) && wire_dist <= 7.0 * zoom.clamp(0.8, 1.4);
+
+            let (glow_col, core_col, core_w) = if is_wire_hovered {
+                (Color32::from_rgba_unmultiplied(255, 230, 100, 150), Color32::from_rgb(255, 240, 140), 3.0 * zoom.clamp(0.8, 1.4))
+            } else {
+                (Color32::from_rgba_unmultiplied(base_color.r(), base_color.g(), base_color.b(), 60), base_color, 2.0 * zoom.clamp(0.6, 1.2))
+            };
+
+            draw_bezier(&p, start, cp1, cp2, end, Stroke::new(5.0 * zoom.clamp(0.6, 1.4), glow_col));
+            draw_bezier(&p, start, cp1, cp2, end, Stroke::new(core_w, core_col));
+
+            if is_wire_hovered {
+                let alt_click = ui.input(|i| i.pointer.primary_clicked() && i.modifiers.alt);
+                let right_click = ui.input(|i| i.pointer.secondary_clicked());
+                if alt_click || right_click {
+                    disconnect_input = Some((conn.to_node, conn.to_socket.clone()));
+                }
+            }
+        }
+    }
+
+    // Find snap target if dragging wire
+    let mut snap_target_pos = None;
+    if let Some((from_id, _)) = canvas_state.dragging_from {
+        let snap_radius = 24.0 * zoom.clamp(0.8, 1.5);
+        for n in &graph.nodes {
+            if n.id == from_id { continue; }
+            let inputs = n.node_type.default_inputs();
+            for (idx, _) in inputs.iter().enumerate() {
+                let sy = (n.pos[1] + 24.0 + 16.0 * (idx as f32 + 1.0)) * zoom;
+                let spos = canvas_rect.min + pan + vec2(n.pos[0] * zoom, sy);
+                if spos.distance(mouse_hover) <= snap_radius {
+                    snap_target_pos = Some(spos);
+                    break;
+                }
+            }
+            if snap_target_pos.is_some() { break; }
         }
     }
 
@@ -260,11 +304,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if let Some((from_id, _)) = canvas_state.dragging_from {
         if let Some(from_n) = node_map.get(&from_id) {
             let start = canvas_rect.min + pan + vec2((from_n.pos[0] + 130.0) * zoom, (from_n.pos[1] + 36.0) * zoom);
-            let mouse_pos = ui.input(|i| i.pointer.hover_pos()).unwrap_or(canvas_rect.center());
+            let wire_end = snap_target_pos.unwrap_or(mouse_hover);
             let cp1 = start + vec2(40.0 * zoom, 0.0);
-            let cp2 = mouse_pos - vec2(40.0 * zoom, 0.0);
-            draw_bezier(&p, start, cp1, cp2, mouse_pos, Stroke::new(4.0, Color32::from_rgba_unmultiplied(236, 147, 36, 80)));
-            draw_bezier(&p, start, cp1, cp2, mouse_pos, Stroke::new(2.0, Color32::from_rgb(0xec, 0x93, 0x24)));
+            let cp2 = wire_end - vec2(40.0 * zoom, 0.0);
+            draw_bezier(&p, start, cp1, cp2, wire_end, Stroke::new(4.0, Color32::from_rgba_unmultiplied(236, 147, 36, 80)));
+            draw_bezier(&p, start, cp1, cp2, wire_end, Stroke::new(2.0, Color32::from_rgb(0xec, 0x93, 0x24)));
         }
     }
 
@@ -275,8 +319,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let mut new_drag_start: Option<(NodeId, &'static str)> = None;
     let mut dropped_connection: Option<(NodeId, &'static str, NodeId, &'static str)> = None;
     let mut toggle_solo: Option<usize> = None;
-    let mut disconnect_input: Option<(NodeId, &'static str)> = None;
     let mut disconnect_output: Option<NodeId> = None;
+    let mut snap_grid_node: Option<usize> = None;
 
     for i in 0..graph.nodes.len() {
         let node = &graph.nodes[i];
@@ -295,6 +339,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         }
         if card_resp.dragged() && !space_down {
             moved = Some((i, card_resp.drag_delta() / zoom));
+        }
+        if card_resp.drag_stopped() {
+            snap_grid_node = Some(i);
         }
 
         // Card background & glowing amber border if selected
@@ -356,15 +403,17 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 _ => Color32::from_rgb(0xd8, 0xd8, 0xd8),
             };
 
-            // Alt-click or Right-click to disconnect
+            // Alt-click or Right-click on socket to disconnect
             if sresp.secondary_clicked() || (sresp.clicked() && ui.input(|i| i.modifiers.alt)) {
-                disconnect_input = Some((node_id, in_name));
+                disconnect_input = Some((node_id, in_name.to_string()));
             }
 
             // Snap feedback during wire dragging
+            let snap_radius = 24.0 * zoom.clamp(0.8, 1.5);
+            let in_snap = sock_pos.distance(mouse_hover) <= snap_radius;
             if let Some((from_id, from_sock)) = canvas_state.dragging_from {
-                if from_id != node_id && sock_r.contains(ui.input(|i| i.pointer.hover_pos()).unwrap_or(pos2(0.0, 0.0))) {
-                    p.circle_stroke(sock_pos, 8.0 * zoom.clamp(0.6, 1.2), Stroke::new(2.5, Color32::from_rgb(0xec, 0x93, 0x24)));
+                if from_id != node_id && in_snap {
+                    p.circle_stroke(sock_pos, 9.0 * zoom.clamp(0.8, 1.4), Stroke::new(2.5, Color32::from_rgb(0xec, 0x93, 0x24)));
                     if ui.input(|i| i.pointer.any_released()) {
                         dropped_connection = Some((from_id, from_sock, node_id, in_name));
                     }
@@ -405,7 +454,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
 
     if let Some((nid, sock)) = disconnect_input {
-        graph.disconnect(nid, sock);
+        graph.disconnect(nid, &sock);
         modified = true;
     }
 
@@ -434,30 +483,40 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         modified = true;
     }
 
+    if let Some(idx) = snap_grid_node {
+        graph.nodes[idx].pos[0] = (graph.nodes[idx].pos[0] / 16.0).round() * 16.0;
+        graph.nodes[idx].pos[1] = (graph.nodes[idx].pos[1] / 16.0).round() * 16.0;
+        modified = true;
+    }
+
     // =========================================================================
     // 5. KEYBOARD SHORTCUTS: 1 / 2 (Solo) & Delete (Remove Node)
     // =========================================================================
+    let keyboard_focused = ui.ctx().egui_wants_keyboard_input();
     if let Some(sel_id) = canvas_state.selected_node {
-        if ui.input(|i| i.key_pressed(egui::Key::Num1) || i.key_pressed(egui::Key::Num1)) {
-            for n in &mut graph.nodes {
-                n.solo = n.id == sel_id;
+        if !keyboard_focused {
+            if ui.input(|i| i.key_pressed(egui::Key::Num1)) {
+                let was_solo = graph.nodes.iter().find(|n| n.id == sel_id).map(|n| n.solo).unwrap_or(false);
+                for n in &mut graph.nodes {
+                    n.solo = if n.id == sel_id { !was_solo } else { false };
+                }
+                modified = true;
             }
-            modified = true;
-        }
-        if ui.input(|i| i.key_pressed(egui::Key::Num2) || i.key_pressed(egui::Key::Num2)) {
-            for n in &mut graph.nodes {
-                n.solo = false;
+            if ui.input(|i| i.key_pressed(egui::Key::Num2)) {
+                for n in &mut graph.nodes {
+                    n.solo = false;
+                }
+                modified = true;
             }
-            modified = true;
-        }
-        if ui.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) {
-            if let Some(pos) = graph.nodes.iter().position(|n| n.id == sel_id) {
-                let ntype = &graph.nodes[pos].node_type;
-                if *ntype != NodeType::MediaIn && *ntype != NodeType::MediaOut {
-                    graph.nodes.remove(pos);
-                    graph.connections.retain(|c| c.from_node != sel_id && c.to_node != sel_id);
-                    canvas_state.selected_node = None;
-                    modified = true;
+            if ui.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) {
+                if let Some(pos) = graph.nodes.iter().position(|n| n.id == sel_id) {
+                    let ntype = &graph.nodes[pos].node_type;
+                    if *ntype != NodeType::MediaIn && *ntype != NodeType::MediaOut {
+                        graph.nodes.remove(pos);
+                        graph.connections.retain(|c| c.from_node != sel_id && c.to_node != sel_id);
+                        canvas_state.selected_node = None;
+                        modified = true;
+                    }
                 }
             }
         }
@@ -491,9 +550,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 match node.node_type {
                     NodeType::Blur => {
                         ui.label("Blur Radius:");
-                        let mut radius = get_float_param(node, "radius", 10.0);
+                        let mut radius = get_float_param(node, "blurriness", get_float_param(node, "radius", 10.0));
                         if ui.add(egui::Slider::new(&mut radius, 0.0..=100.0).suffix(" px")).changed() {
                             set_float_param(node, "radius", radius);
+                            set_float_param(node, "blurriness", radius);
                             modified = true;
                         }
                         ui.end_row();
@@ -567,7 +627,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                         ui.end_row();
 
                         ui.label("Blend Mode:");
-                        let mut mode_idx = get_choice_param(node, "blend_mode", 0);
+                        let mut mode_idx = get_choice_param(node, "blend_mode", get_choice_param(node, "blend", 0));
                         let modes = ["Normal", "Add", "Multiply", "Screen", "Overlay"];
                         let current_label = modes.get(mode_idx as usize).unwrap_or(&"Normal");
                         egui::ComboBox::from_id_salt("merge_blend_combo")
@@ -576,6 +636,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                                 for (i, m) in modes.iter().enumerate() {
                                     if ui.selectable_value(&mut mode_idx, i as u32, *m).clicked() {
                                         set_choice_param(node, "blend_mode", mode_idx);
+                                        set_choice_param(node, "blend", mode_idx);
                                         modified = true;
                                     }
                                 }
@@ -722,14 +783,45 @@ fn get_selected_clip(app: &FilmcraftApp) -> Option<(ClipId, TrackItem)> {
 
 fn save_selected_clip(app: &mut FilmcraftApp, clip_id: ClipId, item: TrackItem) {
     let Some(seq_id) = app.session.state.active_sequence else { return };
-    if let Some(project) = Arc::get_mut(&mut app.session.project) {
-        if let Some(seq) = project.sequence_mut(seq_id) {
-            for track in &mut seq.video_tracks {
-                if let Some(existing) = track.items.iter_mut().find(|it| it.id == clip_id) {
-                    *existing = item;
-                    return;
-                }
-            }
+    let project = Arc::make_mut(&mut app.session.project);
+    if let Some(seq) = project.sequence_mut(seq_id) {
+        if let Some((_, existing)) = seq.find_item_mut(clip_id) {
+            *existing = item;
+            app.session.revision += 1;
+            app.session.events.push(filmcraft_engine::Event::ProjectChanged { revision: app.session.revision });
         }
     }
 }
+
+fn bezier_distance(p0: Pos2, p1: Pos2, p2: Pos2, p3: Pos2, pt: Pos2) -> f32 {
+    let steps = 20;
+    let mut min_dist_sq = f32::MAX;
+    let mut prev = p0;
+    for step in 1..=steps {
+        let t = step as f32 / steps as f32;
+        let u = 1.0 - t;
+        let curr = pos2(
+            u * u * u * p0.x + 3.0 * u * u * t * p1.x + 3.0 * u * t * t * p2.x + t * t * t * p3.x,
+            u * u * u * p0.y + 3.0 * u * u * t * p1.y + 3.0 * u * t * t * p2.y + t * t * t * p3.y,
+        );
+        let v = curr - prev;
+        let w = pt - prev;
+        let c1 = w.dot(v);
+        let dist_sq = if c1 <= 0.0 {
+            w.length_sq()
+        } else {
+            let c2 = v.dot(v);
+            if c2 <= c1 {
+                (pt - curr).length_sq()
+            } else {
+                let b = c1 / c2;
+                let pb = prev + v * b;
+                (pt - pb).length_sq()
+            }
+        };
+        min_dist_sq = min_dist_sq.min(dist_sq);
+        prev = curr;
+    }
+    min_dist_sq.sqrt()
+}
+

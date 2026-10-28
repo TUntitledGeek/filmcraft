@@ -146,8 +146,9 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                                 } else {
                                     input.to_string()
                                 };
+                                let short_id: String = folder_id.chars().take(8).collect();
                                 app.gdrive_config.active_folder_id = Some(folder_id.clone());
-                                app.gdrive_config.active_folder_name = Some(format!("Shared Drive ({})", &folder_id[..folder_id.len().min(8)]));
+                                app.gdrive_config.active_folder_name = Some(format!("Shared Drive ({short_id})"));
                                 app.gdrive_config.access_token = Some("live_linked_token".to_string());
                                 app.ui.status = format!("Linked Google Drive folder: {}", folder_id);
                             }
@@ -268,6 +269,7 @@ pub fn show_collab_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {
                             if ui.add(sync_btn).clicked() {
                                 app.gdrive_syncing = false;
                                 app.gdrive_last_synced = Some("Just now".into());
+                                app.session.saved_revision = app.session.revision;
                                 app.ui.status = "All project files synchronized with Google Drive.".into();
                             }
 
