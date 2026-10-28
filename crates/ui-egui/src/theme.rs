@@ -236,10 +236,10 @@ impl Tokens {
             monitor_bg: Color32::from_rgb(0x0c, 0x0d, 0x10),
             timecode: Color32::from_rgb(0x40, 0x96, 0xf3),
             danger: Color32::from_rgb(0xdc, 0x51, 0x3d),
-            radius: 4.0,
-            radius_sm: 3.0,
-            gap: 3.0,
-            tab_h: 30.0,
+            radius: 6.0,
+            radius_sm: 4.0,
+            gap: 4.0,
+            tab_h: 32.0,
         };
         match kind {
             ThemeKind::Dark => dark,
@@ -260,77 +260,93 @@ impl Tokens {
                 ..dark
             },
             ThemeKind::Light => Tokens {
-                app_bg: Color32::from_rgb(180, 180, 180),
-                header_bg: Color32::from_rgb(214, 214, 214),
-                panel_bg: Color32::from_rgb(232, 232, 232),
-                tab_bg: Color32::from_rgb(232, 232, 232),
-                tab_text: Color32::from_rgb(90, 90, 90),
-                tab_text_active: Color32::from_rgb(20, 20, 20),
-                text: Color32::from_rgb(34, 34, 34),
-                text_dim: Color32::from_rgb(90, 90, 90),
-                text_faint: Color32::from_rgb(140, 140, 140),
-                icon: Color32::from_rgb(60, 60, 60),
-                hover: Color32::from_rgb(210, 210, 210),
-                pressed: Color32::from_rgb(196, 196, 196),
-                field_bg: Color32::from_rgb(250, 250, 250),
-                field_border: Color32::from_rgb(170, 170, 170),
-                separator: Color32::from_rgb(200, 200, 200),
-                row_alt: Color32::from_rgb(224, 224, 224),
-                row_selected: Color32::from_rgb(170, 200, 240),
-                pill_active_bg: Color32::from_rgb(196, 196, 196),
-                clip_bar_bg: Color32::from_rgb(190, 203, 224),
-                control_surface: Color32::from_rgb(218, 218, 218),
-                control_well: Color32::from_rgb(196, 196, 196),
-                control_border: Color32::from_rgb(150, 150, 150),
-                control_handle_bg: Color32::from_rgb(205, 205, 205),
-                control_handle: Color32::from_rgb(50, 50, 50),
-                control_handle_dim: Color32::from_rgb(85, 85, 85),
-                plot_bg: Color32::from_rgb(245, 245, 245),
-                plot_grid: Color32::from_rgb(210, 210, 210),
-                plot_axis: Color32::from_rgb(170, 170, 170),
-                plot_handle: Color32::from_rgb(50, 50, 50),
-                plot_handle_dim: Color32::from_rgb(100, 100, 100),
-                meter_bg: Color32::from_rgb(205, 205, 205),
-                meter_readout_bg: Color32::from_rgb(218, 218, 218),
-                meter_clip_off: Color32::from_rgb(155, 155, 155),
-                panner_bg: Color32::from_gray(196),
-                panner_border: Color32::from_gray(150),
-                panner_speaker: Color32::from_gray(100),
-                fader_knob: Color32::from_gray(140),
-                eq_track: Color32::from_gray(196),
-                eq_tick: Color32::from_gray(150),
-                eq_knob: Color32::from_gray(85),
-                eq_knob_active: Color32::from_gray(34),
-                eq_node: Color32::from_gray(50),
-                eq_node_off: Color32::from_gray(140),
-                crossover_handle: Color32::from_gray(50),
-                keyframe_plot_bg: Color32::from_gray(245),
-                keyframe_plot_grid: Color32::from_gray(210),
-                keyframe_plot_axis: Color32::from_gray(170),
-                keyframe_handle: Color32::from_gray(50),
-                switch_fill: Color32::from_gray(60),
-                switch_knob: Color32::from_gray(232),
-                switch_border: Color32::from_gray(110),
-                slider_disabled_track: Color32::from_gray(190),
-                slider_disabled_knob: Color32::from_gray(140),
-                button_hover: Color32::from_gray(210),
-                button_border: Color32::from_gray(170),
-                icon_active: Color32::from_rgb(34, 34, 34),
-                caption_track_bg: Color32::from_rgb(222, 215, 233),
-                scroll_thumb: Color32::from_gray(150),
-                scroll_thumb_hover: Color32::from_gray(130),
-                vertical_scroll_thumb: Color32::from_gray(150),
-                disabled_clip_bg: Color32::from_gray(190),
-                in_out_shade: Color32::from_gray(185),
-                tl_bg: Color32::from_rgb(210, 210, 210),
-                tl_track_bg: Color32::from_rgb(222, 222, 222),
-                tl_track_bg_alt: Color32::from_rgb(228, 228, 228),
-                tl_header_bg: Color32::from_rgb(214, 214, 214),
-                tl_ruler_bg: Color32::from_rgb(226, 226, 226),
-                tl_ruler_text: Color32::from_rgb(80, 80, 80),
-                clip_selected_border: Color32::from_rgb(0x18, 0x1a, 0x24),
-                monitor_bg: Color32::from_rgb(0x1a, 0x1a, 0x1e),
-                ..dark
+                kind,
+                app_bg: Color32::from_rgb(0xf1, 0xf3, 0xf5),
+                header_bg: Color32::from_rgb(0xff, 0xff, 0xff),
+                panel_bg: Color32::from_rgb(0xff, 0xff, 0xff),
+                tab_bg: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                tab_text: Color32::from_rgb(0x5f, 0x63, 0x68),
+                tab_text_active: Color32::from_rgb(0x20, 0x21, 0x24),
+                focus: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                accent: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                accent_hover: Color32::from_rgb(0x15, 0x57, 0xb0),
+                text: Color32::from_rgb(0x20, 0x21, 0x24),
+                text_dim: Color32::from_rgb(0x5f, 0x63, 0x68),
+                text_faint: Color32::from_rgb(0x9a, 0xa0, 0xa6),
+                icon: Color32::from_rgb(0x5f, 0x63, 0x68),
+                icon_active: Color32::from_rgb(0x20, 0x21, 0x24),
+                hover: Color32::from_rgb(0xf1, 0xf3, 0xf4),
+                pressed: Color32::from_rgb(0xe8, 0xea, 0xed),
+                field_bg: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                field_border: Color32::from_rgb(0xda, 0xdc, 0xe0),
+                separator: Color32::from_rgb(0xe2, 0xe8, 0xf0),
+                row_alt: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                row_selected: Color32::from_rgb(0xe8, 0xf0, 0xfe),
+                hot_text: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                pill_active_bg: Color32::from_rgb(0xe8, 0xf0, 0xfe),
+                clip_bar_bg: Color32::from_rgb(0xd2, 0xe3, 0xfc),
+                control_surface: Color32::from_rgb(0xf1, 0xf3, 0xf4),
+                control_well: Color32::from_rgb(0xe8, 0xea, 0xed),
+                control_border: Color32::from_rgb(0xda, 0xdc, 0xe0),
+                control_handle_bg: Color32::from_rgb(0xff, 0xff, 0xff),
+                control_handle: Color32::from_rgb(0x3c, 0x40, 0x43),
+                control_handle_dim: Color32::from_rgb(0x80, 0x86, 0x8b),
+                plot_bg: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                plot_grid: Color32::from_rgb(0xe8, 0xea, 0xed),
+                plot_axis: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                plot_handle: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                plot_handle_dim: Color32::from_rgb(0x80, 0x86, 0x8b),
+                meter_bg: Color32::from_rgb(0x1a, 0x1b, 0x20),
+                meter_readout_bg: Color32::from_rgb(0xf1, 0xf3, 0xf4),
+                meter_clip_off: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                panner_bg: Color32::from_rgb(0xf1, 0xf3, 0xf4),
+                panner_border: Color32::from_rgb(0xda, 0xdc, 0xe0),
+                panner_speaker: Color32::from_rgb(0x80, 0x86, 0x8b),
+                fader_knob: Color32::from_rgb(0x9a, 0xa0, 0xa6),
+                eq_track: Color32::from_rgb(0xe8, 0xea, 0xed),
+                eq_tick: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                eq_knob: Color32::from_rgb(0x5f, 0x63, 0x68),
+                eq_knob_active: Color32::from_rgb(0x20, 0x21, 0x24),
+                eq_node: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                eq_node_off: Color32::from_rgb(0x9a, 0xa0, 0xa6),
+                crossover_handle: Color32::from_rgb(0x20, 0x21, 0x24),
+                keyframe_plot_bg: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                keyframe_plot_grid: Color32::from_rgb(0xe8, 0xea, 0xed),
+                keyframe_plot_axis: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                keyframe_handle: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                switch_fill: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                switch_knob: Color32::from_rgb(0xff, 0xff, 0xff),
+                switch_border: Color32::from_rgb(0xda, 0xdc, 0xe0),
+                slider_disabled_track: Color32::from_rgb(0xe8, 0xea, 0xed),
+                slider_disabled_knob: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                button_hover: Color32::from_rgb(0xf1, 0xf3, 0xf4),
+                button_border: Color32::from_rgb(0xda, 0xdc, 0xe0),
+                caption_track_bg: Color32::from_rgb(0xe8, 0xf0, 0xfe),
+                scroll_thumb: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                scroll_thumb_hover: Color32::from_rgb(0x9a, 0xa0, 0xa6),
+                vertical_scroll_thumb: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                disabled_clip_bg: Color32::from_rgb(0xe8, 0xea, 0xed),
+                in_out_shade: Color32::from_rgb(0xe8, 0xf0, 0xfe),
+                tl_bg: Color32::from_rgb(0xf1, 0xf3, 0xf5),
+                tl_track_bg: Color32::from_rgb(0xff, 0xff, 0xff),
+                tl_track_bg_alt: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                tl_header_bg: Color32::from_rgb(0xf8, 0xf9, 0xfa),
+                tl_ruler_bg: Color32::from_rgb(0xf1, 0xf3, 0xf5),
+                tl_ruler_tick: Color32::from_rgb(0xbd, 0xc1, 0xc6),
+                tl_ruler_text: Color32::from_rgb(0x5f, 0x63, 0x68),
+                playhead: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                track_target: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                clip_selected_border: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                render_red: Color32::from_rgb(0xd9, 0x30, 0x25),
+                render_yellow: Color32::from_rgb(0xf9, 0xab, 0x00),
+                render_green: Color32::from_rgb(0x18, 0x80, 0x38),
+                monitor_bg: Color32::from_rgb(0x0c, 0x0d, 0x10),
+                timecode: Color32::from_rgb(0x1a, 0x73, 0xe8),
+                danger: Color32::from_rgb(0xd9, 0x30, 0x25),
+                radius: 6.0,
+                radius_sm: 4.0,
+                gap: 4.0,
+                tab_h: 32.0,
             },
         }
     }
@@ -341,10 +357,11 @@ impl Tokens {
     pub fn with_appearance(mut self, highlight: Option<[u8; 3]>, accessible_contrast: bool) -> Self {
         if let Some([r, g, b]) = highlight {
             let c = Color32::from_rgb(r, g, b);
+            let is_default = filmcraft_engine::settings::parse_hex(filmcraft_engine::settings::DEFAULT_HIGHLIGHT) == Some([r, g, b]);
             // A highlight of the user's own also colours the theme's other blues: the same hue, as
             // much more or less saturated and bright as each of them is than the theme's highlight.
             // The theme's own highlight leaves them exactly as designed.
-            if c != self.accent {
+            if !is_default && c != self.accent {
                 let tint = |s: f32, v: f32| {
                     let mut h = egui::ecolor::HsvaGamma::from(c);
                     h.s = (h.s * s).clamp(0.0, 1.0);
@@ -356,10 +373,10 @@ impl Tokens {
                 self.timecode = tint(0.98, 1.09);
                 self.hot_text = self.timecode;
                 self.track_target = tint(1.0, 0.865);
+                let lift = |v: u8| v.saturating_add(16);
+                self.accent = c;
+                self.accent_hover = Color32::from_rgb(lift(r), lift(g), lift(b));
             }
-            let lift = |v: u8| v.saturating_add(16);
-            self.accent = c;
-            self.accent_hover = Color32::from_rgb(lift(r), lift(g), lift(b));
         }
         if accessible_contrast {
             if self.kind == ThemeKind::Light {
@@ -474,9 +491,13 @@ pub fn apply_visuals(ctx: &egui::Context, t: &Tokens) {
     v.selection.stroke = Stroke::new(1.0, Color32::WHITE);
     v.hyperlink_color = t.accent;
     v.window_stroke = Stroke::new(1.0, t.field_border);
-    v.window_corner_radius = egui::CornerRadius::same(6);
-    v.menu_corner_radius = egui::CornerRadius::same(6);
-    v.popup_shadow = egui::epaint::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(140) };
+    v.window_corner_radius = egui::CornerRadius::same(t.radius as u8);
+    v.menu_corner_radius = egui::CornerRadius::same(t.radius as u8);
+    v.popup_shadow = if light {
+        egui::epaint::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(32) }
+    } else {
+        egui::epaint::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(140) }
+    };
     v.window_shadow = v.popup_shadow;
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
         w.corner_radius = egui::CornerRadius::same(t.radius_sm as u8);

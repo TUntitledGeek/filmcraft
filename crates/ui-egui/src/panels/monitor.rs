@@ -139,7 +139,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     if let Some(g) = grid_area {
         crate::panels::multicam::grid(app, ui, g);
     }
-    ui.painter().rect_filled(video_area, 0.0, t.panel_bg);
+    ui.painter().rect_filled(video_area, 0.0, t.monitor_bg);
+    ui.painter().rect_stroke(video_area, 0.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
     let has_video = frame_size.0 > 0;
     // Source waveform modes: Audio Waveform (or an audio-only clip) and the video/waveform split.
     let source_item = if which == Which::Source { app.session.state.source_item } else { None };

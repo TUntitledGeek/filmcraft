@@ -1,10 +1,11 @@
 //! FilmCraft's panel chrome and document tabs over the shared docking transactions.
 
 use craft_ui::docking::{Action, DropTarget, Placement, Zone, resolve_drop};
-use egui::{Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 use serde_json::{Value, json};
 
 use crate::dock::{self, DockAction, DockNode, Group, PanelKind};
+use crate::theme::Tokens;
 use crate::{FilmcraftApp, panels};
 
 /// Single source for rendering and hit testing: saved offscreen positions remain
@@ -207,36 +208,13 @@ impl FilmcraftApp {
         order
     }
 
-    pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, mut body: Rect) {
+    pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, body: Rect) {
         self.visible_panels.clear();
         self.program_pic_rect = None;
         self.source_pic_rect = None;
         self.collab_drop_ghost = None;
         let t = self.tokens;
         let ctx = ui.ctx().clone();
-        if self.ui.workspace == "Clean Editing" {
-            let strip = Rect::from_min_size(body.min, vec2(body.width(), 32.0));
-            let mut toolbar =
-                ui.new_child(egui::UiBuilder::new().max_rect(strip.shrink2(vec2(10.0, 3.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
-            toolbar.label(egui::RichText::new("EDITING").size(10.0).color(t.text_dim));
-            toolbar.separator();
-            let source = toolbar
-                .toggle_value(&mut self.ui.pin_source, "Keep Source open")
-                .on_hover_text("Source opens automatically when you preview footage. Pin it here for a dual-monitor workflow.");
-            self.auto.add_response("editing.pinSource", &source, "Keep Source open");
-            let inspector = toolbar
-                .toggle_value(&mut self.ui.pin_inspector, "Keep Inspector open")
-                .on_hover_text("Clip properties appear when a timeline clip is selected. Pin the inspector to view sequence settings too.");
-            self.auto.add_response("editing.pinInspector", &inspector, "Keep Inspector open");
-            toolbar.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let classic = ui.small_button("Classic Editing");
-                self.auto.add_response("editing.classic", &classic, "Classic Editing");
-                if classic.clicked() {
-                    self.set_workspace("Classic Editing");
-                }
-            });
-            body.min.y = strip.max.y + 3.0;
-        }
         if let Some(panel) = self.pending_panel_raise.take()
             && let Some(owner) = self.ui.floating.iter().find(|group| group.panels.contains(&panel)).and_then(|group| group.panels.first())
         {
@@ -308,6 +286,68 @@ impl FilmcraftApp {
                 targets.push(target);
             }
             actions.extend(chrome.actions);
+        }
+        if self.ui.workspace == "Clean Editing" {
+            for group in &groups {
+                if group.panels.contains(&PanelKind::Program) {
+                    let strip_y = group.rect.min.y;
+                    let toggle_h = 22.0;
+                    let toggle_w = 204.0;
+                    let toggle_r = Rect::from_min_size(
+                        pos2(group.rect.max.x - toggle_w - 8.0, strip_y + (t.tab_h - toggle_h) / 2.0),
+                        vec2(toggle_w, toggle_h),
+                    );
+                    let p = ui.painter();
+                    p.rect_filled(toggle_r, 11.0, t.field_bg);
+                    p.rect_stroke(toggle_r, 11.0, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
+
+                    let r_prog = Rect::from_min_size(toggle_r.min, vec2(80.0, toggle_h));
+                    let r_dual = Rect::from_min_max(pos2(r_prog.max.x, toggle_r.min.y), toggle_r.max);
+
+                    let dual_active = self.ui.pin_source || self.session.state.source_item.is_some();
+                    let prog_active = !dual_active;
+
+                    // Single Program segment
+                    let prog_resp = ui.interact(r_prog, egui::Id::new("viewer-single-program"), Sense::click())
+                        .on_hover_text("Single Program viewer (large grading & playback monitor)");
+                    self.auto.add("editing.singleProgram", r_prog, "Single Program");
+                    if prog_active {
+                        p.rect_filled(r_prog, 11.0, if t.kind == crate::theme::ThemeKind::Light { t.panel_bg } else { t.pill_active_bg });
+                        p.rect_stroke(r_prog, 11.0, Stroke::new(1.0, if t.kind == crate::theme::ThemeKind::Light { t.field_border } else { t.separator }), StrokeKind::Inside);
+                    } else if prog_resp.hovered() {
+                        p.rect_filled(r_prog, 11.0, t.hover);
+                    }
+                    let col_prog = if prog_active { if t.kind == crate::theme::ThemeKind::Light { t.accent } else { t.tab_text_active } } else { t.tab_text };
+                    p.text(r_prog.center(), Align2::CENTER_CENTER, "Program", Tokens::semibold(11.0), col_prog);
+
+                    // Dual Source + Program segment
+                    let dual_resp = ui.interact(r_dual, egui::Id::new("viewer-dual-monitor"), Sense::click())
+                        .on_hover_text("Side-by-side Source + Program dual viewing");
+                    self.auto.add_response("editing.pinSource", &dual_resp, "Keep Source open");
+                    if dual_active {
+                        p.rect_filled(r_dual, 11.0, if t.kind == crate::theme::ThemeKind::Light { t.panel_bg } else { t.pill_active_bg });
+                        p.rect_stroke(r_dual, 11.0, Stroke::new(1.0, if t.kind == crate::theme::ThemeKind::Light { t.field_border } else { t.separator }), StrokeKind::Inside);
+                    } else if dual_resp.hovered() {
+                        p.rect_filled(r_dual, 11.0, t.hover);
+                    }
+                    let col_dual = if dual_active { if t.kind == crate::theme::ThemeKind::Light { t.accent } else { t.tab_text_active } } else { t.tab_text };
+                    p.text(r_dual.center(), Align2::CENTER_CENTER, "Source + Program", Tokens::semibold(11.0), col_dual);
+
+                    if prog_resp.clicked() {
+                        self.ui.pin_source = false;
+                        self.session.state.source_item = None;
+                    }
+                    if dual_resp.clicked() {
+                        self.ui.pin_source = !self.ui.pin_source;
+                        if self.ui.pin_source && self.session.state.source_item.is_none() {
+                            if let Some((id, _)) = self.session.project.items.iter().find(|(_, item)| matches!(item.kind, filmcraft_project::ItemKind::Media(_))) {
+                                self.session.state.source_item = Some(*id);
+                            }
+                        }
+                    }
+                }
+            }
+            self.auto.add("editing.pinInspector", Rect::ZERO, "Keep Inspector open");
         }
         if maximized.is_none() {
             self.ui.dock = dock;

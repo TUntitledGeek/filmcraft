@@ -819,7 +819,7 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
                 let top_color = if *p == PanelKind::NodeGraph || *p == PanelKind::LumetriColor || *p == PanelKind::LumetriScopes {
                     Color32::from_rgb(0xec, 0x93, 0x24)
                 } else {
-                    Color32::from_rgb(0x38, 0x7c, 0xf2)
+                    t.accent
                 };
                 painter.rect_filled(Rect::from_min_size(pos2(tab_rect.min.x, strip.min.y), vec2(tab_rect.width(), 2.0)), 0.0, top_color);
             } else if resp.hovered() {
@@ -853,9 +853,6 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
                 reg.add_response(&format!("panel.menu.{}", p.id()), &mresp, "panel menu");
                 let mc = if mresp.hovered() { t.tab_text_active } else { t.tab_text };
                 icons::paint(&painter, Rect::from_center_size(mr.center(), vec2(16.0, 16.0)), Icon::Hamburger, mc);
-                // 1 pt underline spanning label + ≡, 23 pt below the frame top
-                let uy = strip.min.y + 23.0;
-                painter.line_segment([pos2(label_x, uy), pos2(mr.max.x, uy)], Stroke::new(1.0, t.tab_text_active));
                 paint_widget_focus(&painter, &mresp, t);
                 if mresp.clicked() {
                     actions.push(DockAction::PanelMenu(*p, mr.left_bottom()));
@@ -952,7 +949,7 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
 /// Paint once after the group's contents so child backgrounds cannot hide its focus (#1075).
 pub(crate) fn paint_group_focus(ui: &egui::Ui, group: &Group, focused: PanelKind, tokens: &Tokens) {
     if group.panels.get(group.active).copied() == Some(focused) {
-        ui.painter().rect_stroke(group.rect, 0.0, Stroke::new(1.0, tokens.focus), StrokeKind::Inside);
+        ui.painter().rect_stroke(group.rect, tokens.radius, Stroke::new(1.0, tokens.focus.gamma_multiply(0.6)), StrokeKind::Inside);
     }
 }
 

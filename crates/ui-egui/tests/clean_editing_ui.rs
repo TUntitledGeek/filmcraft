@@ -65,3 +65,37 @@ fn all_new_presets_validate_and_classic_retains_the_previous_editing_layout() {
     assert!(dock::workspace("Fusion").is_visible(PanelKind::NodeGraph));
     assert!(!dock::workspace("Fusion").contains(PanelKind::Properties));
 }
+
+#[test]
+fn viewer_segmented_toggle_switches_between_single_and_dual_monitors() {
+    let app = demo();
+    let mut h = Harness::builder().with_size(egui::vec2(1656.0, 894.0)).build_eframe(move |_| app);
+    for _ in 0..4 {
+        h.step();
+    }
+    // Starts in single Program viewer mode
+    assert!(!h.state().ui.pin_source);
+    assert!(h.state().auto.query("panel.Source").is_empty());
+    assert!(!h.state().auto.query("editing.singleProgram").is_empty());
+    assert!(!h.state().auto.query("editing.pinSource").is_empty());
+
+    // Toggle to dual Source + Program viewing
+    h.state_mut().ui.pin_source = true;
+    h.ctx.request_repaint();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(!h.state().auto.query("panel.Source").is_empty());
+    assert!(!h.state().auto.query("panel.Program").is_empty());
+
+    // Toggle back to single Program
+    h.state_mut().ui.pin_source = false;
+    h.state_mut().session.state.source_item = None;
+    h.ctx.request_repaint();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.state().auto.query("panel.Source").is_empty());
+    let prog = h.state().auto.query("panel.Program");
+    assert!(prog.first().unwrap().rect[2] > 1300.0);
+}

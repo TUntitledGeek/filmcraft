@@ -14,7 +14,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let t = app.tokens;
     let p = ui.painter().clone();
     p.rect_filled(rect, 0.0, t.header_bg);
-    p.line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, Color32::BLACK));
+    p.line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, t.separator));
     let drag = ui.interact(rect, egui::Id::new("header-drag"), Sense::click_and_drag());
     if drag.drag_started() {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
@@ -135,7 +135,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // Draw the mode tabs in Zone Center
     let mut cx = center_start_x;
-    for (i, (m, id_tag, label_text, target_ws, underline_col)) in mode_tabs.into_iter().enumerate() {
+    for (i, (m, id_tag, label_text, target_ws, _underline_col)) in mode_tabs.into_iter().enumerate() {
         let is_active = match (m, target_ws) {
             (Mode::Import, _) => app.ui.mode == Mode::Import,
             (Mode::Export, _) => app.ui.mode == Mode::Export,
@@ -148,16 +148,20 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let resp = ui.interact(r, egui::Id::new(("studio-hdr-mode", id_tag)), Sense::click());
         app.auto.add(&format!("header.mode.{}", id_tag), r, label_text);
 
+        let pill_radius = r.height() / 2.0;
         if is_active {
-            p.rect_filled(r, 4.0, t.pill_active_bg);
-            p.rect_stroke(r, 4.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
-            p.line_segment([pos2(r.min.x + 6.0, r.max.y - 1.0), pos2(r.max.x - 6.0, r.max.y - 1.0)], Stroke::new(2.5, underline_col));
+            p.rect_filled(r, pill_radius, t.pill_active_bg);
+            if t.kind == crate::theme::ThemeKind::Light {
+                p.rect_stroke(r, pill_radius, Stroke::new(1.0, t.accent.gamma_multiply(0.25)), StrokeKind::Inside);
+            } else {
+                p.rect_stroke(r, pill_radius, Stroke::new(1.0, t.separator), StrokeKind::Inside);
+            }
         } else if resp.hovered() {
-            p.rect_filled(r, 4.0, t.hover);
+            p.rect_filled(r, pill_radius, t.hover);
         }
 
         let col = if is_active {
-            t.tab_text_active
+            if t.kind == crate::theme::ThemeKind::Light { t.accent } else { t.tab_text_active }
         } else if resp.hovered() {
             t.text
         } else {
@@ -232,13 +236,18 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let mut wr = Rect::ZERO;
     let mut w_clicked = false;
     if show_ws_name {
-        let wg = p.layout_no_wrap(ws_str.clone(), Tokens::ui(11.0), t.text_dim);
-        wr = Rect::from_min_size(pos2(rx - wg.size().x + 6.0, rect.center().y - 10.0), vec2(wg.size().x + 8.0, 20.0));
-        rx = wr.min.x - 12.0;
+        let wg = p.layout_no_wrap(ws_str.clone(), Tokens::semibold(11.0), if t.kind == crate::theme::ThemeKind::Light { t.text } else { t.tab_text_active });
+        let pill_w = wg.size().x + 28.0;
+        wr = Rect::from_min_size(pos2(rx - pill_w + 4.0, rect.center().y - 12.0), vec2(pill_w, 24.0));
+        rx = wr.min.x - 10.0;
         let wresp = ui.interact(wr, egui::Id::new("hdr-ws-name"), Sense::click());
         w_clicked = wresp.clicked();
         app.auto.add("header.workspaceName", wr, &ws_str);
-        p.galley_with_override_text_color(pos2(wr.min.x + 4.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.text } else { t.text_dim });
+        let bg = if wresp.hovered() { t.hover } else { t.field_bg };
+        p.rect_filled(wr, 12.0, bg);
+        p.rect_stroke(wr, 12.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
+        p.galley_with_override_text_color(pos2(wr.min.x + 9.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.accent } else { t.text });
+        icons::paint(&p, Rect::from_center_size(pos2(wr.max.x - 10.0, rect.center().y), vec2(8.0, 8.0)), Icon::ChevronDown, if wresp.hovered() { t.accent } else { t.text_dim });
     }
 
     // Interactive Combined Project Title & Google Drive Capsule
@@ -302,7 +311,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 ui.set_min_width(220.0);
                 for w in crate::dock::names(&app.workspaces) {
                     let sel = app.ui.workspace == w;
-                    if ui.selectable_label(sel, crate::i18n::t(&w)).clicked() {
+                    let resp = ui.selectable_label(sel, crate::i18n::t(&w));
+                    if w == "Classic Editing" {
+                        app.auto.add_response("editing.classic", &resp, "Classic Editing");
+                    }
+                    if resp.clicked() {
                         app.set_workspace(&w);
                         ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
                     }
