@@ -6,6 +6,26 @@ use filmcraft_time::{FrameRate, Tick, parse_timecode};
 use crate::icons::{self, Icon};
 use crate::theme::Tokens;
 
+pub fn paint_focus(p: &egui::Painter, response: &Response, t: &Tokens) {
+    if response.has_focus() {
+        p.rect_stroke(response.rect.shrink(1.0), t.radius_sm, Stroke::new(1.5, t.focus), StrokeKind::Inside);
+    }
+}
+
+/// One-line labels in constrained property, bin and track columns share the same truncation.
+pub fn truncated_label(p: &egui::Painter, rect: Rect, text: &str, font: egui::FontId, color: Color32) {
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::simple(text.to_owned(), font, color, rect.width());
+    job.wrap.max_rows = 1;
+    job.wrap.break_anywhere = true;
+    job.wrap.overflow_character = Some('…');
+    let galley = p.layout_job(job);
+    let at = pos2(rect.min.x, rect.center().y - galley.size().y / 2.0);
+    p.with_clip_rect(rect).galley(at, galley, color);
+}
+
 /// Premiere "hot text": a blue number you drag horizontally to scrub, click to type a number or a
 /// calculation ([`crate::calc`]).
 /// Returns (response, Some(new value) when changed).
@@ -15,7 +35,8 @@ pub fn hot_number(ui: &mut Ui, id: egui::Id, value: f64, speed: f64, range: (f64
     let select_all_id = id.with("select-all");
     let mut editing: Option<String> = ui.data(|d| d.get_temp(editing_id));
     if let Some(buf) = editing.as_mut() {
-        let r = ui.add(egui::TextEdit::singleline(buf).id(edit_id).desired_width(56.0).font(Tokens::ui(12.0)));
+        let width = 56.0_f32.min(ui.available_width().max(24.0));
+        let r = ui.add(egui::TextEdit::singleline(buf).id(edit_id).desired_width(width).font(Tokens::ui(12.0)));
         let mut out = None;
         if r.lost_focus() {
             // the field's own unit can be typed anywhere; calc ignores the common ones
@@ -44,10 +65,15 @@ pub fn hot_number(ui: &mut Ui, id: egui::Id, value: f64, speed: f64, range: (f64
         return (r, out);
     }
     let text = format!("{value:.decimals$}{suffix}");
-    let galley = ui.painter().layout_no_wrap(text, Tokens::ui(12.0), t.hot_text);
-    let (rect, resp) = ui.allocate_exact_size(galley.size() + vec2(4.0, 4.0), Sense::click_and_drag());
+    let galley = ui.painter().layout_no_wrap(text.clone(), Tokens::ui(12.0), t.hot_text);
+    let size = galley.size() + vec2(4.0, 4.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(size.x.min(ui.available_width().max(20.0)), size.y), Sense::click_and_drag());
+    let resp = resp.on_hover_text(text);
     let col = if resp.hovered() || resp.dragged() { t.accent_hover } else { t.hot_text };
-    ui.painter().galley_with_override_text_color(rect.min + vec2(2.0, 2.0), galley, col);
+    ui.painter().with_clip_rect(rect).galley_with_override_text_color(rect.min + vec2(2.0, 2.0), galley, col);
+    if resp.has_focus() {
+        ui.painter().rect_stroke(rect.expand(1.0), 3.0, Stroke::new(1.5, t.focus), StrokeKind::Inside);
+    }
     if resp.hovered() || resp.dragged() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         let y = rect.max.y - 1.0;
@@ -286,7 +312,16 @@ pub fn dropdown_text(ui: &mut Ui, rect: Rect, text: &str, t: &Tokens, id: egui::
     ui.painter().rect_stroke(
         rect,
         4.0,
-        Stroke::new(1.0, if resp.hovered() { Color32::from_rgb(0x4b, 0x4b, 0x4b) } else { t.field_border }),
+        Stroke::new(
+            1.0,
+            if resp.has_focus() {
+                t.focus
+            } else if resp.hovered() {
+                t.text_dim
+            } else {
+                t.field_border
+            },
+        ),
         StrokeKind::Inside,
     );
     ui.painter().text(pos2(rect.min.x + 9.0, rect.center().y), Align2::LEFT_CENTER, text, Tokens::ui(12.0), t.text);

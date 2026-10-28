@@ -65,7 +65,14 @@ try {
   if(!ready) throw new Error(`App control API did not become ready: ${JSON.stringify(report.load)}`);
   report.info=await js('filmcraft.info()');
   report.adapter=await js('(async()=>{const a=await navigator.gpu?.requestAdapter();if(!a)return null;return {vendor:a.info.vendor,architecture:a.info.architecture,device:a.info.device,description:a.info.description}})()');
-  await execute('file.openDemoProject');
+  const media=arg('media','none');
+  if(media==='none') await execute('file.openDemoProject');
+  else {
+    await execute('file.newProject',{name:'Controlled imported video'});
+    report.import=await js(`filmcraft.importUrl(new URL(${JSON.stringify(media)}, location.href).href)`);
+    if(report.import.errors?.length || !report.import.items?.length) throw new Error('Media import failed: '+JSON.stringify(report.import));
+    await execute('file.newSequence',{name:'AVC 720p30',fromItems:report.import.items});
+  }
   await call('ui.set',{mode:'edit',workspace:arg('workspace','Editing')});
   await execute('edit.deselectAll');
   await capture('editing-empty');
@@ -77,11 +84,22 @@ try {
     new PerformanceObserver(l=>reviewLongTasks.push(...l.getEntries().map(e=>({start:e.startTime,duration:e.duration})))).observe({type:'longtask',buffered:false});
     let prev; function sample(t){if(prev!==undefined)reviewPacing.push(t-prev);prev=t;if(reviewRunning)requestAnimationFrame(sample)}requestAnimationFrame(sample);
     void (async function sampleQueue(){while(reviewRunning){const s=await filmcraft.request('perf.stats');reviewQueue.push({at:performance.now(),queued:s.frames.queued,frame:s.monitor.frame,due:s.monitor.playheadFrame});await new Promise(r=>setTimeout(r,100));}})();`);
+  const playbackStart=performance.now();
   await call('ui.playback',{action:'play'});
   await sleep(seconds*1000);
   report.performance=await call('perf.stats');
+  report.performance.elapsedWallMs=performance.now()-playbackStart;
   report.performance.browser=await js(`(()=>{reviewRunning=false;const a=reviewPacing.slice().sort((a,b)=>a-b);return {durationS:${seconds},samples:a.length,p50Ms:a[Math.floor(a.length*.5)],p95Ms:a[Math.floor(a.length*.95)],maxMs:a.at(-1),stallsOver50Ms:a.filter(x=>x>50).length,longTasks:reviewLongTasks,queueSamples:reviewQueue}})()`);
   await call('ui.playback',{action:'stop'});
+  report.afterInfo=await js('filmcraft.info()');
+  if(arg('benchmark-only','false')==='true') {
+    report.seek=await js(`(async()=>{const results=[];for(const seconds of [1,5,2,8,3]){
+      const start=performance.now();await filmcraft.execute('playhead.set',{seconds});const control=performance.now()-start;
+      let s;for(let i=0;i<200;i++){s=await filmcraft.request('perf.stats');if(s.monitor.frame===s.monitor.playheadFrame)break;await new Promise(r=>setTimeout(r,10));}
+      results.push({seconds,commandUpperBoundMs:control,previewUpperBoundMs:performance.now()-start,exact:s.monitor.frame===s.monitor.playheadFrame,monitor:s.monitor});
+    }return results;})()`);
+    await capture('imported-video');
+  } else {
   await execute('playhead.set',{seconds:3});
   const seq=report.sequence;
   const text=JSON.stringify(seq);writeFileSync(join(out,'sequence.json'),text);
@@ -142,6 +160,31 @@ try {
   }
   await call('ui.set',{mode:'import'});await capture('project-hub');
   await call('ui.set',{mode:'edit',workspace:arg('workspace','Editing'),theme:'light'});await capture('editing-light');
+  if(arg('audit','none')==='all') {
+    for(const theme of ['dark','light']) {
+      for(const workspace of ['Clean Editing','Fusion','Color','Assembly','Audio','Captions and Graphics']) {
+        await call('ui.set',{mode:'edit',workspace,theme});
+        await capture(`${workspace.toLowerCase().replaceAll(' ','-')}-${theme}`);
+      }
+      for(const mode of ['import','export']) {
+        await call('ui.set',{mode,theme});await capture(`${mode}-${theme}`);
+      }
+    }
+    for(const width of [1280,1024]) {
+      await send('Emulation.setDeviceMetricsOverride',{width,height:894,deviceScaleFactor:1,mobile:false});
+      await call('ui.set',{mode:'edit',workspace:'Clean Editing',theme:'dark'});
+      if(first) {
+        await execute('timeline.select',{clips:[first.clip],add:false,toggle:false,linked:false});
+        await execute('source.open',{item:first.item});
+      }
+      await capture(`editing-dual-${width}`);
+      await execute('edit.deselectAll');
+      await call('ui.click',{id:'editing.singleProgram'});
+      await capture(`editing-single-${width}`);
+    }
+    await send('Emulation.setDeviceMetricsOverride',{width:1656,height:894,deviceScaleFactor:1,mobile:false});
+    await call('ui.set',{mode:'edit',workspace:'Clean Editing',theme:'light'});
+  }
   if(arg('workspace','Editing')==='Clean Editing') {
     const before=await js('filmcraft.inspect()');
     const dock=JSON.stringify(before.ui.dock);
@@ -157,6 +200,7 @@ try {
     const restored=await js('filmcraft.inspect()');
     report.persistence.reloadRestored=restored.ui.workspace==='Studio Review' && JSON.stringify(restored.ui.dock)===dock;
     if(!report.persistence.switchRestored||!report.persistence.reloadRestored)throw new Error('Custom workspace persistence failed: '+JSON.stringify(report.persistence));
+  }
   }
   console.log(JSON.stringify({out,info:report.info,playback:report.performance.playback,pacing:{p50:report.performance.browser.p50Ms,p95:report.performance.browser.p95Ms,stalls:report.performance.browser.stallsOver50Ms},errors:report.errors}));
 } catch(e) {

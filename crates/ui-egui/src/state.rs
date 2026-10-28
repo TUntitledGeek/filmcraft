@@ -227,8 +227,8 @@ impl Default for TimelineView {
             v_scroll: 0.0,
             a_scroll: 0.0,
             split: 0.5,
-            video_track_h: 60.0,
-            audio_track_h: 56.0,
+            video_track_h: 40.0,
+            audio_track_h: 36.0,
             header_w: 204.0,
             show_thumbnails: true,
             thumbnail_mode: ThumbnailMode::Head,
@@ -436,11 +436,16 @@ pub struct UiState {
     /// Pin contextual panes open in Clean Editing. Saved layouts bypass contextual hiding.
     #[serde(default)]
     pub pin_source: bool,
+    /// An explicit close also hides Source in a saved Clean Editing layout, without rewriting it.
+    pub source_closed: bool,
     #[serde(default)]
     pub pin_inspector: bool,
     /// Reversible factory-layout preview. Never written into workspace preferences.
     #[serde(skip)]
     pub workspace_preview: Option<crate::dock::Layout>,
+    /// Session drafts survive workspace switches; only explicit Save writes workspace preferences.
+    #[serde(skip)]
+    pub workspace_drafts: std::collections::BTreeMap<String, crate::dock::Layout>,
     pub dock: DockNode,
     #[serde(default)]
     pub floating: Vec<crate::dock::Floating>,
@@ -972,13 +977,15 @@ impl Default for UiState {
             mode: Mode::Edit,
             workspace: "Clean Editing".into(),
             pin_source: false,
+            source_closed: false,
             pin_inspector: false,
             workspace_preview: None,
+            workspace_drafts: Default::default(),
             floating: vec![],
             closed_floating: vec![],
             dock: crate::dock::workspace("Clean Editing"),
             focused: PanelKind::Timeline,
-            timeline: TimelineView { video_track_h: 40.0, audio_track_h: 32.0, split: 0.45, ..TimelineView::default() },
+            timeline: TimelineView { split: 0.45, ..TimelineView::default() },
             program: MonitorView::default(),
             source: MonitorView::default(),
             project_search: String::new(),

@@ -737,6 +737,9 @@ impl FrameServer {
 pub struct PlaybackMeter {
     pub shown: u64,
     pub dropped: u64,
+    /// Changed sequence images actually presented, including late fallback pictures.
+    pub presented: u64,
+    last_presented: Option<i64>,
     /// Frame due at the last refresh, and whether its exact picture has been shown.
     current: Option<(i64, bool)>,
     /// Frames advanced per displayed frame (speed), and direction.
@@ -744,6 +747,14 @@ pub struct PlaybackMeter {
 }
 
 impl PlaybackMeter {
+    pub fn present(&mut self, frame: Option<i64>) {
+        if let Some(frame) = frame
+            && self.last_presented != Some(frame)
+        {
+            self.presented = self.presented.saturating_add(1);
+            self.last_presented = Some(frame);
+        }
+    }
     pub fn start(&mut self, speed: f64) {
         *self = Self { step: (speed.abs().max(1.0) as i64) * if speed < 0.0 { -1 } else { 1 }, ..Default::default() };
     }
@@ -1090,6 +1101,24 @@ mod tests {
         m.refresh(61, true);
         m.finish();
         assert_eq!((m.shown, m.dropped), (2, 0));
+    }
+
+    #[test]
+    fn meter_distinguishes_late_presentations_from_on_time_deadlines() {
+        let mut meter = PlaybackMeter::default();
+        meter.start(1.0);
+        for frame in [Some(0), Some(0), None, Some(1), Some(3)] {
+            meter.present(frame);
+        }
+        meter.refresh(2, false);
+        meter.refresh(3, false);
+        meter.finish();
+        assert_eq!(meter.presented, 3);
+        assert_eq!(meter.counts(), (0, 2));
+        meter.start(-1.0);
+        meter.present(Some(3));
+        meter.present(Some(2));
+        assert_eq!(meter.presented, 2);
     }
 
     #[test]

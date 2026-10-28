@@ -29,9 +29,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     let t = app.tokens;
     let ctx = ui.ctx().clone();
     let stacked_controls = rect.width() < 540.0;
+    let stacked_timecodes = rect.width() < 250.0;
+    let timecode_h = if stacked_timecodes { 26.0 } else { 0.0 };
+    let narrow_settings_h = if rect.width() < 180.0 { 26.0 } else { 0.0 };
     let separate_source_drag = which == Which::Source && stacked_controls && rect.width() < 310.0;
     let source_drag_h = if separate_source_drag { 26.0 } else { 0.0 };
-    let controls_h = 28.0 + 24.0 + 15.0 + 36.0 + if stacked_controls { 26.0 } else { 0.0 } + source_drag_h;
+    let controls_h = 28.0 + 24.0 + 15.0 + 36.0 + if stacked_controls { 26.0 } else { 0.0 } + source_drag_h + timecode_h + narrow_settings_h;
     let video_area = Rect::from_min_max(rect.min + vec2(4.0, 4.0), pos2(rect.max.x - 4.0, rect.max.y - controls_h));
     // the Source monitor's time ruler starts at `origin` (a subclip restricted to its range)
     let mut origin = Tick::ZERO;
@@ -251,7 +254,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
                 .or_else(|| app.frames.nearest_plan(key, 6))
                 .or_else(|| asked.iter().find_map(|k| app.frames.get_plan(k).map(|p| (*k, p))));
             match found {
-                Some((k, plan)) => (app.gpu_present(k, &plan).map(|(id, _)| id), Some(k)),
+                Some((k, plan)) => match app.gpu_present(k, &plan) {
+                    Some((id, _)) => (Some(id), Some(k)),
+                    None => (app.gpu.as_ref().and_then(|g| g.texture), app.gpu.as_ref().and_then(|g| g.last_key)),
+                },
                 None => (app.gpu.as_ref().and_then(|g| g.texture), app.gpu.as_ref().and_then(|g| g.last_key)),
             }
         } else {
@@ -270,6 +276,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         }
         if playing {
             let clock = if which == Which::Program { &mut app.playback } else { &mut app.source_playback.clock };
+            if shown.is_some() {
+                clock.meter.present(on_screen.map(|key| key.frame));
+            }
             if std::mem::take(&mut clock.hidden) {
                 clock.meter.resync(frame, exact);
             } else {
@@ -392,13 +401,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     }
     app.auto.add(&format!("{prefix}.timecode"), tc_rect, &tc);
     let dur_tc = format_time(mark_out.map(|o| o + rate.frame_duration()).unwrap_or(duration) - range_start, rate, drop_frame, TimeDisplay::Timecode, 48000);
-    ui.painter().text(pos2(row1.max.x, row1.center().y), Align2::RIGHT_CENTER, &dur_tc, Tokens::timecode(), t.text_dim);
+    ui.painter().text(pos2(row1.max.x, row1.center().y + timecode_h), Align2::RIGHT_CENTER, &dur_tc, Tokens::timecode(), t.text_dim);
     // At compact widths, timecodes and view settings need separate rows.
-    let settings_y = row1.min.y + if stacked_controls { 26.0 } else { 0.0 };
+    let settings_y = row1.min.y + timecode_h + if stacked_controls { 26.0 } else { 0.0 };
     let zoom_x = if stacked_controls && which == Which::Source && !separate_source_drag {
         row1.min.x
     } else if stacked_controls {
-        row1.center().x - 83.0
+        (row1.center().x - 83.0).max(rect.min.x + 4.0)
     } else {
         row1.min.x + 116.0
     };
@@ -440,7 +449,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
             }
         }
     });
-    let wr = Rect::from_min_size(pos2(rr.max.x + 6.0, settings_y + 1.0), vec2(22.0, 22.0));
+    let wr = if narrow_settings_h > 0.0 {
+        Rect::from_min_size(pos2(row1.max.x - 22.0, settings_y + 27.0 + source_drag_h), vec2(22.0, 22.0))
+    } else {
+        Rect::from_min_size(pos2(rr.max.x + 6.0, settings_y + 1.0), vec2(22.0, 22.0))
+    };
     let wresp = ui.interact(wr, egui::Id::new((prefix, "wrench")), Sense::click());
     icons::paint(ui.painter(), wr.shrink(4.0), Icon::Wrench, if wresp.hovered() { t.tab_text_active } else { t.icon });
     app.auto.add(&format!("{prefix}.settings"), wr, "Settings");
@@ -496,7 +509,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         }
     });
     // ---- mini timeline / scrub bar
-    let bar = Rect::from_min_size(pos2(rect.min.x + 14.0, settings_y + 28.0 + source_drag_h), vec2(rect.width() - 28.0, 22.0));
+    let bar = Rect::from_min_size(pos2(rect.min.x + 14.0, settings_y + 28.0 + source_drag_h + narrow_settings_h), vec2(rect.width() - 28.0, 22.0));
     let zoom_bar = Rect::from_min_size(pos2(bar.min.x, bar.max.y + 2.0), vec2(bar.width(), 13.0));
     follow_playhead(app, which, origin, duration, time);
     time_zoom_bar(app, ui, zoom_bar, which, origin, duration, rate);

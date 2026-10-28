@@ -846,6 +846,7 @@ fn double_click_empty_area_imports_with_a_project_loaded() {
         }
         let (tx, rx) = channel();
         let mut app = FilmcraftApp::new(session).with_control(rx);
+        app.set_workspace("Editing"); // This regression exercises blank space beside grid cards.
         let picks = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let seen = picks.clone();
         app.hooks.pick_files = Some(Box::new(move |_| {
@@ -915,6 +916,7 @@ fn double_click_imports_with_audio_in_the_timeline() {
     session.execute("timeline.place", json!({"item": item.0, "audioTrack": "A1", "seconds": 0.0})).unwrap();
     let (tx, rx) = channel();
     let mut app = FilmcraftApp::new(session).with_control(rx);
+    app.set_workspace("Editing"); // Keep a wide grid with blank space beside its cards.
     let picks = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let seen = picks.clone();
     app.hooks.pick_files = Some(Box::new(move |_| {

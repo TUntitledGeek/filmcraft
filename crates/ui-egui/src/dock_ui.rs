@@ -229,6 +229,14 @@ impl FilmcraftApp {
         let mut groups = vec![];
         let mut layout_actions = Vec::new();
         let mut hidden = Vec::new();
+        if maximized.is_none()
+            && self.ui.workspace == "Clean Editing"
+            && self.ui.source_closed
+            && !self.ui.pin_source
+            && self.session.state.source_item.is_none()
+        {
+            hidden.push(PanelKind::Source);
+        }
         // A saved/custom layout always keeps the user's geometry. Contextual hiding is a
         // rendering policy of the new built-in preset, never a migration of their dock tree.
         if maximized.is_none()
@@ -241,6 +249,10 @@ impl FilmcraftApp {
             if self.session.state.selection.is_empty() && !self.ui.pin_inspector {
                 hidden.extend([PanelKind::Properties, PanelKind::EffectControls]);
             }
+        }
+        // Built-in workspaces share the horizontal toolbar. Saved/custom layouts retain a
+        // docked Tools panel; their timeline then omits the duplicate horizontal controls.
+        if maximized.is_none() && !self.workspaces.saved.iter().any(|s| s.name == self.ui.workspace) && dock.contains(PanelKind::Timeline) {
             hidden.push(PanelKind::Tools);
         }
         dock::layout_contextual(ui, &mut dock, body, &t, "", &mut groups, &mut self.auto, &mut layout_actions, &hidden);
@@ -259,12 +271,17 @@ impl FilmcraftApp {
                 })
                 .collect(),
             active: self.session.state.active_sequence.map(|id| id.0),
-            tool: Some(self.ui.tool),
+            tool: (!groups.iter().any(|g| g.panels.get(g.active) == Some(&PanelKind::Tools))
+                && !self.ui.floating.iter().any(|g| g.panels.get(g.active) == Some(&PanelKind::Tools)))
+            .then_some(self.ui.tool),
         };
         let mut actions = vec![];
         let mut targets = vec![];
         for group in &groups {
             let chrome = dock::draw_group_chrome_details(ui, group, &seqs, &t, &mut self.auto);
+            if let Some(rect) = chrome.tools {
+                panels::tools::horizontal(self, ui, rect);
+            }
             if let Some(collab) = &self.collab
                 && let Ok(peers) = collab.peers.try_read()
             {
@@ -294,21 +311,32 @@ impl FilmcraftApp {
                 let strip_y = group.rect.min.y;
                 let p = ui.painter();
                 // Source group header: subtle pin and close buttons
-                if group.panels.contains(&PanelKind::Source) {
+                if group.panels.get(group.active) == Some(&PanelKind::Source) {
                     let pin_active = self.ui.pin_source;
-                    let pin_r = Rect::from_min_size(
-                        pos2(group.rect.max.x - 52.0, strip_y + (t.tab_h - 22.0) / 2.0),
-                        vec2(22.0, 22.0),
-                    );
-                    let pin_resp = ui.interact(pin_r, egui::Id::new("viewer-source-pin"), Sense::click())
-                        .on_hover_text(if pin_active { "Unpin Source viewer" } else { "Pin Source viewer (keep dual layout)" });
+                    let pin_r = Rect::from_min_size(pos2(group.rect.max.x - 52.0, strip_y + (t.tab_h - 22.0) / 2.0), vec2(22.0, 22.0));
+                    let pin_resp = ui.interact(pin_r, egui::Id::new("viewer-source-pin"), Sense::click()).on_hover_text(if pin_active {
+                        "Unpin Source viewer"
+                    } else {
+                        "Pin Source viewer (keep dual layout)"
+                    });
+                    self.auto.add_response("editing.sourcePin", &pin_resp, "Pin Source viewer");
                     if pin_active {
-                        p.rect_filled(pin_r, 4.0, if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x27, 0x39, 0x54) });
+                        p.rect_filled(
+                            pin_r,
+                            4.0,
+                            if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x27, 0x39, 0x54) },
+                        );
                         p.rect_stroke(pin_r, 4.0, Stroke::new(1.0, t.accent), StrokeKind::Inside);
                     } else if pin_resp.hovered() {
                         p.rect_filled(pin_r, 4.0, t.hover);
                     }
-                    let pin_col = if pin_active { t.accent } else if pin_resp.hovered() { t.tab_text_active } else { t.icon };
+                    let pin_col = if pin_active {
+                        t.accent
+                    } else if pin_resp.hovered() {
+                        t.tab_text_active
+                    } else {
+                        t.icon
+                    };
                     let ir = pin_r.shrink(5.0);
                     p.line_segment([pos2(ir.center().x, ir.min.y + 2.0), pos2(ir.center().x, ir.max.y - 2.0)], Stroke::new(1.3, pin_col));
                     p.line_segment([pos2(ir.min.x + 2.0, ir.min.y + 4.0), pos2(ir.max.x - 2.0, ir.min.y + 4.0)], Stroke::new(1.3, pin_col));
@@ -317,12 +345,9 @@ impl FilmcraftApp {
                         self.ui.pin_source = !self.ui.pin_source;
                     }
                     // Close button (returns to single Program viewer)
-                    let close_r = Rect::from_min_size(
-                        pos2(group.rect.max.x - 26.0, strip_y + (t.tab_h - 22.0) / 2.0),
-                        vec2(22.0, 22.0),
-                    );
-                    let close_resp = ui.interact(close_r, egui::Id::new("viewer-source-close"), Sense::click())
-                        .on_hover_text("Close Source viewer (single Program)");
+                    let close_r = Rect::from_min_size(pos2(group.rect.max.x - 26.0, strip_y + (t.tab_h - 22.0) / 2.0), vec2(22.0, 22.0));
+                    let close_resp =
+                        ui.interact(close_r, egui::Id::new("viewer-source-close"), Sense::click()).on_hover_text("Close Source viewer (single Program)");
                     self.auto.add_response("editing.singleProgram", &close_resp, "Single Program");
                     if close_resp.hovered() {
                         p.rect_filled(close_r, 4.0, t.hover);
@@ -330,28 +355,39 @@ impl FilmcraftApp {
                     let close_col = if close_resp.hovered() { t.tab_text_active } else { t.text_dim };
                     icons::paint(p, Rect::from_center_size(close_r.center(), vec2(11.0, 11.0)), Icon::Close, close_col);
                     if close_resp.clicked() {
+                        self.stop_source();
+                        self.ui.source_closed = true;
                         self.ui.pin_source = false;
                         self.session.state.source_item = None;
                     }
                 }
                 // Program group header: subtle split-view toggle button
-                if group.panels.contains(&PanelKind::Program) {
-                    let dual_active = self.ui.pin_source || self.session.state.source_item.is_some();
-                    let split_r = Rect::from_min_size(
-                        pos2(group.rect.max.x - 30.0, strip_y + (t.tab_h - 22.0) / 2.0),
-                        vec2(24.0, 22.0),
-                    );
-                    let split_resp = ui.interact(split_r, egui::Id::new("viewer-split-toggle"), Sense::click())
-                        .on_hover_text(if dual_active { "Hide Source viewer (Single Program)" } else { "Split View: Show Source beside Program" });
+                if group.panels.get(group.active) == Some(&PanelKind::Program) {
+                    let dual_active = groups.iter().any(|g| g.panels.get(g.active) == Some(&PanelKind::Source));
+                    let split_r = Rect::from_min_size(pos2(group.rect.max.x - 30.0, strip_y + (t.tab_h - 22.0) / 2.0), vec2(24.0, 22.0));
+                    let split_resp = ui.interact(split_r, egui::Id::new("viewer-split-toggle"), Sense::click()).on_hover_text(if dual_active {
+                        "Hide Source viewer (Single Program)"
+                    } else {
+                        "Split View: Show Source beside Program"
+                    });
                     self.auto.add_response("editing.pinSource", &split_resp, "Keep Source open");
-                    self.auto.add("editing.singleProgram", split_r, "Single Program");
                     if dual_active {
-                        p.rect_filled(split_r, 4.0, if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x27, 0x39, 0x54) });
+                        p.rect_filled(
+                            split_r,
+                            4.0,
+                            if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x27, 0x39, 0x54) },
+                        );
                         p.rect_stroke(split_r, 4.0, Stroke::new(1.0, t.accent), StrokeKind::Inside);
                     } else if split_resp.hovered() {
                         p.rect_filled(split_r, 4.0, t.hover);
                     }
-                    let split_col = if dual_active { t.accent } else if split_resp.hovered() { t.tab_text_active } else { t.icon };
+                    let split_col = if dual_active {
+                        t.accent
+                    } else if split_resp.hovered() {
+                        t.tab_text_active
+                    } else {
+                        t.icon
+                    };
                     let ir = split_r.shrink(4.0);
                     p.rect_stroke(ir, 2.0, Stroke::new(1.2, split_col), StrokeKind::Inside);
                     let div_x = ir.center().x;
@@ -360,11 +396,14 @@ impl FilmcraftApp {
                         p.rect_filled(Rect::from_min_max(ir.min, pos2(div_x, ir.max.y)), 1.0, split_col.gamma_multiply(0.3));
                     }
                     if split_resp.clicked() {
-                        self.ui.pin_source = !self.ui.pin_source;
-                        if self.ui.pin_source && self.session.state.source_item.is_none() {
-                            if let Some((id, _)) = self.session.project.items.iter().find(|(_, item)| matches!(item.kind, filmcraft_project::ItemKind::Media(_))) {
-                                self.session.state.source_item = Some(*id);
-                            }
+                        if dual_active {
+                            self.stop_source();
+                            self.ui.source_closed = true;
+                            self.ui.pin_source = false;
+                            self.session.state.source_item = None;
+                        } else {
+                            self.ui.source_closed = false;
+                            self.ui.pin_source = true;
                         }
                     }
                 }
@@ -470,6 +509,9 @@ impl FilmcraftApp {
                 active: floating.active,
             };
             let chrome = dock::draw_group_chrome_details(ui, &group, seqs, &t, &mut self.auto);
+            if let Some(rect) = chrome.tools {
+                panels::tools::horizontal(self, ui, rect);
+            }
             if let Some(collab) = &self.collab
                 && let Ok(peers) = collab.peers.try_read()
             {

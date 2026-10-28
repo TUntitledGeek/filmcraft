@@ -32,11 +32,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let left_start_x = rect.min.x + if app.integrated_titlebar { 104.0 } else { 14.0 };
     let home = Rect::from_center_size(pos2(left_start_x + 13.0, rect.center().y), vec2(26.0, 26.0));
     let hresp = ui.interact(home, egui::Id::new("hdr-home"), Sense::click()).on_hover_text(format!("Project Hub ({})", tl!("Home")));
-    app.auto.add("header.home", home, "Project Hub");
+    app.auto.add_response("header.home", &hresp, "Project Hub");
     if hresp.hovered() {
         p.rect_filled(home, 4.0, t.hover);
     }
     icons::paint(&p, home.shrink(5.0), Icon::Home, if hresp.hovered() { t.text } else { t.text_dim });
+    crate::widgets::paint_focus(&p, &hresp, &t);
     if hresp.clicked() {
         app.ui.mode = Mode::Import;
     }
@@ -50,18 +51,18 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     // Right buttons: Fullscreen (36) + Appearance (36) + Quick Export (36) + Workspaces (36) = 144
     let ws_str = match app.ui.mode {
-        Mode::Import => "PROJECT HUB".to_string(),
-        Mode::Export => "EXPORT".to_string(),
-        Mode::Edit => crate::i18n::t(&app.ui.workspace).to_uppercase(),
+        Mode::Import => "Project Hub".to_string(),
+        Mode::Export => "Export".to_string(),
+        Mode::Edit => crate::i18n::t(&app.ui.workspace).to_owned(),
     };
     let show_ws_name = total_w >= 1100.0;
     let ws_text_w = if show_ws_name {
-        let wg = p.layout_no_wrap(ws_str.clone(), Tokens::ui(11.0), t.text_dim);
-        wg.size().x + 20.0
+        let wg = p.layout_no_wrap(ws_str.clone(), Tokens::semibold(11.0), t.text_dim);
+        wg.size().x + 28.0
     } else {
         0.0
     };
-    let right_fixed_w = 144.0 + ws_text_w + 14.0;
+    let right_fixed_w = (if show_ws_name { 108.0 } else { 144.0 }) + ws_text_w + 14.0;
     let right_fixed_start_x = rect.max.x - right_fixed_w;
 
     // =========================================================================
@@ -146,7 +147,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let pw = pill_widths[i];
         let r = Rect::from_min_size(pos2(cx, rect.min.y + 5.0), vec2(pw, rect.height() - 10.0));
         let resp = ui.interact(r, egui::Id::new(("studio-hdr-mode", id_tag)), Sense::click());
-        app.auto.add(&format!("header.mode.{}", id_tag), r, label_text);
+        app.auto.add_response(&format!("header.mode.{}", id_tag), &resp, label_text);
 
         let pill_radius = r.height() / 2.0;
         if is_active {
@@ -176,6 +177,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         };
         icons::paint(&p, Rect::from_center_size(pos2(r.min.x + 17.0, r.center().y), vec2(16.0, 16.0)), icon, col);
         p.text(pos2(r.min.x + 31.0, r.center().y), Align2::LEFT_CENTER, label_text, Tokens::ui(12.5), col);
+        crate::widgets::paint_focus(&p, &resp, &t);
 
         if resp.clicked() {
             app.ui.mode = m;
@@ -196,11 +198,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let r = Rect::from_center_size(pos2(*rx_pos - 14.0, rect.center().y), vec2(28.0, 28.0));
         *rx_pos -= 36.0;
         let resp = ui.interact(r, egui::Id::new(("hdr", id)), Sense::click()).on_hover_text(tip);
-        app.auto.add(&format!("header.{id}"), r, tip);
+        app.auto.add_response(&format!("header.{id}"), &resp, tip);
         if resp.hovered() {
             ui.painter().rect_filled(r, 4.0, t.hover);
         }
         icons::paint(ui.painter(), r.shrink(6.0), icon, if resp.hovered() { t.text } else { t.text_dim });
+        crate::widgets::paint_focus(ui.painter(), &resp, &t);
         resp
     };
 
@@ -232,22 +235,30 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     crate::panels::export_mode::quick_export(app, ui.ctx(), pos2(qx - 340.0, rect.max.y + 4.0));
 
     // Workspace switcher button & label
-    let ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app, &mut rx);
+    let ws_resp;
     let mut wr = Rect::ZERO;
-    let mut w_clicked = false;
     if show_ws_name {
         let wg = p.layout_no_wrap(ws_str.clone(), Tokens::semibold(11.0), if t.kind == crate::theme::ThemeKind::Light { t.text } else { t.tab_text_active });
         let pill_w = wg.size().x + 28.0;
         wr = Rect::from_min_size(pos2(rx - pill_w + 4.0, rect.center().y - 12.0), vec2(pill_w, 24.0));
         rx = wr.min.x - 10.0;
         let wresp = ui.interact(wr, egui::Id::new("hdr-ws-name"), Sense::click());
-        w_clicked = wresp.clicked();
-        app.auto.add("header.workspaceName", wr, &ws_str);
+        app.auto.add_response("header.workspaceName", &wresp, &ws_str);
+        app.auto.add("header.workspaces", wr, tl!("Workspaces"));
         let bg = if wresp.hovered() { t.hover } else { t.field_bg };
         p.rect_filled(wr, 12.0, bg);
         p.rect_stroke(wr, 12.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
         p.galley_with_override_text_color(pos2(wr.min.x + 9.0, rect.center().y - wg.size().y / 2.0), wg, if wresp.hovered() { t.accent } else { t.text });
-        icons::paint(&p, Rect::from_center_size(pos2(wr.max.x - 10.0, rect.center().y), vec2(8.0, 8.0)), Icon::ChevronDown, if wresp.hovered() { t.accent } else { t.text_dim });
+        icons::paint(
+            &p,
+            Rect::from_center_size(pos2(wr.max.x - 10.0, rect.center().y), vec2(8.0, 8.0)),
+            Icon::ChevronDown,
+            if wresp.hovered() { t.accent } else { t.text_dim },
+        );
+        crate::widgets::paint_focus(&p, &wresp, &t);
+        ws_resp = wresp;
+    } else {
+        ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app, &mut rx);
     }
 
     // Interactive Combined Project Title & Google Drive Capsule
@@ -279,8 +290,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let capsule_w = desired_capsule_w.min(avail_capsule_space);
 
         let cr = Rect::from_min_size(pos2(rx - capsule_w, rect.center().y - 12.0), vec2(capsule_w, 24.0));
-        let cresp = ui.interact(cr, egui::Id::new("hdr-gdrive-capsule"), Sense::click()).on_hover_text("Cloud Storage & Collaboration Hub");
-        app.auto.add("header.gdrive_capsule", cr, "Cloud Storage & Collaboration Hub");
+        let cresp = ui.interact(cr, egui::Id::new("hdr-gdrive-capsule"), Sense::click()).on_hover_text("Project storage and collaboration");
+        app.auto.add_response("header.gdrive_capsule", &cresp, "Project storage and collaboration");
 
         let capsule_bg = if cresp.hovered() { t.hover } else { t.tl_header_bg };
         p.rect_filled(cr, 12.0, capsule_bg);
@@ -300,12 +311,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // Workspace popup menu
     let popup_id = egui::Id::new("workspaces-popup");
-    if ws_resp.clicked() || w_clicked {
+    if ws_resp.clicked() {
         ui.ctx().data_mut(|d| d.insert_temp(popup_id, true));
     }
     let open = ui.ctx().data(|d| d.get_temp::<bool>(popup_id).unwrap_or(false));
     if open {
-        let anchor = pos2(if show_ws_name { wr.min.x } else { rx }, rect.max.y + 4.0);
+        let anchor = pos2((if show_ws_name { wr.min.x } else { rx }).min((rect.max.x - 244.0).max(rect.min.x + 4.0)), rect.max.y + 4.0);
         let area = egui::Area::new(popup_id.with("area")).order(egui::Order::Foreground).fixed_pos(anchor).show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.set_min_width(220.0);
@@ -339,8 +350,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     }
                 }
                 if ui.button(tl!("Reset to Saved Layout")).clicked() {
-                    let n = app.ui.workspace.clone();
-                    app.set_workspace(&n);
+                    app.reset_workspace();
                     ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
                 }
                 let save = ui.button("Save Layout As…");
@@ -351,7 +361,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 }
             });
         });
-        if area.response.clicked_elsewhere() && !ws_resp.clicked() && !w_clicked {
+        if (area.response.clicked_elsewhere() && !ws_resp.clicked()) || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             ui.ctx().data_mut(|d| d.insert_temp(popup_id, false));
         }
     }

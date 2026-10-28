@@ -34,6 +34,12 @@ const PROPS_NAV_X: f32 = 26.0;
 /// Properties panel: where a row's value fields end, left of the navigator.
 const PROPS_VALUE_R: f32 = PROPS_NAV_X + NAV_STEP + 12.0;
 
+/// Reserve both axes and the keyframe navigator before allocating the label column.
+fn properties_value_rect(row: Rect) -> Rect {
+    let label = (row.width() * 0.42).min(row.width() - PROPS_VALUE_R - 108.0).clamp(64.0, 150.0);
+    Rect::from_min_max(pos2(row.min.x + label, row.min.y + 4.0), pos2((row.max.x - PROPS_VALUE_R).max(row.min.x + label), row.max.y - 4.0))
+}
+
 /// Timeline time at which the clip shows media time `m` (where a keyframe sits in the sequence).
 fn timeline_time_of(it: &TrackItem, m: Tick) -> Tick {
     let offset = if it.reverse { it.source_out() - m - Tick(1) } else { m - it.source_in };
@@ -936,10 +942,16 @@ pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let sw = Rect::from_center_size(pos2(hr.min.x + 8.0, hr.center().y), vec2(12.0, 12.0));
     let lc = app.session.prefs.labels.rgb(it.label);
     bui.painter().rect_filled(sw, 2.0, Color32::from_rgb(lc[0], lc[1], lc[2]));
-    bui.painter().text(pos2(hr.min.x + 22.0, hr.center().y), Align2::LEFT_CENTER, &it.name, Tokens::semibold(12.5), t.text);
+    crate::widgets::truncated_label(bui.painter(), Rect::from_min_max(pos2(hr.min.x + 22.0, hr.min.y), hr.max), &it.name, Tokens::semibold(12.0), t.text);
     let row = |ui: &mut egui::Ui, label: &str| -> Rect {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
-        ui.painter().text(pos2(r.min.x + 18.0, r.center().y), Align2::LEFT_CENTER, label, Tokens::ui(12.0), t.text_dim);
+        crate::widgets::truncated_label(
+            ui.painter(),
+            Rect::from_min_max(pos2(r.min.x + 18.0, r.min.y), pos2(properties_value_rect(r).min.x - 6.0, r.max.y)),
+            label,
+            Tokens::ui(12.0),
+            t.text_dim,
+        );
         r
     };
     let section = |ui: &mut egui::Ui, app: &mut FilmcraftApp, name: &str, reset: Option<(usize, u64)>, actions: &mut Vec<(String, Value)>| -> bool {
@@ -986,16 +998,26 @@ pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     (tl!("Rotation"), "rotation", " °", 0.5, (-36000.0, 36000.0)),
                 ] {
                     let r = row(bui, label);
-                    let mut vui = bui.new_child(
-                        egui::UiBuilder::new()
-                            .max_rect(Rect::from_min_max(pos2(r.min.x + 150.0, r.min.y + 4.0), pos2(r.max.x - PROPS_VALUE_R, r.max.y - 4.0)))
-                            .layout(egui::Layout::left_to_right(egui::Align::Center)),
-                    );
+                    let mut vui =
+                        bui.new_child(egui::UiBuilder::new().max_rect(properties_value_rect(r)).layout(egui::Layout::left_to_right(egui::Align::Center)));
                     match val("motion", p) {
                         Some(ParamValue::Vec2(v)) => {
-                            let (_, nx) = crate::widgets::hot_number(&mut vui, egui::Id::new(("pp", p, "x", clip.0)), v.x, speed, range, 0, " X", &t);
-                            vui.add_space(10.0);
-                            let (_, ny) = crate::widgets::hot_number(&mut vui, egui::Id::new(("pp", p, "y", clip.0)), v.y, speed, range, 0, " Y", &t);
+                            let values = properties_value_rect(r);
+                            let half = ((values.width() - 6.0) / 2.0).max(0.0);
+                            let mut xui = vui.new_child(
+                                egui::UiBuilder::new()
+                                    .max_rect(Rect::from_min_size(values.min, vec2(half, values.height())))
+                                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                            );
+                            let mut yui = vui.new_child(
+                                egui::UiBuilder::new()
+                                    .max_rect(Rect::from_min_size(pos2(values.min.x + half + 6.0, values.min.y), vec2(half, values.height())))
+                                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                            );
+                            let (xr, nx) = crate::widgets::hot_number(&mut xui, egui::Id::new(("pp", p, "x", clip.0)), v.x, speed, range, 0, " X", &t);
+                            let (yr, ny) = crate::widgets::hot_number(&mut yui, egui::Id::new(("pp", p, "y", clip.0)), v.y, speed, range, 0, " Y", &t);
+                            app.auto.add_response(&format!("properties.motion.{p}.x"), &xr, "X");
+                            app.auto.add_response(&format!("properties.motion.{p}.y"), &yr, "Y");
                             if nx.is_some() || ny.is_some() {
                                 actions.push((
                                     "effects.setParam".into(),
@@ -1023,11 +1045,7 @@ pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                     properties_nav(app, bui, r, clip, &it, mt, "motion", p, &mut actions);
                 }
                 let r = row(bui, tl!("Opacity"));
-                let mut vui = bui.new_child(
-                    egui::UiBuilder::new()
-                        .max_rect(Rect::from_min_max(pos2(r.min.x + 150.0, r.min.y + 4.0), pos2(r.max.x - PROPS_VALUE_R, r.max.y - 4.0)))
-                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
-                );
+                let mut vui = bui.new_child(egui::UiBuilder::new().max_rect(properties_value_rect(r)).layout(egui::Layout::left_to_right(egui::Align::Center)));
                 if let Some(ParamValue::Float(v)) = val("opacity", "opacity") {
                     let (_, nv) = crate::widgets::hot_number(&mut vui, egui::Id::new(("pp-op", clip.0)), v, 0.5, (0.0, 100.0), 0, " %", &t);
                     if let Some(nv) = nv {
@@ -1040,11 +1058,8 @@ pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             if section(bui, app, "Crop", crop.map(|i| (i, clip.0)), &mut actions) {
                 for (label, p) in [(tl!("Left"), "left"), (tl!("Top"), "top"), (tl!("Right"), "right"), (tl!("Bottom"), "bottom")] {
                     let r = row(bui, label);
-                    let mut vui = bui.new_child(
-                        egui::UiBuilder::new()
-                            .max_rect(Rect::from_min_max(pos2(r.min.x + 150.0, r.min.y + 4.0), pos2(r.max.x - PROPS_VALUE_R, r.max.y - 4.0)))
-                            .layout(egui::Layout::left_to_right(egui::Align::Center)),
-                    );
+                    let mut vui =
+                        bui.new_child(egui::UiBuilder::new().max_rect(properties_value_rect(r)).layout(egui::Layout::left_to_right(egui::Align::Center)));
                     let v = val("crop", p).and_then(|v| v.as_f64()).unwrap_or(0.0);
                     let (_, nv) = crate::widgets::hot_number(&mut vui, egui::Id::new(("pp-crop", p, clip.0)), v, 0.2, (0.0, 100.0), 1, " %", &t);
                     if let Some(nv) = nv {
@@ -1064,11 +1079,7 @@ pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             let mt = it.source_time_at(ph.clamp(it.start, (it.end() - Tick(1)).max(it.start)));
             let val = |eid: &str, p: &str| it.effect(eid).and_then(|e| e.param(p)).map(|p| p.value_at(mt));
             let r = row(bui, tl!("Level"));
-            let mut vui = bui.new_child(
-                egui::UiBuilder::new()
-                    .max_rect(Rect::from_min_max(pos2(r.min.x + 150.0, r.min.y + 4.0), pos2(r.max.x - PROPS_VALUE_R, r.max.y - 4.0)))
-                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
-            );
+            let mut vui = bui.new_child(egui::UiBuilder::new().max_rect(properties_value_rect(r)).layout(egui::Layout::left_to_right(egui::Align::Center)));
             let v = val("volume", "level").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let (_, nv) = crate::widgets::hot_number(&mut vui, egui::Id::new(("pp-vol", clip.0)), v, 0.1, (-96.0, 15.0), 1, " dB", &t);
             if let Some(nv) = nv {
@@ -1076,11 +1087,7 @@ pub fn properties_panel(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             }
             properties_nav(app, bui, r, clip, it, mt, "volume", "level", &mut actions);
             let r = row(bui, tl!("Pan"));
-            let mut vui = bui.new_child(
-                egui::UiBuilder::new()
-                    .max_rect(Rect::from_min_max(pos2(r.min.x + 150.0, r.min.y + 4.0), pos2(r.max.x - PROPS_VALUE_R, r.max.y - 4.0)))
-                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
-            );
+            let mut vui = bui.new_child(egui::UiBuilder::new().max_rect(properties_value_rect(r)).layout(egui::Layout::left_to_right(egui::Align::Center)));
             let v = val("panner", "balance").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let (_, nv) = crate::widgets::hot_number(&mut vui, egui::Id::new(("pp-pan", clip.0)), v, 0.5, (-100.0, 100.0), 0, "", &t);
             if let Some(nv) = nv {

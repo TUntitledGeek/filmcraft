@@ -23,7 +23,7 @@ pub fn route(app: &mut FilmcraftApp, id: &str, params: &Value) -> Option<Result<
     let r = match ws {
         "reset" => {
             let n = app.ui.workspace.clone();
-            app.set_workspace(&n);
+            app.reset_workspace();
             Ok(json!({"workspace": n}))
         }
         "saveChanges" => {
@@ -69,7 +69,10 @@ fn save(app: &mut FilmcraftApp, name: &str) -> Result<(), String> {
         None => saved.push(dock::SavedWorkspace { name: name.to_string(), layout, floating }),
     }
     next.current = name.to_string();
-    app.set_workspaces(next)
+    app.set_workspaces(next)?;
+    app.ui.workspace_preview = None;
+    app.ui.workspace_drafts.remove(name);
+    Ok(())
 }
 
 /// A trimmed new workspace name, or why it can't be used.
@@ -110,6 +113,9 @@ fn rename(app: &mut FilmcraftApp, from: &str, to: &str) -> Result<Value, String>
         next.current = to.clone();
     }
     app.set_workspaces(next)?;
+    if let Some(draft) = app.ui.workspace_drafts.remove(from) {
+        app.ui.workspace_drafts.insert(to.clone(), draft);
+    }
     if app.ui.workspace == from {
         app.ui.workspace = to.clone();
     }
@@ -125,8 +131,13 @@ fn delete(app: &mut FilmcraftApp, name: &str) -> Result<Value, String> {
         return Err(if is_builtin(name) { format!("`{name}` is a built-in workspace and can't be deleted") } else { format!("unknown workspace `{name}`") });
     }
     app.set_workspaces(next)?;
+    app.ui.workspace_drafts.remove(name);
     if app.ui.workspace == name {
-        app.set_workspace(if is_builtin(name) { name } else { "Editing" });
+        if is_builtin(name) {
+            app.reset_workspace();
+        } else {
+            app.set_workspace("Editing");
+        }
     }
     Ok(if is_builtin(name) { json!({"restored": name}) } else { json!({"deleted": name}) })
 }

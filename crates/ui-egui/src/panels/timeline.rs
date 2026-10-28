@@ -1296,20 +1296,21 @@ fn draw_transition(p: &egui::Painter, r: Rect, trn: &filmcraft_project::Transiti
     }
 }
 
-/// A Premiere track-header button (patch / target): highlight-blue fill when on, full track height.
-fn patch_button(ui: &mut egui::Ui, r: Rect, clip: Rect, label: &str, on: bool, show_off: bool, id: egui::Id, t: &Tokens) -> egui::Response {
-    let resp = ui.interact(r.intersect(clip), id, Sense::click());
+/// Source patches use an outline; track targets use a soft fill. Neither fills an entire lane.
+fn patch_button(ui: &mut egui::Ui, r: Rect, clip: Rect, label: &str, on: bool, source: bool, id: egui::Id, t: &Tokens) -> egui::Response {
+    let tip =
+        if source { "Source patch: choose the destination for Insert and Overwrite" } else { "Track targeting: choose tracks for timeline editing commands" };
+    let resp = ui.interact(r.intersect(clip), id, Sense::click()).on_hover_text(tip);
     let p = ui.painter().with_clip_rect(clip);
     if on {
-        p.rect_filled(r, 2.0, t.track_target);
-        p.text(r.center(), Align2::CENTER_CENTER, label, Tokens::semibold(10.0), Color32::from_rgb(0xeb, 0xeb, 0xeb));
-    } else if show_off {
-        if resp.hovered() {
-            p.rect_filled(r, 2.0, t.hover);
-        }
-        p.text(r.center(), Align2::CENTER_CENTER, label, Tokens::semibold(10.0), t.text_dim);
+        p.rect_filled(r, 4.0, if source { t.panel_bg } else { t.pill_active_bg });
+        p.rect_stroke(r, 4.0, Stroke::new(1.0, if source { t.text_dim } else { t.accent.gamma_multiply(0.65) }), StrokeKind::Inside);
     } else if resp.hovered() {
-        p.rect_stroke(r, 2.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
+        p.rect_filled(r, 4.0, t.hover);
+    }
+    p.text(r.center(), Align2::CENTER_CENTER, label, Tokens::semibold(10.5), if on { if source { t.text } else { t.hot_text } } else { t.text_faint });
+    if resp.has_focus() {
+        p.rect_stroke(r.expand(1.0), 4.0, Stroke::new(1.5, t.focus), StrokeKind::Inside);
     }
     resp
 }
@@ -1325,7 +1326,7 @@ fn draw_headers(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, rows:
         let clip_rect = if r.kind == TrackKind::Video { vclip } else { aclip };
         let hrect = Rect::from_min_max(pos2(rect.min.x, r.rect.min.y), pos2(rect.min.x + hw, r.rect.max.y));
         let visible = hrect.intersect(clip_rect);
-        if visible.height() <= 0.0 {
+        if visible.height() < 20.0 {
             continue;
         }
         let p = ui.painter().with_clip_rect(visible);
@@ -1365,17 +1366,18 @@ fn draw_headers(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, rows:
             p.line_segment([pos2(hrect.min.x, hrect.min.y + 0.5), pos2(hrect.max.x, hrect.min.y + 0.5)], Stroke::new(1.0, t.separator));
         }
         let label = format!("{}{}", if r.kind == TrackKind::Video { "V" } else { "A" }, r.index + 1);
-        let btn_rect = |x0: f32| Rect::from_min_max(pos2(hrect.min.x + x0, hrect.min.y + 1.0), pos2(hrect.min.x + x0 + 24.0, hrect.max.y - 2.0));
+        let btn_rect =
+            |x0: f32| Rect::from_center_size(pos2(hrect.min.x + x0 + 12.0, hrect.center().y), vec2(24.0, 24.0_f32.min((hrect.height() - 4.0).max(8.0))));
         // 1. source patch (absent when unpatched)
         let patched = if r.kind == TrackKind::Video { tg.video_dest == Some(r.track) } else { tg.audio_dest == Some(r.track) };
         let pr = btn_rect(13.0);
         app.auto.add(&format!("timeline.track.{label}.sourcePatch"), pr, "Source patch");
-        if patch_button(ui, pr, visible, &label, patched, false, egui::Id::new(("patch", r.track.0)), t).clicked() {
+        if patch_button(ui, pr, visible, &label, patched, true, egui::Id::new(("patch", r.track.0)), t).clicked() {
             actions.push(("timeline.setTargeting".into(), json!({"track": r.track.0, "sourcePatch": !patched})));
         }
         // 2. track lock
         let small = |x: f32, y: f32| Rect::from_center_size(pos2(hrect.min.x + x, y), vec2(18.0, 18.0));
-        let upper_y = hrect.min.y + (16.0f32).min(hrect.height() / 2.0);
+        let upper_y = hrect.min.y + if hrect.height() >= 32.0 { 12.0 } else { hrect.height() / 2.0 };
         let lock_r = small(49.0, hrect.center().y);
         let lresp = crate::widgets::icon_toggle(
             ui,
@@ -1398,7 +1400,7 @@ fn draw_headers(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, rows:
         let targeted = tg.targeted.contains(&r.track);
         let trr = btn_rect(61.0);
         app.auto.add(&format!("timeline.track.{label}.target"), trr, "Toggle track targeting");
-        if patch_button(ui, trr, visible, &label, targeted, true, egui::Id::new(("target", r.track.0)), t).clicked() {
+        if patch_button(ui, trr, visible, &label, targeted, false, egui::Id::new(("target", r.track.0)), t).clicked() {
             actions.push(("timeline.setTargeting".into(), json!({"track": r.track.0, "targeted": !targeted})));
         }
         // 4. upper line icons
@@ -1427,7 +1429,7 @@ fn draw_headers(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, rows:
                 actions.push(("timeline.setTrack".into(), json!({"track": r.track.0, "enabled": !tr.enabled})));
             }
         } else {
-            let mr = Rect::from_center_size(pos2(hrect.min.x + x, upper_y), vec2(14.0, 14.0));
+            let mr = Rect::from_center_size(pos2(hrect.min.x + x, upper_y), vec2(18.0, 20.0));
             let mresp = crate::widgets::letter_toggle(
                 ui,
                 mr.intersect(visible),
@@ -1441,7 +1443,7 @@ fn draw_headers(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, rows:
             if mresp.clicked() {
                 actions.push(("timeline.setTrack".into(), json!({"track": r.track.0, "muted": !tr.muted})));
             }
-            let s2 = Rect::from_center_size(pos2(hrect.min.x + x + 20.0, upper_y), vec2(14.0, 14.0));
+            let s2 = Rect::from_center_size(pos2(hrect.min.x + x + 20.0, upper_y), vec2(18.0, 20.0));
             let so = crate::widgets::letter_toggle(
                 ui,
                 s2.intersect(visible),
@@ -1463,8 +1465,8 @@ fn draw_headers(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, rows:
             super::timeline_automation::header_button(app, ui, seq, r, kr, visible, &label, t);
         }
         // 5. name on the lower line (or inline when short)
-        if hrect.height() >= 40.0 {
-            p.text(pos2(hrect.min.x + 94.0, hrect.min.y + 34.0), Align2::LEFT_CENTER, &tr.name, Tokens::ui(11.0), t.text_dim);
+        if hrect.height() >= 32.0 {
+            p.text(pos2(hrect.min.x + 94.0, hrect.max.y - 9.0), Align2::LEFT_CENTER, &tr.name, Tokens::ui(10.5), t.text_dim);
         }
         // resize track height by dragging the header's bottom edge, or the outer edge of the top video
         // track or the last audio track, which also reaches into the empty space past it
@@ -1610,6 +1612,24 @@ fn draw_top(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, seq: &Sequenc
                 if ui.button(tl!("Minimize All Tracks")).clicked() {
                     app.ui.timeline.video_track_h = 26.0;
                     app.ui.timeline.audio_track_h = 26.0;
+                }
+            });
+        }
+        if key == "captions" {
+            egui::Popup::menu(&resp).show(|ui| {
+                let open = ui.button("Open Captions and Transcript");
+                app.auto.add_response("timeline.captions.openText", &open, "Open Captions and Transcript");
+                if open.clicked() {
+                    app.show_panel(crate::dock::PanelKind::Text);
+                    ui.close();
+                }
+                let new = ui.button("New Subtitle Track");
+                app.auto.add_response("timeline.captions.newTrack", &new, "New Subtitle Track");
+                if new.clicked() {
+                    if let Err(error) = app.session.execute("captions.newTrack", json!({"format":"Subtitle"})) {
+                        app.ui.status = error.to_string();
+                    }
+                    ui.close();
                 }
             });
         }

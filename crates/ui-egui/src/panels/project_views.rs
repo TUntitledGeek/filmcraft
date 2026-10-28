@@ -953,24 +953,21 @@ fn bin_card(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, b: &Bin, v: &Vie
 
 fn bin_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, b: &Bin, v: &View, actions: &mut Actions) {
     let t = app.tokens;
-    let row_h = 40.0;
+    let row_h = 44.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width() - 4.0, row_h), Sense::click_and_drag());
     let selected = app.ui.project_panel.selected_bin == Some(b.id.0);
 
     let row_r = Rect::from_min_size(pos2(rect.min.x + 2.0, rect.min.y + 1.0), vec2(rect.width() - 4.0, row_h - 2.0));
     if selected {
-        ui.painter().rect_filled(row_r, t.radius_sm, if t.kind == crate::theme::ThemeKind::Light { t.pill_active_bg } else { Color32::from_rgb(0x20, 0x2b, 0x3a) });
-        ui.painter().rect_stroke(row_r, t.radius_sm, Stroke::new(1.0, t.accent), StrokeKind::Inside);
+        ui.painter().rect_filled(row_r, t.radius_sm, t.row_selected);
     } else if resp.hovered() {
-        ui.painter().rect_filled(row_r, t.radius_sm, if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0xec, 0xf2, 0xfc) } else { Color32::from_rgb(0x20, 0x2b, 0x3a) });
+        ui.painter().rect_filled(row_r, t.radius_sm, t.hover);
     }
 
     // Left folder icon box: 38 x 30 pt
     let icon_box = Rect::from_min_size(pos2(row_r.min.x + 6.0, row_r.center().y - 15.0), vec2(38.0, 30.0));
-    let icon_bg = if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0xef, 0xf2, 0xf8) } else { Color32::from_rgb(0x22, 0x2b, 0x38) };
-    ui.painter().rect_filled(icon_box, 4.0, icon_bg);
-    let icon_stroke = if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0xd9, 0xe0, 0xec) } else { Color32::from_rgb(0x30, 0x38, 0x46) };
-    ui.painter().rect_stroke(icon_box, 4.0, Stroke::new(1.0, icon_stroke), StrokeKind::Inside);
+    ui.painter().rect_filled(icon_box, 4.0, t.field_bg);
+    ui.painter().rect_stroke(icon_box, 4.0, Stroke::new(1.0, t.separator), StrokeKind::Inside);
     icons::paint(ui.painter(), Rect::from_center_size(icon_box.center(), vec2(19.0, 19.0)), Icon::Folder, BIN_COLOR);
 
     // Name & item count text
@@ -982,9 +979,11 @@ fn bin_row(app: &mut FilmcraftApp, ui: &mut egui::Ui, b: &Bin, v: &View, actions
     let count_r = Rect::from_min_max(pos2(text_x, row_r.center().y), pos2(row_r.max.x - 8.0, icon_box.max.y));
 
     if !rename_field(app, ui, name_r, None, Some(b.id.0), &v.prefix) {
-        ui.painter().text(name_r.left_center(), Align2::LEFT_CENTER, &b.name, Tokens::semibold(12.0), t.text);
-        let count_col = if t.kind == crate::theme::ThemeKind::Light { Color32::from_rgb(0x71, 0x80, 0x98) } else { Color32::from_rgb(0xaa, 0xb4, 0xc2) };
-        ui.painter().text(count_r.left_center(), Align2::LEFT_CENTER, count_text, Tokens::ui(10.5), count_col);
+        crate::widgets::truncated_label(ui.painter(), name_r, &b.name, if selected { Tokens::semibold(12.0) } else { Tokens::ui(12.0) }, t.text);
+        crate::widgets::truncated_label(ui.painter(), count_r, &count_text, Tokens::ui(10.5), t.text_dim);
+    }
+    if resp.has_focus() {
+        ui.painter().rect_stroke(row_r, t.radius_sm, Stroke::new(1.5, t.focus), StrokeKind::Inside);
     }
 
     app.auto.add(&format!("{}.bin.{}", v.prefix, b.id.0), row_r, &b.name);

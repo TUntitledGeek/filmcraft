@@ -933,6 +933,7 @@ impl FilmcraftApp {
             self.workspace_restored = true;
             if let Some(w) = dock::find(&self.workspaces, &self.workspaces.current) {
                 self.set_workspace(&w);
+                self.reset_workspace();
             }
         }
         self.applied_prefs = Some(p);
@@ -1006,11 +1007,20 @@ impl FilmcraftApp {
     }
 
     pub fn set_workspace(&mut self, name: &str) {
-        self.ui.workspace_preview = None;
-        self.ui.workspace = name.to_string();
-        let layout = dock::saved_docking(&self.workspaces, name);
-        self.ui.dock = layout.root;
-        self.ui.floating = layout.floating;
+        if self.ui.workspace != name {
+            let previous = self.ui.workspace_preview.take().unwrap_or_else(|| dock::Layout { root: self.ui.dock.clone(), floating: self.ui.floating.clone() });
+            // A bounded session cache keeps unsaved divider and docking changes when visiting
+            // another workspace, without silently replacing the user's saved baseline.
+            if dock::find(&self.workspaces, &self.ui.workspace).is_some()
+                && (self.ui.workspace_drafts.len() < 128 || self.ui.workspace_drafts.contains_key(&self.ui.workspace))
+            {
+                self.ui.workspace_drafts.insert(self.ui.workspace.clone(), previous);
+            }
+            self.ui.workspace = name.to_string();
+            let layout = self.ui.workspace_drafts.get(name).cloned().unwrap_or_else(|| dock::saved_docking(&self.workspaces, name));
+            self.ui.dock = layout.root;
+            self.ui.floating = layout.floating;
+        }
         self.pending_panel_raise = None;
         self.ui.keys.maximized = None;
         if self.workspaces.current != name {
@@ -1023,6 +1033,17 @@ impl FilmcraftApp {
         if name == "Color" {
             self.ui.show_scopes = false;
         }
+    }
+
+    pub fn reset_workspace(&mut self) {
+        self.ui.workspace_drafts.remove(&self.ui.workspace);
+        self.ui.workspace_preview = None;
+        self.ui.source_closed = false;
+        let layout = dock::saved_docking(&self.workspaces, &self.ui.workspace);
+        self.ui.dock = layout.root;
+        self.ui.floating = layout.floating;
+        self.ui.keys.maximized = None;
+        self.pending_panel_raise = None;
     }
 
     pub fn show_panel(&mut self, p: PanelKind) {
@@ -2948,7 +2969,7 @@ impl FilmcraftApp {
         }
 
         // Sleek Minimal Pro Status Bar (replaces redundant bottom tabs and frees 28px workspace)
-        ui.painter().line_segment([sb.left_top(), sb.right_top()], egui::Stroke::new(1.0, egui::Color32::from_rgb(0x22, 0x25, 0x30)));
+        ui.painter().line_segment([sb.left_top(), sb.right_top()], egui::Stroke::new(1.0, t.separator));
 
         let hint = if !self.ui.status.is_empty() { self.ui.status.clone() } else { self.hint_text() };
         let hint_w = sb.width() - 320.0;
@@ -3029,6 +3050,14 @@ impl FilmcraftApp {
 
     /// Contextual hint for the status bar (Premiere shows tool/gesture hints here).
     fn hint_text(&self) -> String {
+        match self.ui.mode {
+            state::Mode::Import => return "Open a project, create a sequence, or load the demo.".into(),
+            state::Mode::Export => return "Review the format and range, then export or send to the queue.".into(),
+            state::Mode::Edit => {}
+        }
+        if self.ui.workspace == "Fusion" {
+            return "Drag nodes to arrange them; connect sockets to route effects. Middle-drag to pan, wheel to zoom, Fit to frame the graph.".into();
+        }
         let mac = cfg!(target_os = "macos");
         match self.ui.tool {
             state::Tool::Selection if mac => {

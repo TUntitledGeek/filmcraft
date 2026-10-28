@@ -40,7 +40,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let (clip_id, mut item) = match get_selected_clip(app) {
         Some((id, it)) => (id, it),
         None => {
-            p.rect_filled(rect, 0.0, Color32::from_rgb(0x16, 0x16, 0x18));
+            p.rect_filled(rect, 0.0, t.plot_bg);
             p.text(rect.center(), Align2::CENTER_CENTER, "Select a video clip in the Timeline to open Fusion Nodes", Tokens::ui(14.0), t.text_dim);
             return;
         }
@@ -53,7 +53,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let mut graph = item.node_graph.clone().unwrap_or_default();
 
     // Load persistent canvas state
-    let state_id = egui::Id::new("fusion_canvas_state");
+    let state_id = egui::Id::new(("fusion_canvas_state", clip_id.0));
+    let new_canvas = ui.ctx().data(|d| d.get_temp::<CanvasState>(state_id).is_none());
     let mut canvas_state = ui
         .ctx()
         .data(|d| d.get_temp::<CanvasState>(state_id).unwrap_or(CanvasState { pan: vec2(20.0, 20.0), zoom: 1.0, selected_node: None, dragging_from: None }));
@@ -63,17 +64,16 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     // 1. TOP TOOLBAR
     // =========================================================================
-    let toolbar_h = 36.0;
+    let toolbar_h = if rect.width() < 1050.0 { 66.0 } else { 36.0 };
     let toolbar_r = Rect::from_min_size(rect.min, vec2(rect.width(), toolbar_h));
     let drawer_h = if canvas_state.selected_node.is_some() { 160.0 } else { 0.0 };
     let canvas_rect = Rect::from_min_max(pos2(rect.min.x, toolbar_r.max.y), pos2(rect.max.x, rect.max.y - drawer_h));
-    p.rect_filled(toolbar_r, 0.0, Color32::from_rgb(0x1e, 0x1e, 0x22));
-    p.line_segment([toolbar_r.left_bottom(), toolbar_r.right_bottom()], Stroke::new(1.0, Color32::from_rgb(0x2c, 0x2c, 0x32)));
+    p.rect_filled(toolbar_r, 0.0, t.tab_bg);
+    p.line_segment([toolbar_r.left_bottom(), toolbar_r.right_bottom()], Stroke::new(1.0, t.separator));
 
     // Title & Clip pill
-    p.text(toolbar_r.min + vec2(12.0, toolbar_h / 2.0), Align2::LEFT_CENTER, "Fusion Nodes", Tokens::semibold(13.0), t.text);
+    p.text(toolbar_r.min + vec2(12.0, 18.0), Align2::LEFT_CENTER, "Fusion Nodes", Tokens::semibold(13.0), t.text);
     let clip_label = format!("Clip: {}", item.name);
-    p.text(toolbar_r.min + vec2(130.0, toolbar_h / 2.0), Align2::LEFT_CENTER, clip_label, Tokens::ui(12.0), t.text);
 
     // Zoom and Fit navigation toolbar buttons
     let mut rx = toolbar_r.max.x - 10.0;
@@ -81,8 +81,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Zoom In [+]
     let btn_zin_r = Rect::from_min_size(pos2(rx - 28.0, toolbar_r.min.y + 6.0), vec2(28.0, 24.0));
     let resp_zin = ui.interact(btn_zin_r, egui::Id::new("fusion_zoom_in"), Sense::click()).on_hover_text("Zoom In (+15%)");
-    p.rect_filled(btn_zin_r, 4.0, if resp_zin.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x44) } else { Color32::from_rgb(0x25, 0x25, 0x2d) });
-    p.text(btn_zin_r.center(), Align2::CENTER_CENTER, "+", Tokens::semibold(14.0), Color32::WHITE);
+    app.auto.add_response("fusion.zoom.in", &resp_zin, "Zoom in");
+    p.rect_filled(btn_zin_r, 4.0, if resp_zin.hovered() { t.hover } else { t.field_bg });
+    p.text(btn_zin_r.center(), Align2::CENTER_CENTER, "+", Tokens::semibold(14.0), t.text);
     if resp_zin.clicked() {
         canvas_state.zoom = (canvas_state.zoom * 1.15).clamp(0.25, 2.5);
     }
@@ -90,17 +91,18 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
     // Zoom percentage readout
     let zoom_pct_str = format!("{}%", (canvas_state.zoom * 100.0).round() as i32);
-    let zg = p.layout_no_wrap(zoom_pct_str.clone(), Tokens::ui(11.0), Color32::from_rgb(0xaa, 0xaa, 0xb8));
+    let zg = p.layout_no_wrap(zoom_pct_str.clone(), Tokens::ui(11.0), t.text_dim);
     let zreadout_r = Rect::from_min_size(pos2(rx - 48.0, toolbar_r.min.y + 6.0), vec2(48.0, 24.0));
-    p.rect_filled(zreadout_r, 4.0, Color32::from_rgb(0x18, 0x18, 0x1c));
-    p.galley(pos2(zreadout_r.center().x - zg.size().x / 2.0, zreadout_r.center().y - zg.size().y / 2.0), zg, Color32::from_rgb(0xaa, 0xaa, 0xb8));
+    p.rect_filled(zreadout_r, 4.0, t.field_bg);
+    p.galley(pos2(zreadout_r.center().x - zg.size().x / 2.0, zreadout_r.center().y - zg.size().y / 2.0), zg, t.text_dim);
     rx = zreadout_r.min.x - 4.0;
 
     // Zoom Out [-]
     let btn_zout_r = Rect::from_min_size(pos2(rx - 28.0, toolbar_r.min.y + 6.0), vec2(28.0, 24.0));
     let resp_zout = ui.interact(btn_zout_r, egui::Id::new("fusion_zoom_out"), Sense::click()).on_hover_text("Zoom Out (-15%)");
-    p.rect_filled(btn_zout_r, 4.0, if resp_zout.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x44) } else { Color32::from_rgb(0x25, 0x25, 0x2d) });
-    p.text(btn_zout_r.center(), Align2::CENTER_CENTER, "−", Tokens::semibold(14.0), Color32::WHITE);
+    app.auto.add_response("fusion.zoom.out", &resp_zout, "Zoom out");
+    p.rect_filled(btn_zout_r, 4.0, if resp_zout.hovered() { t.hover } else { t.field_bg });
+    p.text(btn_zout_r.center(), Align2::CENTER_CENTER, "−", Tokens::semibold(14.0), t.text);
     if resp_zout.clicked() {
         canvas_state.zoom = (canvas_state.zoom * 0.85).clamp(0.25, 2.5);
     }
@@ -109,8 +111,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Reset 100% [⟲ 100%]
     let btn_100_r = Rect::from_min_size(pos2(rx - 56.0, toolbar_r.min.y + 6.0), vec2(56.0, 24.0));
     let resp_100 = ui.interact(btn_100_r, egui::Id::new("fusion_zoom_100"), Sense::click()).on_hover_text("Reset to 100% zoom");
-    p.rect_filled(btn_100_r, 4.0, if resp_100.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x44) } else { Color32::from_rgb(0x25, 0x25, 0x2d) });
-    p.text(btn_100_r.center(), Align2::CENTER_CENTER, "⟲ 100%", Tokens::ui(11.0), Color32::WHITE);
+    app.auto.add_response("fusion.zoom.actual", &resp_100, "Actual size");
+    p.rect_filled(btn_100_r, 4.0, if resp_100.hovered() { t.hover } else { t.field_bg });
+    p.text(btn_100_r.center(), Align2::CENTER_CENTER, "100%", Tokens::ui(11.0), t.text);
     if resp_100.clicked() {
         canvas_state.zoom = 1.0;
         canvas_state.pan = vec2(20.0, 20.0);
@@ -120,9 +123,20 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // Fit [⛶ Fit]
     let btn_fit_r = Rect::from_min_size(pos2(rx - 52.0, toolbar_r.min.y + 6.0), vec2(52.0, 24.0));
     let resp_fit = ui.interact(btn_fit_r, egui::Id::new("fusion_zoom_fit"), Sense::click()).on_hover_text("Fit all nodes to view");
-    p.rect_filled(btn_fit_r, 4.0, if resp_fit.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x44) } else { Color32::from_rgb(0x25, 0x25, 0x2d) });
-    p.text(btn_fit_r.center(), Align2::CENTER_CENTER, "⛶ Fit", Tokens::ui(11.0), Color32::WHITE);
+    app.auto.add_response("fusion.zoom.fit", &resp_fit, "Fit all nodes");
+    crate::widgets::truncated_label(
+        &p,
+        Rect::from_min_max(toolbar_r.min + vec2(130.0, 6.0), pos2(btn_fit_r.min.x - if toolbar_h > 36.0 { 12.0 } else { 454.0 }, toolbar_r.min.y + 30.0)),
+        &clip_label,
+        Tokens::ui(12.0),
+        t.text_dim,
+    );
+    p.rect_filled(btn_fit_r, 4.0, if resp_fit.hovered() { t.hover } else { t.field_bg });
+    p.text(btn_fit_r.center(), Align2::CENTER_CENTER, "Fit", Tokens::ui(11.0), t.text);
     rx = btn_fit_r.min.x - 14.0;
+    if toolbar_h > 36.0 {
+        rx = toolbar_r.max.x - 8.0;
+    }
 
     // Quick add node buttons
     let node_types = [
@@ -137,12 +151,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     for (label, ntype) in node_types.into_iter().rev() {
         let bw = 68.0;
         rx -= bw + 4.0;
-        let br = Rect::from_min_size(pos2(rx, toolbar_r.min.y + 6.0), vec2(bw, 24.0));
+        let br = Rect::from_min_size(pos2(rx, toolbar_r.max.y - 30.0), vec2(bw, 24.0));
         let bresp = ui.interact(br, egui::Id::new(("add_node", label)), Sense::click());
-        let bg = if bresp.hovered() { Color32::from_rgb(0x3a, 0x3a, 0x44) } else { Color32::from_rgb(0x28, 0x28, 0x30) };
+        app.auto.add_response(&format!("fusion.add.{ntype:?}"), &bresp, label);
+        let bg = if bresp.hovered() { t.hover } else { t.field_bg };
         p.rect_filled(br, 4.0, bg);
-        p.rect_stroke(br, 4.0, Stroke::new(1.0, Color32::from_rgb(0x40, 0x40, 0x4c)), egui::StrokeKind::Inside);
-        p.text(br.center(), Align2::CENTER_CENTER, label, Tokens::ui(11.0), Color32::WHITE);
+        p.rect_stroke(br, 4.0, Stroke::new(1.0, t.field_border), egui::StrokeKind::Inside);
+        p.text(br.center(), Align2::CENTER_CENTER, label, Tokens::ui(11.0), t.text);
 
         if bresp.clicked() {
             let center_canvas_x = (canvas_rect.center().x - canvas_rect.min.x - canvas_state.pan.x) / canvas_state.zoom;
@@ -160,11 +175,11 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // 2. CANVAS VIEW & NAVIGATION
     // =========================================================================
     // Canvas background
-    p.rect_filled(canvas_rect, 0.0, Color32::from_rgb(0x15, 0x15, 0x18));
+    p.rect_filled(canvas_rect, 0.0, t.plot_bg);
     app.node_canvas_rect = Some(canvas_rect);
 
     // Handle Fit button logic if clicked
-    if resp_fit.clicked() && !graph.nodes.is_empty() {
+    if (resp_fit.clicked() || new_canvas) && !graph.nodes.is_empty() && graph.nodes.iter().all(|n| n.pos.iter().all(|v| v.is_finite())) {
         let mut min_x = f32::MAX;
         let mut min_y = f32::MAX;
         let mut max_x = f32::MIN;
@@ -217,7 +232,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
 
     // Grid rendering scaled with zoom and pan
-    draw_canvas_grid(&p, canvas_rect, canvas_state.pan, canvas_state.zoom);
+    draw_canvas_grid(&p, canvas_rect, canvas_state.pan, canvas_state.zoom, &t);
 
     // =========================================================================
     // 3. DRAW CONNECTION BEZIER PIPES
@@ -248,7 +263,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 "Foreground" => Color32::from_rgb(0x3a, 0xcc, 0x5a), // Green
                 "Background" => Color32::from_rgb(0xf2, 0xa9, 0x24), // Yellow
                 "Mask" => Color32::from_rgb(0x3a, 0x8a, 0xf2),       // Blue
-                _ => Color32::from_rgb(0xd8, 0xd8, 0xd8),            // Standard signal
+                _ => t.text_dim,                                     // Standard signal
             };
 
             // Wire hover hit-testing (Alt-click or Right-click to disconnect)
@@ -343,21 +358,21 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
 
         // Card background & glowing amber border if selected
         let card_bg = if is_selected {
-            Color32::from_rgb(0x28, 0x28, 0x32)
+            t.row_selected
         } else if card_resp.hovered() {
-            Color32::from_rgb(0x24, 0x24, 0x2c)
+            t.hover
         } else {
-            Color32::from_rgb(0x1c, 0x1c, 0x22)
+            t.panel_bg
         };
 
         p.rect_filled(node_rect, 6.0 * zoom.clamp(0.6, 1.2), card_bg);
 
         let border_stroke = if is_selected {
-            Stroke::new(2.5, Color32::from_rgb(0xec, 0x93, 0x24)) // Glowing Amber selection
+            Stroke::new(1.5, t.accent) // Unified selection; socket colors keep their routing meaning
         } else if node.solo {
             Stroke::new(2.0, Color32::from_rgb(0x26, 0x80, 0xeb)) // Solo active blue
         } else {
-            Stroke::new(1.0, Color32::from_rgb(0x38, 0x38, 0x44))
+            Stroke::new(1.0, t.field_border)
         };
         p.rect_stroke(node_rect, 6.0 * zoom.clamp(0.6, 1.2), border_stroke, egui::StrokeKind::Inside);
 
@@ -401,7 +416,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 "Foreground" => Color32::from_rgb(0x3a, 0xcc, 0x5a),
                 "Background" => Color32::from_rgb(0xf2, 0xa9, 0x24),
                 "Mask" => Color32::from_rgb(0x3a, 0x8a, 0xf2),
-                _ => Color32::from_rgb(0xd8, 0xd8, 0xd8),
+                _ => t.text_dim,
             };
 
             // Alt-click or Right-click on socket to disconnect
@@ -441,7 +456,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 disconnect_output = Some(node_id);
             }
 
-            p.circle_filled(sock_pos, 4.5 * zoom.clamp(0.6, 1.2), Color32::from_rgb(0xec, 0xec, 0xec));
+            p.circle_filled(sock_pos, 4.5 * zoom.clamp(0.6, 1.2), t.icon);
         }
     }
 
@@ -529,13 +544,13 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     // =========================================================================
     if let Some(sel_id) = canvas_state.selected_node {
         let drawer_rect = Rect::from_min_max(pos2(rect.min.x, canvas_rect.max.y), rect.max);
-        p.rect_filled(drawer_rect, 0.0, Color32::from_rgb(0x1a, 0x1a, 0x1e));
-        p.line_segment([drawer_rect.left_top(), drawer_rect.right_top()], Stroke::new(1.0, Color32::from_rgb(0x32, 0x32, 0x3c)));
+        p.rect_filled(drawer_rect, 0.0, t.tab_bg);
+        p.line_segment([drawer_rect.left_top(), drawer_rect.right_top()], Stroke::new(1.0, t.separator));
 
         if let Some(node) = graph.nodes.iter_mut().find(|n| n.id == sel_id) {
             let mut du = ui.new_child(egui::UiBuilder::new().max_rect(drawer_rect.shrink(8.0)));
             du.horizontal(|ui| {
-                ui.heading(RichText::new(&node.name).color(Color32::from_rgb(0xec, 0x93, 0x24)).size(14.0));
+                ui.heading(RichText::new(&node.name).color(t.text).size(14.0));
                 ui.label(RichText::new(format!("({})", node.node_type.label())).size(12.0).weak());
                 ui.separator();
 
@@ -695,12 +710,12 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     }
 }
 
-fn draw_canvas_grid(p: &egui::Painter, rect: Rect, pan: egui::Vec2, zoom: f32) {
+fn draw_canvas_grid(p: &egui::Painter, rect: Rect, pan: egui::Vec2, zoom: f32, t: &Tokens) {
     let step = 32.0 * zoom;
     if step < 8.0 {
         return;
     }
-    let stroke = Stroke::new(1.0, Color32::from_rgb(0x20, 0x20, 0x24));
+    let stroke = Stroke::new(1.0, t.plot_grid);
     let offset_x = (pan.x % step + step) % step;
     let mut x = rect.min.x + offset_x;
     while x <= rect.max.x {

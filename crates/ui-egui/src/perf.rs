@@ -15,6 +15,8 @@ pub fn stats(app: &FilmcraftApp) -> Value {
         "playing": app.playback.playing,
         "speed": app.playback.speed,
         "shown": shown,
+        "presented": app.playback.meter.presented,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
         "dropped": dropped,
         "dropRate": if shown + dropped == 0 { 0.0 } else { dropped as f64 / (shown + dropped) as f64 },
         "resolution": app.ui.program.res.label(),

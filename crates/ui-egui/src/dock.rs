@@ -1,8 +1,8 @@
 //! Premiere-style docking: a tree of splits and tab groups. Panels are rounded frames separated by
 //! thin gutters; each group has a tab strip (active tab bright, with a panel menu "≡"); the focused
-//! panel gets a blue outline. Gutters drag to resize; workspaces are serialized trees.
+//! panel gets a small header indicator. Gutters drag to resize; workspaces are serialized trees.
 
-use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+use egui::{Align2, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 use serde::{Deserialize, Serialize};
 
 use craft_ui::layout::{ResizeHandle, ResizeHandleStyle, SplitAxis, SplitSize as SharedSplitSize, split_rect};
@@ -334,7 +334,7 @@ pub fn workspace(name: &str) -> DockNode {
             hsplit(
                 FixedA(280.0),
                 tabs(&[Project, Effects, MediaBrowser], 0),
-                hsplit(FixedB(300.0), hsplit(Ratio(0.42), tabs(&[Source], 0), tabs(&[Program], 0)), tabs(&[Properties, EffectControls], 0)),
+                hsplit(FixedB(320.0), hsplit(Ratio(0.42), tabs(&[Source], 0), tabs(&[Program], 0)), tabs(&[Properties, EffectControls], 0)),
             ),
             hsplit(FixedA(44.0), tabs(&[Tools], 0), hsplit(FixedB(70.0), tabs(&[Timeline], 0), tabs(&[AudioMeters], 0))),
         ),
@@ -650,11 +650,13 @@ pub fn draw_group_chrome(
 pub struct Chrome {
     pub actions: Vec<DockAction>,
     pub tabs: Vec<(PanelKind, Rect)>,
+    pub tools: Option<Rect>,
 }
 
 pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t: &Tokens, reg: &mut crate::automation::Registry) -> Chrome {
     let mut actions = Vec::new();
     let mut tab_rects: Vec<(PanelKind, Rect)> = Vec::new();
+    let mut tool_rect = None;
     let painter = ui.painter().clone();
     painter.rect_filled(g.rect, t.radius, t.panel_bg);
     painter.rect_stroke(g.rect, t.radius, Stroke::new(1.0, t.separator), StrokeKind::Inside);
@@ -818,11 +820,7 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
             }
             if is_active {
                 painter.rect_filled(tab_rect, 0.0, t.panel_bg);
-                let top_color = if *p == PanelKind::NodeGraph || *p == PanelKind::LumetriColor || *p == PanelKind::LumetriScopes {
-                    Color32::from_rgb(0xec, 0x93, 0x24)
-                } else {
-                    t.accent
-                };
+                let top_color = t.accent;
                 painter.rect_filled(Rect::from_min_size(pos2(tab_rect.min.x, strip.min.y), vec2(tab_rect.width(), 2.0)), 0.0, top_color);
             } else if resp.hovered() {
                 painter.rect_filled(tab_rect, 0.0, t.hover);
@@ -895,69 +893,24 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
                 actions.push(DockAction::MoveSequence(id, index + 1));
             }
         }
-        if g.panels.contains(&PanelKind::Timeline) {
-            let sep_x = x + 4.0;
-            if sep_x + 10.0 < strip.max.x - 30.0 {
-                painter.line_segment([pos2(sep_x, strip.min.y + 7.0), pos2(sep_x, strip.max.y - 7.0)], Stroke::new(1.0, t.separator));
-                let mut tx = sep_x + 8.0;
-                let tools = [
-                    crate::state::Tool::Selection,
-                    crate::state::Tool::TrackSelectForward,
-                    crate::state::Tool::Ripple,
-                    crate::state::Tool::Razor,
-                    crate::state::Tool::Slip,
-                    crate::state::Tool::Pen,
-                    crate::state::Tool::Hand,
-                    crate::state::Tool::Type,
-                ];
-                let current_tool = seqs.tool.unwrap_or(crate::state::Tool::Selection);
-                for tl in tools {
-                    if tx + 26.0 > strip.max.x - 140.0 {
-                        break;
-                    }
-                    let tr = Rect::from_min_size(pos2(tx, strip.min.y + (t.tab_h - 22.0) / 2.0), vec2(25.0, 22.0));
-                    let is_active = current_tool == tl;
-                    let tip = if tl.shortcut().is_empty() {
-                        tl.label().to_string()
-                    } else {
-                        format!("{} ({})", tl.label(), tl.shortcut())
-                    };
-                    let resp = ui.interact(tr, egui::Id::new(("tl-tool", tl)), Sense::click()).on_hover_text(tip);
-                    reg.add_response(&format!("tools.{tl:?}"), &resp, tl.label());
-                    if is_active {
-                        painter.rect_filled(tr, 3.0, t.accent);
-                    } else if resp.hovered() {
-                        painter.rect_filled(tr, 3.0, t.hover);
-                    }
-                    let icol = if is_active { Color32::WHITE } else if resp.hovered() { t.tab_text_active } else { t.icon };
-                    icons::paint(&painter, Rect::from_center_size(tr.center(), vec2(15.0, 15.0)), tl.icon(), icol);
-                    if resp.clicked() {
-                        actions.push(DockAction::SelectTool(tl));
-                    }
-                    tx += 27.0;
+        if active_panel == Some(PanelKind::Timeline) && seqs.tool.is_some() {
+            let start = x + 10.0;
+            let end = strip.max.x - if more.is_some() { 32.0 } else { 8.0 };
+            if end - start >= 24.0 {
+                painter.line_segment([pos2(x + 4.0, strip.min.y + 7.0), pos2(x + 4.0, strip.max.y - 7.0)], Stroke::new(1.0, t.separator));
+                let label_width = if end - start >= 420.0 { 150.0 } else { 0.0 };
+                tool_rect = Some(Rect::from_min_max(pos2(start, strip.min.y), pos2(end - label_width, strip.max.y)));
+                if label_width > 0.0
+                    && let Some(tool) = seqs.tool
+                {
+                    painter.text(
+                        pos2(end - 4.0, strip.center().y),
+                        Align2::RIGHT_CENTER,
+                        format!("{}  {}", crate::i18n::t(tool.label()), tool.shortcut()),
+                        Tokens::ui(10.5),
+                        t.text_dim,
+                    );
                 }
-                let label_short = match current_tool {
-                    crate::state::Tool::Selection => "Select",
-                    crate::state::Tool::TrackSelectForward | crate::state::Tool::TrackSelectBackward => "Track Select",
-                    crate::state::Tool::Ripple => "Ripple Edit",
-                    crate::state::Tool::Rolling => "Rolling Edit",
-                    crate::state::Tool::RateStretch => "Rate Stretch",
-                    crate::state::Tool::Razor => "Razor",
-                    crate::state::Tool::Slip => "Slip",
-                    crate::state::Tool::Slide => "Slide",
-                    crate::state::Tool::Pen => "Pen",
-                    crate::state::Tool::Hand => "Hand",
-                    crate::state::Tool::Zoom => "Zoom",
-                    crate::state::Tool::Type | crate::state::Tool::VerticalType => "Type",
-                    _ => current_tool.label(),
-                };
-                let sec_text = if current_tool.shortcut().is_empty() {
-                    format!("Tools · {label_short}")
-                } else {
-                    format!("Tools · {label_short} ({})", current_tool.shortcut())
-                };
-                let sec_pos = pos2(strip.max.x - if more.is_some() { 32.0 } else { 14.0 }, strip.center().y);
-                painter.text(sec_pos, Align2::RIGHT_CENTER, sec_text, Tokens::ui(10.5), t.text_dim);
             }
         }
         // the » list: every tab of the group, the shown one ticked
@@ -1010,13 +963,16 @@ pub fn draw_group_chrome_details(ui: &mut egui::Ui, g: &Group, seqs: &SeqTabs, t
             .unwrap_or(p);
         actions.push(DockAction::Focus(panel));
     }
-    Chrome { actions, tabs: tab_rects }
+    Chrome { actions, tabs: tab_rects, tools: tool_rect }
 }
 
 /// Paint once after the group's contents so child backgrounds cannot hide its focus (#1075).
 pub(crate) fn paint_group_focus(ui: &egui::Ui, group: &Group, focused: PanelKind, tokens: &Tokens) {
     if group.panels.get(group.active).copied() == Some(focused) {
-        ui.painter().rect_stroke(group.rect, tokens.radius, Stroke::new(1.0, tokens.focus.gamma_multiply(0.6)), StrokeKind::Inside);
+        // Panel context is indicated locally in its header; keyboard focus remains on the
+        // actual widget. A mouse click must not put a bright frame around the entire workspace.
+        let start = group.rect.min + vec2(10.0, 1.0);
+        ui.painter().line_segment([start, start + vec2(28.0_f32.min((group.rect.width() - 20.0).max(0.0)), 0.0)], Stroke::new(1.5, tokens.focus));
     }
 }
 

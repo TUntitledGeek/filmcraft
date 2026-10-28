@@ -490,6 +490,7 @@ fn narration_selection_reveals_covered_floating_tts_once_without_editing_the_pro
     std::sync::Arc::make_mut(&mut session.project).narrations.insert(clip.item, narration.clone());
     let project = session.project.clone();
     let mut app = FilmcraftApp::new(session);
+    app.show_panel(PanelKind::Info);
     app.show_panel(PanelKind::TextToSpeech);
     let mut h = Harness::builder().with_size(vec2(1200.0, 760.0)).build_eframe(move |_| app);
     for _ in 0..4 {
@@ -565,6 +566,7 @@ fn narration_selection_reveals_covered_floating_tts_once_without_editing_the_pro
 #[test]
 fn a_panel_closed_while_floating_reopens_floating_where_it_was() {
     let mut app = FilmcraftApp::new(Session::default());
+    app.show_panel(PanelKind::Info);
     let ctx = egui::Context::default();
     menus::invoke(&mut app, &ctx, "window.floatPanel", json!({"panel": "Info", "rect": [45, 65, 420, 320]})).unwrap();
     let rect = app.ui.floating.iter().find(|g| g.panels.contains(&PanelKind::Info)).unwrap().rect;

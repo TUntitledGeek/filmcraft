@@ -1,94 +1,132 @@
-//! The vertical Tools panel. Grouped tools show a small flyout triangle; right-click, a long
-//! press or pressing and dragging opens the group to pick another tool.
-
+//! Shared editing tools for the horizontal timeline bar and the dockable vertical panel.
+//! Group flyouts retain right-click, long-press and drag/release selection in either orientation.
+use crate::{FilmcraftApp, icons, state::Tool};
 use egui::{Rect, Sense, pos2, vec2};
 
-use crate::FilmcraftApp;
-use crate::icons;
-use crate::state::Tool;
+fn begin(ui: &mut egui::Ui) {
+    if ui.input(|i| i.pointer.any_pressed()) {
+        ui.data_mut(|d| d.remove::<egui::Id>(egui::Id::new("tools-held")));
+    }
+}
 
 pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
-    let t = app.tokens;
+    begin(ui);
     let mut y = rect.min.y + 4.0;
-    let size = 32.0;
-    let held_id = egui::Id::new("tools-held");
-    if ui.input(|i| i.pointer.any_pressed()) {
-        ui.data_mut(|d| d.remove::<egui::Id>(held_id));
-    }
     for group in Tool::groups() {
-        let current = if group.contains(&app.ui.tool) { app.ui.tool } else { group[0] };
-        let r = Rect::from_min_size(pos2(rect.center().x - size / 2.0, y), vec2(size, size));
-        let tip = if current.shortcut().is_empty() {
-            app.ui.language.tr(current.label()).to_owned()
-        } else {
-            format!("{} ({})", app.ui.language.tr(current.label()), current.shortcut())
-        };
-        let resp = ui.interact(r, egui::Id::new(("tool", format!("{:?}", group[0]))), Sense::click_and_drag()).on_hover_text(tip);
-        resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, resp.enabled(), app.ui.tool == current, current.label()));
-        for tl in &group {
-            if *tl == current {
-                app.auto.add_response(&format!("tools.{tl:?}"), &resp, tl.label());
-            } else {
-                // Hidden group alternatives remain click aliases, not separate focus targets.
-                app.auto.add(&format!("tools.{tl:?}"), r, tl.label());
-            }
+        if y + 32.0 > rect.max.y {
+            break;
         }
-        let active = group.contains(&app.ui.tool);
-        if active {
-            ui.painter().rect_filled(Rect::from_center_size(r.center(), vec2(26.0, 26.0)), 4.0, t.accent);
-        } else if resp.hovered() {
-            ui.painter().rect_filled(r, 4.0, t.hover);
+        let r = Rect::from_min_size(pos2(rect.center().x - 16.0, y), vec2(32.0, 32.0));
+        group_button(app, ui, r, &group);
+        y += 36.0;
+    }
+}
+
+pub(crate) fn horizontal(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
+    begin(ui);
+    let groups = Tool::groups();
+    let capacity = (rect.width().max(0.0) / 30.0).floor() as usize;
+    let visible = if capacity >= groups.len() { groups.len() } else { capacity.saturating_sub(1) };
+    for (index, group) in groups.iter().take(visible).enumerate() {
+        let r = Rect::from_min_size(pos2(rect.min.x + index as f32 * 30.0, rect.center().y - 13.0), vec2(28.0, 26.0));
+        group_button(app, ui, r, group);
+    }
+    if visible < groups.len() && rect.width() >= 24.0 {
+        let r = Rect::from_min_size(pos2(rect.min.x + visible as f32 * 30.0, rect.center().y - 13.0), vec2(24.0, 26.0));
+        let resp = ui.interact(r, egui::Id::new("timeline-tools-more"), Sense::click()).on_hover_text("All editing tools");
+        app.auto.add_response("tools.more", &resp, "All editing tools");
+        let hidden_active = groups.iter().skip(visible).any(|g| g.contains(&app.ui.tool));
+        if resp.hovered() || hidden_active {
+            ui.painter().rect_filled(r, 4.0, app.tokens.pill_active_bg);
         }
-        icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(17.0, 17.0)), current.icon(), if active { egui::Color32::WHITE } else { t.icon });
-        if resp.has_focus() {
-            ui.painter().rect_stroke(r.shrink(2.0), 4.0, egui::Stroke::new(1.5, t.focus), egui::StrokeKind::Inside);
-        }
-        if group.len() > 1 {
-            let c = r.right_bottom() - vec2(3.0, 3.0);
-            ui.painter().add(egui::Shape::convex_polygon(vec![c, c - vec2(5.0, 0.0), c - vec2(0.0, 5.0)], t.text_dim, egui::Stroke::NONE));
-        }
-        let held = ui.data(|d| d.get_temp::<egui::Id>(held_id)) == Some(resp.id);
-        if resp.clicked() && !held {
-            app.ui.tool = current;
-        }
-        if group.len() > 1 {
-            let held_for = resp.is_pointer_button_down_on().then(|| ui.input(|i| i.pointer.press_start_time().map(|s| i.time - s))).flatten();
-            if let Some(seconds) = held_for
-                && seconds < 0.35
-            {
-                ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(0.35 - seconds));
-            }
-            // dragging off the press (egui's few-point drag threshold) opens it at once, without
-            // waiting for the long press
-            let long_press = (held_for.is_some_and(|seconds| seconds >= 0.35) || resp.drag_started()) && !held;
-            let command = if resp.secondary_clicked() || long_press {
-                if long_press {
-                    ui.data_mut(|d| d.insert_temp(held_id, resp.id));
-                }
-                Some(egui::SetOpenCommand::Bool(true))
-            } else if resp.clicked() && !held {
-                Some(egui::SetOpenCommand::Bool(false))
-            } else {
-                None
-            };
-            let close_behavior = if held && resp.clicked() { egui::PopupCloseBehavior::IgnoreClicks } else { egui::PopupCloseBehavior::CloseOnClickOutside };
-            egui::Popup::menu(&resp).open_memory(command).close_behavior(close_behavior).show(|ui| {
-                for tl in &group {
-                    let row = ui.selectable_label(app.ui.tool == *tl, format!("{}   {}", app.ui.language.tr(tl.label()), tl.shortcut()));
-                    app.auto.add_response(&format!("tools.select.{tl:?}"), &row, tl.label());
-                    // letting go over a row of a flyout this press opened picks that tool
-                    let released_on = held && ui.input(|i| i.pointer.primary_released() && i.pointer.interact_pos().is_some_and(|p| row.rect.contains(p)));
-                    if row.clicked() || released_on {
-                        app.ui.tool = *tl;
+        icons::paint(ui.painter(), r.shrink(6.0), icons::Icon::ChevronDown, app.tokens.icon);
+        egui::Popup::menu(&resp).show(|ui| {
+            for group in &groups {
+                for tool in group {
+                    let row = ui.selectable_label(app.ui.tool == *tool, format!("{}   {}", app.ui.language.tr(tool.label()), tool.shortcut()));
+                    app.auto.add_response(&format!("tools.select.{tool:?}"), &row, tool.label());
+                    if row.clicked() {
+                        app.ui.tool = *tool;
                         ui.close();
                     }
                 }
-            });
+                ui.separator();
+            }
+        });
+    }
+}
+
+fn group_button(app: &mut FilmcraftApp, ui: &mut egui::Ui, r: Rect, group: &[Tool]) {
+    let Some(first) = group.first().copied() else { return };
+    let current = if group.contains(&app.ui.tool) { app.ui.tool } else { first };
+    let t = app.tokens;
+    let held_id = egui::Id::new("tools-held");
+    let tip = if current.shortcut().is_empty() {
+        app.ui.language.tr(current.label()).to_owned()
+    } else {
+        format!("{} ({})", app.ui.language.tr(current.label()), current.shortcut())
+    };
+    let resp = ui.interact(r, egui::Id::new(("tool", format!("{first:?}"))), Sense::click_and_drag()).on_hover_text(tip);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, resp.enabled(), app.ui.tool == current, current.label()));
+    for tl in group {
+        if *tl == current {
+            app.auto.add_response(&format!("tools.{tl:?}"), &resp, tl.label());
+        } else {
+            // Hidden group alternatives remain click aliases, not separate focus targets.
+            app.auto.add(&format!("tools.{tl:?}"), r, tl.label());
         }
-        y += size + 4.0;
-        if y > rect.max.y - size {
-            break;
+    }
+    let active = group.contains(&app.ui.tool);
+    if active {
+        ui.painter().rect_filled(Rect::from_center_size(r.center(), vec2(26.0, 24.0)), 4.0, t.pill_active_bg);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(r, 4.0, t.hover);
+    }
+    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(17.0, 17.0)), current.icon(), if active { t.hot_text } else { t.icon });
+    if resp.has_focus() {
+        ui.painter().rect_stroke(r.shrink(2.0), 4.0, egui::Stroke::new(1.5, t.focus), egui::StrokeKind::Inside);
+    }
+    if group.len() > 1 {
+        let c = r.right_bottom() - vec2(3.0, 3.0);
+        ui.painter().add(egui::Shape::convex_polygon(vec![c, c - vec2(5.0, 0.0), c - vec2(0.0, 5.0)], t.text_dim, egui::Stroke::NONE));
+    }
+    let held = ui.data(|d| d.get_temp::<egui::Id>(held_id)) == Some(resp.id);
+    if resp.clicked() && !held {
+        app.ui.tool = current;
+    }
+    if group.len() > 1 {
+        let held_for = resp.is_pointer_button_down_on().then(|| ui.input(|i| i.pointer.press_start_time().map(|s| i.time - s))).flatten();
+        if let Some(seconds) = held_for
+            && seconds < 0.35
+        {
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(0.35 - seconds));
         }
+        // dragging off the press (egui's few-point drag threshold) opens it at once, without
+        // waiting for the long press
+        let long_press = (held_for.is_some_and(|seconds| seconds >= 0.35) || resp.drag_started()) && !held;
+        let command = if resp.secondary_clicked() || long_press {
+            if long_press {
+                ui.data_mut(|d| d.insert_temp(held_id, resp.id));
+            }
+            Some(egui::SetOpenCommand::Bool(true))
+        } else if resp.clicked() && !held {
+            Some(egui::SetOpenCommand::Bool(false))
+        } else {
+            None
+        };
+        let close_behavior = if held && resp.clicked() { egui::PopupCloseBehavior::IgnoreClicks } else { egui::PopupCloseBehavior::CloseOnClickOutside };
+        egui::Popup::menu(&resp).open_memory(command).close_behavior(close_behavior).show(|ui| {
+            for tl in group {
+                let row = ui.selectable_label(app.ui.tool == *tl, format!("{}   {}", app.ui.language.tr(tl.label()), tl.shortcut()));
+                app.auto.add_response(&format!("tools.select.{tl:?}"), &row, tl.label());
+                // letting go over a row of a flyout this press opened picks that tool
+                let released_on = held && ui.input(|i| i.pointer.primary_released() && i.pointer.interact_pos().is_some_and(|p| row.rect.contains(p)));
+                if row.clicked() || released_on {
+                    app.ui.tool = *tl;
+                    ui.close();
+                }
+            }
+        });
     }
 }
 
