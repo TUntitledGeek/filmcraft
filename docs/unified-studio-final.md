@@ -66,14 +66,14 @@ not destruction of the stored dual-view split. Custom docking trees and floating
 
 The user redirected this run toward playback, reliability and actual editing workflows. The
 visual overhaul is frozen at this checkpoint; additional work is limited to functional integration.
-The latest completed production WASM packaging passed (42.9 MB WASM). Native UI library tests
-passed (228), as did the new Source/divider/tool tests, narrow monitor geometry, project browsing,
-Color, keyboard and sequence-tab suites. The wider regression run exposed two legacy docking
-tests that assumed Info was already present in the default workspace; their setup now explicitly
-opens Info. Those corrections and the final workspace/focus cleanup await the next complete rerun.
-Workspace-wide Clippy is still running. This is a recovery checkpoint, not final acceptance.
+Checkpoint `dcbe5ccc` was pushed before the performance changes. The wider regression run exposed
+two legacy docking tests that assumed Info was already present in the default workspace; their
+setup now explicitly opens Info. The corrected docking suite subsequently passed all 12 tests.
+The UI library, Source/divider/tool, narrow monitor geometry and keyboard suites passed again.
 
-Final results and commit IDs are recorded here after the acceptance runs. Local logs and captures
+Playback findings, measurements, Source drops, experimental Fusion access and outstanding
+architecture work are documented in [performance-reliability.md](performance-reliability.md).
+That phase preserves the visual implementation described above. Local logs and captures
 live under `target/unified-*` and `target/unified-review/`; generated media and screenshots are not
 bundled into the application. No GitHub Pages deployment or merge into `studio-pro` is authorized.
 

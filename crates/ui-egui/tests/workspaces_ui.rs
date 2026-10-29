@@ -16,6 +16,18 @@ use filmcraft_ui_egui::control::ControlRequest;
 use filmcraft_ui_egui::dock::PanelKind;
 use serde_json::{Value, json};
 
+#[test]
+fn fusion_is_legacy_accessible_but_absent_from_primary_navigation() {
+    let data = data_dir("experimental-fusion");
+    let mut d = Driver::launch(&data);
+    assert!(!d.has("header.mode.fusion"));
+    d.ok("ui.set", json!({"workspace": "Fusion"}));
+    assert_eq!(d.workspace(), "Fusion", "serialized workspace identity stays compatible");
+    assert!(!d.has("header.mode.fusion"));
+    assert!(d.app().ui.dock.contains(PanelKind::NodeGraph));
+    let _ = std::fs::remove_dir_all(&data);
+}
+
 struct Driver {
     harness: Harness<'static, FilmcraftApp>,
     tx: Sender<ControlRequest>,
@@ -174,7 +186,7 @@ fn save_switch_reset_rename_delete_and_restart() {
             "Cutting",
             "Editing",
             "Effects",
-            "Fusion",
+            "Fusion (Experimental)",
             "Learning",
             "Review",
             "Reset to Saved Layout",

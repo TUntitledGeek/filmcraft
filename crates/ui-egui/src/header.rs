@@ -53,6 +53,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let ws_str = match app.ui.mode {
         Mode::Import => "Project Hub".to_string(),
         Mode::Export => "Export".to_string(),
+        Mode::Edit if matches!(app.ui.workspace.as_str(), "Fusion" | "Fusion Nodes") => crate::i18n::t("Fusion (Experimental)").into(),
         Mode::Edit => crate::i18n::t(&app.ui.workspace).to_owned(),
     };
     let show_ws_name = total_w >= 1100.0;
@@ -73,7 +74,6 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         vec![
             (Mode::Import, "import", "Project Hub", None, t.accent),
             (Mode::Edit, "edit", "Edit", Some("Clean Editing"), t.accent),
-            (Mode::Edit, "fusion", "Fusion", Some("Fusion"), t.accent),
             (Mode::Edit, "color", "Color", Some("Color"), t.accent),
             (Mode::Export, "export", "Export", None, t.accent),
         ]
@@ -81,7 +81,6 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         vec![
             (Mode::Import, "import", "Hub", None, t.accent),
             (Mode::Edit, "edit", "Edit", Some("Clean Editing"), t.accent),
-            (Mode::Edit, "fusion", "Fusion", Some("Fusion"), t.accent),
             (Mode::Edit, "color", "Color", Some("Color"), t.accent),
             (Mode::Export, "export", "Export", None, t.accent),
         ]
@@ -89,7 +88,6 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         vec![
             (Mode::Import, "import", "", None, t.accent),
             (Mode::Edit, "edit", "", Some("Clean Editing"), t.accent),
-            (Mode::Edit, "fusion", "", Some("Fusion"), t.accent),
             (Mode::Edit, "color", "", Some("Color"), t.accent),
             (Mode::Export, "export", "", None, t.accent),
         ]
@@ -140,9 +138,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let is_active = match (m, target_ws) {
             (Mode::Import, _) => app.ui.mode == Mode::Import,
             (Mode::Export, _) => app.ui.mode == Mode::Export,
-            (Mode::Edit, Some("Fusion")) => app.ui.mode == Mode::Edit && (app.ui.workspace == "Fusion" || app.ui.workspace == "Fusion Nodes"),
             (Mode::Edit, Some("Color")) => app.ui.mode == Mode::Edit && app.ui.workspace == "Color",
-            (Mode::Edit, _) => app.ui.mode == Mode::Edit && app.ui.workspace != "Fusion" && app.ui.workspace != "Fusion Nodes" && app.ui.workspace != "Color",
+            (Mode::Edit, _) => app.ui.mode == Mode::Edit && app.ui.workspace != "Color",
         };
         let pw = pill_widths[i];
         let r = Rect::from_min_size(pos2(cx, rect.min.y + 5.0), vec2(pw, rect.height() - 10.0));
@@ -235,9 +232,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     crate::panels::export_mode::quick_export(app, ui.ctx(), pos2(qx - 340.0, rect.max.y + 4.0));
 
     // Workspace switcher button & label
-    let ws_resp;
     let mut wr = Rect::ZERO;
-    if show_ws_name {
+    let ws_resp = if show_ws_name {
         let wg = p.layout_no_wrap(ws_str.clone(), Tokens::semibold(11.0), if t.kind == crate::theme::ThemeKind::Light { t.text } else { t.tab_text_active });
         let pill_w = wg.size().x + 28.0;
         wr = Rect::from_min_size(pos2(rx - pill_w + 4.0, rect.center().y - 12.0), vec2(pill_w, 24.0));
@@ -256,10 +252,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
             if wresp.hovered() { t.accent } else { t.text_dim },
         );
         crate::widgets::paint_focus(&p, &wresp, &t);
-        ws_resp = wresp;
+        wresp
     } else {
-        ws_resp = btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app, &mut rx);
-    }
+        btn(ui, Icon::Workspaces, "workspaces", tl!("Workspaces"), app, &mut rx)
+    };
 
     // Interactive Combined Project Title & Google Drive Capsule
     let title_raw = if app.session.is_dirty() { format!("{}*", app.session.project.name) } else { app.session.project.name.clone() };
@@ -322,7 +318,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
                 ui.set_min_width(220.0);
                 for w in crate::dock::names(&app.workspaces) {
                     let sel = app.ui.workspace == w;
-                    let resp = ui.selectable_label(sel, crate::i18n::t(&w));
+                    let label = crate::i18n::t(if matches!(w.as_str(), "Fusion" | "Fusion Nodes") { "Fusion (Experimental)" } else { &w });
+                    let resp = ui.selectable_label(sel, label);
                     if w == "Classic Editing" {
                         app.auto.add_response("editing.classic", &resp, "Classic Editing");
                     }

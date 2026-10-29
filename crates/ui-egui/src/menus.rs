@@ -1132,6 +1132,7 @@ mod tests {
         assert!(items.iter().all(|it| it.path.first().is_some_and(|top| MENUS.contains(&top.as_str()))));
         let ws: Vec<&MenuItem> = items.iter().filter(|it| it.path == ["Window", "Workspaces"]).collect();
         for name in crate::dock::WORKSPACES {
+            let name = if name == "Fusion" { "Fusion (Experimental)" } else { name };
             assert!(ws.iter().any(|it| it.label == name && it.checked.is_none()), "no workspace {name}");
         }
         let editing = ws.iter().position(|it| it.label == "Editing");

@@ -1,0 +1,1087 @@
+{
+  "date": "2026-10-28",
+  "fixtureSha256": "0c6b57c1504f5a86f16c9ce2e3bee004163da0c8b6e9043a72e44fe38ce42cb5",
+  "baselineWasmSha256": "c81d1dd3ee848d05d1ca10c4ba64723b21ecddafb67dd74ce672634ce28d8ecb",
+  "description": "Sequential 12-second Chrome runs, fresh profiles, no concurrent compilation, no CPU profiler; one sample per condition.",
+  "runs": [
+    {
+      "case": "matched-after-blur",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12164.7044,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.3185595567867036,
+        "dropped": 115,
+        "playing": true,
+        "presented": 258,
+        "resolution": "1/2",
+        "shown": 246,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 360,
+        "gradingDragActive": false,
+        "playheadFrame": 360,
+        "projectRevision": 8,
+        "renderScale": 0.5,
+        "revision": 8
+      },
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 259,
+        "submitMs": 1.2999999523162842,
+        "transitions": 0,
+        "uploadedBytes": 357825600
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.54984,
+          "images": 12,
+          "planMB": 132.7104,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.4561521252796411,
+          "p50": 0,
+          "p95": 1
+        },
+        "failedJobs": 0,
+        "jobMsMean": 0.9008948545861404,
+        "jobs": 447,
+        "prefetchJobs": 398,
+        "previewJobs": 0,
+        "queued": 6,
+        "renderCostMs": 0.10904833121916266,
+        "renderMs": {
+          "mean": 0.444742729306484,
+          "p50": 0.10000000149011612,
+          "p95": 0.20000000298023224
+        },
+        "requestHitRate": 0.9539078156312625,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 562,
+        "p50Ms": 8.400000000001455,
+        "p95Ms": 75.09999999999854,
+        "maxMs": 116.70000000000073,
+        "longTaskCount": 0,
+        "longTaskTotalMs": 0
+      },
+      "pauseUpperBoundMs": 20.226999999998952,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 411,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 53,
+            "needsKey": false,
+            "next": 378,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 411,
+          "nativeBytes": 568166400,
+          "nativeFrames": 411,
+          "nativeMs": 6046,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-after-demo",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12132.6047,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.9754385964912281,
+        "dropped": 278,
+        "playing": true,
+        "presented": 110,
+        "resolution": "1/2",
+        "shown": 7,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 283,
+        "gradingDragActive": false,
+        "playheadFrame": 285,
+        "projectRevision": 3,
+        "renderScale": 0.375,
+        "revision": 3
+      },
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.2999999523162842,
+        "transitions": 0,
+        "uploadedBytes": 206452888
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.3528,
+          "images": 7,
+          "planMB": 348.7536,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 63.976744186046524,
+          "p50": 60.400001525878906,
+          "p95": 106.30000305175781
+        },
+        "failedJobs": 0,
+        "jobMsMean": 72.77674418604653,
+        "jobs": 129,
+        "prefetchJobs": 16,
+        "previewJobs": 0,
+        "queued": 14,
+        "renderCostMs": 0.08209377280000003,
+        "renderMs": {
+          "mean": 8.799999999999995,
+          "p50": 0.10000000149011612,
+          "p95": 39.099998474121094
+        },
+        "requestHitRate": 0.8303964757709251,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 123,
+        "p50Ms": 116.59999999999854,
+        "p95Ms": 133.60000000000036,
+        "maxMs": 208.39999999999964,
+        "longTaskCount": 110,
+        "longTaskTotalMs": 11829
+      },
+      "pauseUpperBoundMs": 80.36309999999867,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-after-lumetri",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12075.4548,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.3593314763231198,
+        "dropped": 129,
+        "playing": true,
+        "presented": 250,
+        "resolution": "1/2",
+        "shown": 230,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 358,
+        "gradingDragActive": false,
+        "playheadFrame": 358,
+        "projectRevision": 10,
+        "renderScale": 0.5,
+        "revision": 10
+      },
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 253,
+        "submitMs": 3.1999998092651367,
+        "transitions": 0,
+        "uploadedBytes": 346766400
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.6044,
+          "images": 14,
+          "planMB": 132.7104,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.45348314606741486,
+          "p50": 0,
+          "p95": 0.800000011920929
+        },
+        "failedJobs": 0,
+        "jobMsMean": 1.1973033707865273,
+        "jobs": 445,
+        "prefetchJobs": 386,
+        "previewJobs": 0,
+        "queued": 7,
+        "renderCostMs": 0.07254939618573483,
+        "renderMs": {
+          "mean": 0.7438202247191102,
+          "p50": 0.10000000149011612,
+          "p95": 0.20000000298023224
+        },
+        "requestHitRate": 0.9495247880811714,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 515,
+        "p50Ms": 8.5,
+        "p95Ms": 83.20000000000073,
+        "maxMs": 126.20000000000073,
+        "longTaskCount": 0,
+        "longTaskTotalMs": 0
+      },
+      "pauseUpperBoundMs": 22.105999999999767,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 74,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 6381,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-after-none",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12043.7887,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.3064066852367688,
+        "dropped": 110,
+        "playing": true,
+        "presented": 255,
+        "resolution": "1/2",
+        "shown": 249,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 358,
+        "gradingDragActive": false,
+        "playheadFrame": 358,
+        "projectRevision": 6,
+        "renderScale": 0.5,
+        "revision": 6
+      },
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.5999999046325684,
+        "transitions": 0,
+        "uploadedBytes": 353678400
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.49528,
+          "images": 10,
+          "planMB": 132.7104,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.42605790645879654,
+          "p50": 0,
+          "p95": 0.8999999761581421
+        },
+        "failedJobs": 0,
+        "jobMsMean": 0.7461024498886522,
+        "jobs": 449,
+        "prefetchJobs": 408,
+        "previewJobs": 0,
+        "queued": 7,
+        "renderCostMs": 0.0695772636528565,
+        "renderMs": {
+          "mean": 0.3200445434298409,
+          "p50": 0.10000000149011612,
+          "p95": 0.20000000298023224
+        },
+        "requestHitRate": 0.9541502917708705,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 556,
+        "p50Ms": 8.400000000001455,
+        "p95Ms": 75.19999999999709,
+        "maxMs": 133.29999999999927,
+        "longTaskCount": 0,
+        "longTaskTotalMs": 0
+      },
+      "pauseUpperBoundMs": 14.83980000000156,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 59,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 6344,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-after-stack",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12051.7141,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.4178272980501393,
+        "dropped": 150,
+        "playing": true,
+        "presented": 238,
+        "resolution": "1/2",
+        "shown": 209,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 358,
+        "gradingDragActive": false,
+        "playheadFrame": 358,
+        "projectRevision": 12,
+        "renderScale": 0.5,
+        "revision": 12
+      },
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 243,
+        "submitMs": 2.700000047683716,
+        "transitions": 0,
+        "uploadedBytes": 330177600
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.65896,
+          "images": 16,
+          "planMB": 132.7104,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.5372037914691935,
+          "p50": 0,
+          "p95": 0.800000011920929
+        },
+        "failedJobs": 0,
+        "jobMsMean": 1.422037914691961,
+        "jobs": 422,
+        "prefetchJobs": 341,
+        "previewJobs": 0,
+        "queued": 7,
+        "renderCostMs": 0.08174714165984777,
+        "renderMs": {
+          "mean": 0.8848341232227579,
+          "p50": 0.10000000149011612,
+          "p95": 0.20000000298023224
+        },
+        "requestHitRate": 0.9448764232157734,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 475,
+        "p50Ms": 8.69999999999709,
+        "p95Ms": 83.40000000000146,
+        "maxMs": 133.5,
+        "longTaskCount": 0,
+        "longTaskTotalMs": 0
+      },
+      "pauseUpperBoundMs": 19.536000000000058,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 73,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 6578,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-before-blur",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12164.270099999998,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.94,
+        "dropped": 329,
+        "playing": true,
+        "presented": 110,
+        "resolution": "1/2",
+        "shown": 21,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 347,
+        "gradingDragActive": false,
+        "playheadFrame": 350,
+        "projectRevision": 8,
+        "renderScale": 0.5,
+        "revision": 8
+      },
+      "gpu": {
+        "cpuTransitions": 0,
+        "submitMs": 59.099998474121094,
+        "transitions": 0,
+        "uploadedBytes": 202075200
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.3528,
+          "images": 7,
+          "planMB": 132.7104,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.3253045923149034,
+          "p50": 0,
+          "p95": 0.30000001192092896
+        },
+        "failedJobs": 0,
+        "jobMsMean": 0.3701030927835081,
+        "jobs": 1067,
+        "prefetchJobs": 385,
+        "previewJobs": 0,
+        "queued": 19,
+        "renderCostMs": 0.0014709718217737423,
+        "renderMs": {
+          "mean": 0.04479850046860383,
+          "p50": 0,
+          "p95": 0.10000000149011612
+        },
+        "requestHitRate": 0.8793540215326155,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 162,
+        "p50Ms": 75,
+        "p95Ms": 150,
+        "maxMs": 166.70000000000073,
+        "longTaskCount": 62,
+        "longTaskTotalMs": 4794
+      },
+      "pauseUpperBoundMs": 203.53429999999935,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 363,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 9,
+            "needsKey": false,
+            "next": 144,
+            "queue": 24,
+            "start": 120,
+            "target": 73728
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 363,
+          "nativeBytes": 501811200,
+          "nativeFrames": 363,
+          "nativeMs": 5114,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-before-demo",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12109.6499,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.9683098591549296,
+        "dropped": 275,
+        "playing": true,
+        "presented": 111,
+        "resolution": "1/2",
+        "shown": 9,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 283,
+        "gradingDragActive": false,
+        "playheadFrame": 284,
+        "projectRevision": 3,
+        "renderScale": 0.375,
+        "revision": 3
+      },
+      "gpu": {
+        "cpuTransitions": 0,
+        "submitMs": 1.7000000476837158,
+        "transitions": 0,
+        "uploadedBytes": 211118488
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.3528,
+          "images": 7,
+          "planMB": 356.9184,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 63.181538461538466,
+          "p50": 60.29999923706055,
+          "p95": 104.4000015258789
+        },
+        "failedJobs": 0,
+        "jobMsMean": 71.84769230769226,
+        "jobs": 130,
+        "prefetchJobs": 18,
+        "previewJobs": 0,
+        "queued": 14,
+        "renderCostMs": 0.07435134972198916,
+        "renderMs": {
+          "mean": 8.666153846153838,
+          "p50": 0.10000000149011612,
+          "p95": 37.099998474121094
+        },
+        "requestHitRate": 0.8312259483232546,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 123,
+        "p50Ms": 116.5,
+        "p95Ms": 133.5,
+        "maxMs": 191.90000000000146,
+        "longTaskCount": 110,
+        "longTaskTotalMs": 11756
+      },
+      "pauseUpperBoundMs": 86.73170000000027,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-before-lumetri",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12304.4675,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.9941690962099126,
+        "dropped": 341,
+        "playing": true,
+        "presented": 32,
+        "resolution": "1/2",
+        "shown": 2,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 341,
+        "gradingDragActive": false,
+        "playheadFrame": 343,
+        "projectRevision": 10,
+        "renderScale": 0.5,
+        "revision": 10
+      },
+      "gpu": {
+        "cpuTransitions": 0,
+        "submitMs": 178.59999084472656,
+        "transitions": 0,
+        "uploadedBytes": 58305600
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.3528,
+          "images": 7,
+          "planMB": 73.0512,
+          "plans": 53
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.6483198146002355,
+          "p50": 0,
+          "p95": 0.20000000298023224
+        },
+        "failedJobs": 0,
+        "jobMsMean": 0.7057937427578271,
+        "jobs": 863,
+        "prefetchJobs": 454,
+        "previewJobs": 0,
+        "queued": 21,
+        "renderCostMs": 0.031417963546795394,
+        "renderMs": {
+          "mean": 0.05747392815759011,
+          "p50": 0,
+          "p95": 0.10000000149011612
+        },
+        "requestHitRate": 0.8192252510760402,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 103,
+        "p50Ms": 83.29999999999927,
+        "p95Ms": 250.00000000000182,
+        "maxMs": 266.7999999999993,
+        "longTaskCount": 32,
+        "longTaskTotalMs": 5691
+      },
+      "pauseUpperBoundMs": 472.6952999999994,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 363,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 12,
+            "needsKey": false,
+            "next": 9,
+            "queue": 9,
+            "start": 0,
+            "target": 1024
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 363,
+          "nativeBytes": 501811200,
+          "nativeFrames": 363,
+          "nativeMs": 5593,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-before-none",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12039.0125,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.2585227272727273,
+        "dropped": 91,
+        "playing": true,
+        "presented": 262,
+        "resolution": "1/2",
+        "shown": 261,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 351,
+        "gradingDragActive": false,
+        "playheadFrame": 351,
+        "projectRevision": 6,
+        "renderScale": 0.5,
+        "revision": 6
+      },
+      "gpu": {
+        "cpuTransitions": 0,
+        "submitMs": 1.5,
+        "transitions": 0,
+        "uploadedBytes": 361972800
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.3528,
+          "images": 7,
+          "planMB": 132.7104,
+          "plans": 96
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.30699893955461427,
+          "p50": 0,
+          "p95": 0.699999988079071
+        },
+        "failedJobs": 0,
+        "jobMsMean": 0.3572640509013831,
+        "jobs": 943,
+        "prefetchJobs": 454,
+        "previewJobs": 0,
+        "queued": 7,
+        "renderCostMs": 0.05209518680697726,
+        "renderMs": {
+          "mean": 0.050265111346766006,
+          "p50": 0.10000000149011612,
+          "p95": 0.20000000298023224
+        },
+        "requestHitRate": 0.9670875054418807,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 627,
+        "p50Ms": 8.399999999999636,
+        "p95Ms": 75,
+        "maxMs": 141.70000000000073,
+        "longTaskCount": 0,
+        "longTaskTotalMs": 0
+      },
+      "pauseUpperBoundMs": 22.448199999998906,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 364,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 6,
+            "needsKey": false,
+            "next": 144,
+            "queue": 24,
+            "start": 120,
+            "target": 73728
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 364,
+          "nativeBytes": 503193600,
+          "nativeFrames": 364,
+          "nativeMs": 5292,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "case": "matched-before-stack",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "adapter": {
+        "vendor": "intel",
+        "architecture": "xe-lpg",
+        "device": "",
+        "description": ""
+      },
+      "elapsedWallMs": 12127.458,
+      "playback": {
+        "draftDecode": false,
+        "dropRate": 0.993993993993994,
+        "dropped": 331,
+        "playing": true,
+        "presented": 29,
+        "resolution": "1/2",
+        "shown": 2,
+        "shownMeaning": "exact picture met its sequence-frame deadline",
+        "speed": 1
+      },
+      "monitor": {
+        "draft": false,
+        "frame": 327,
+        "gradingDragActive": false,
+        "playheadFrame": 333,
+        "projectRevision": 12,
+        "renderScale": 0.5,
+        "revision": 12
+      },
+      "gpu": {
+        "cpuTransitions": 0,
+        "submitMs": 189.60000610351562,
+        "transitions": 0,
+        "uploadedBytes": 52776000
+      },
+      "frames": {
+        "cache": {
+          "imageMB": 0.3528,
+          "images": 7,
+          "planMB": 70.2864,
+          "plans": 51
+        },
+        "cancelled": 0,
+        "decodeMs": {
+          "mean": 0.640065861690453,
+          "p50": 0,
+          "p95": 0.30000001192092896
+        },
+        "failedJobs": 0,
+        "jobMsMean": 0.7068057080131792,
+        "jobs": 911,
+        "prefetchJobs": 416,
+        "previewJobs": 0,
+        "queued": 24,
+        "renderCostMs": 0.004336000050877704,
+        "renderMs": {
+          "mean": 0.06673984632272273,
+          "p50": 0,
+          "p95": 0.10000000149011612
+        },
+        "requestHitRate": 0.8165680473372781,
+        "workers": 1
+      },
+      "browserPacing": {
+        "samples": 97,
+        "p50Ms": 83.20000000000073,
+        "p95Ms": 291.7000000000007,
+        "maxMs": 300.2000000000007,
+        "longTaskCount": 29,
+        "longTaskTotalMs": 5891
+      },
+      "pauseUpperBoundMs": 139.9246000000021,
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 350,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 7,
+            "needsKey": false,
+            "next": 144,
+            "queue": 24,
+            "start": 120,
+            "target": 73728
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 350,
+          "nativeBytes": 483840000,
+          "nativeFrames": 350,
+          "nativeMs": 5270,
+          "staleFrames": 0
+        }
+      },
+      "errors": []
+    }
+  ]
+}

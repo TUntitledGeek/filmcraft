@@ -165,7 +165,7 @@ fn splice(items: &mut Vec<MenuItem>, prefs: &dock::WorkspacePrefs, session: &fil
         .map(|n| {
             let id = format!("window.workspace.{}", slug(&n));
             MenuItem {
-                label: tr(&n),
+                label: tr(if matches!(n.as_str(), "Fusion" | "Fusion Nodes") { "Fusion (Experimental)" } else { &n }),
                 path: vec!["Window".into(), "Workspaces".into()],
                 shortcut: session.shortcuts.primary(&id),
                 enabled: true,
