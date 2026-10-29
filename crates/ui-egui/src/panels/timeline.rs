@@ -2880,6 +2880,10 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
 
     // ---- release: commit exactly one command
     if resp.drag_stopped() || (app.tl.drag.is_some() && ctx.input(|i| i.pointer.any_released() || !i.pointer.any_down())) {
+        let source_drop = !app.tl.cancelled && super::source_drop::take_timeline_release(app, ui);
+        if source_drop {
+            app.tl.drag = None;
+        }
         // a drag Escape cancelled (#580) commits nothing
         let cancelled = std::mem::take(&mut app.tl.cancelled);
         if !cancelled && let Some(d) = app.tl.drag.take() {

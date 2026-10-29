@@ -36,6 +36,9 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
     let source_drag_h = if separate_source_drag { 26.0 } else { 0.0 };
     let controls_h = 28.0 + 24.0 + 15.0 + 36.0 + if stacked_controls { 26.0 } else { 0.0 } + source_drag_h + timecode_h + narrow_settings_h;
     let video_area = Rect::from_min_max(rect.min + vec2(4.0, 4.0), pos2(rect.max.x - 4.0, rect.max.y - controls_h));
+    if which == Which::Source {
+        super::source_drop::show(app, ui, rect, video_area);
+    }
     // the Source monitor's time ruler starts at `origin` (a subclip restricted to its range)
     let mut origin = Tick::ZERO;
     let (target, frame_size, rate, time, duration, drop_frame, mark_in, mark_out, name) = match which {
@@ -242,7 +245,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
                 app.playback.preroll_ready = app.frames.preroll_ready(key, app.playback.speed, rate.frame_at(duration) - 1);
             }
         } else {
-            app.frames.request(key, rate.tick_of(frame), scale, &project, 0);
+            let other_playing = if which == Which::Source { app.playback.playing } else { app.source_playback.clock.playing };
+            app.frames.request(key, rate.tick_of(frame), scale, &project, if other_playing { 20 } else { 0 });
         }
         let asked = asked_before(app, prefix, key, playing);
         let tex_name = if channel { format!("monitor-{prefix}-{display:?}") } else { format!("monitor-{prefix}") };

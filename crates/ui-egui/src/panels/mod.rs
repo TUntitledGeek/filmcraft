@@ -113,6 +113,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, p: PanelKind, rect: Rect)
 }
 
 pub mod source_drag;
+pub mod source_drop;
 pub mod source_range;
 
 #[derive(Clone, Debug)]
@@ -175,6 +176,9 @@ struct DragPayloadBox(DragPayload);
 
 fn payload(ui: &egui::Ui) -> Option<DragPayload> {
     ui.ctx().data(|d| d.get_temp::<Option<DragPayloadBox>>(payload_id())).flatten().map(|b| b.0)
+}
+pub(crate) fn has_drag_payload(ui: &egui::Ui) -> bool {
+    payload(ui).is_some()
 }
 pub fn dragged_project_item(ui: &egui::Ui) -> Option<ItemId> {
     match payload(ui) {

@@ -256,6 +256,7 @@ impl FilmcraftApp {
             hidden.push(PanelKind::Tools);
         }
         dock::layout_contextual(ui, &mut dock, body, &t, "", &mut groups, &mut self.auto, &mut layout_actions, &hidden);
+        panels::source_drop::prepare(ui, &groups, &self.ui.floating);
         let seqs = dock::SeqTabs {
             open: self
                 .session

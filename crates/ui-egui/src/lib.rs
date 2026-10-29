@@ -3311,7 +3311,7 @@ impl eframe::App for FilmcraftApp {
         // with a minimal 2ms slice. Background thumbnails (prio 40-50) wait for idle.
         let (budget, max_prio) = if is_interacting {
             (std::time::Duration::from_millis(2), Some(10))
-        } else if self.playback.playing {
+        } else if self.playback.playing || self.source_playback.clock.playing {
             (std::time::Duration::from_millis(8), Some(10))
         } else {
             (std::time::Duration::from_millis(4), None)

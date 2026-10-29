@@ -705,6 +705,11 @@ impl FrameServer {
                 done += 1;
             } else {
                 retry.push(job);
+                // An asynchronous decoder/read needs the browser event loop to run before
+                // this request can finish. Starting unrelated background jobs here can seek
+                // that same decoder elsewhere and invalidate every pending output forever.
+                // Apply backpressure and yield instead of resetting it repeatedly in one pass.
+                break;
             }
             // Yield after each completed job. In particular, playback cannot spend the rest
             // of a UI pass rendering additional speculative frames after an expensive job.

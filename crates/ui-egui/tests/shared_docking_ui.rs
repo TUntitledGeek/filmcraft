@@ -594,6 +594,7 @@ fn a_panel_closed_while_floating_reopens_floating_where_it_was() {
     // with nothing else docked, a reopened panel has to stay docked (the workspace keeps one
     // docked panel); its floating place is kept, not lost (#2482 review)
     let mut app = FilmcraftApp::new(Session::default());
+    app.show_panel(PanelKind::Info);
     menus::invoke(&mut app, &ctx, "window.floatPanel", json!({"panel": "Info", "rect": [45, 65, 420, 320]})).unwrap();
     let rect = app.ui.floating.iter().find(|g| g.panels.contains(&PanelKind::Info)).unwrap().rect;
     for _ in 0..64 {
