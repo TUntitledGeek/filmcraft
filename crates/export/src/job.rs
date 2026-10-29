@@ -10,8 +10,8 @@
 //!
 //! When a source's bytes are not available yet (asynchronous web reads mark
 //! [`filmcraft_media::pending`]), the video batch is rendered again on the next call: nothing is encoded
-//! from frames with missing media. Known, pre-existing web issue (TODO, separate fix): the audio pull
-//! has already advanced its position when it hits a pending source, so a retried group loses its audio.
+//! from frames with missing media. Audio interleave groups are prepared transactionally, so a
+//! pending source leaves both the audio position and limiter history unchanged for the retry.
 //!
 //! The file does not depend on how many frames a step renders (one per core natively, one on the
 //! web): packets go to the muxer in fixed groups of [`INTERLEAVE`] output frames, each followed by
@@ -598,15 +598,15 @@ impl Exporter {
         }
         let end = f.saturating_add(i64::try_from(frames.len()).unwrap_or(0));
         // the audio of every interleave group that ends in this batch, mixed before encoding so a
-        // pending source stops the step before any frame of the batch is encoded (the audio position has
-        // already moved though: known web issue, see the module docs)
+        // pending source stops the step before any frame of the batch is encoded or any audio
+        // cursor/limiter state is committed, even when a batch spans multiple interleave groups.
         let cuts: Vec<i64> = (f + 1..=end).filter(|&g| (g - self.f0) % INTERLEAVE == 0).collect();
         let mut mixed = Vec::with_capacity(cuts.len());
         if let Some(sr) = self.audio.as_ref().map(|a| a.sr) {
             let t = web_time::Instant::now();
-            for &g in &cuts {
-                let until = self.sample_at_frame(g, sr);
-                mixed.push(self.audio.as_mut().and_then(|a| a.pull(until, sources)));
+            let untils: Vec<_> = cuts.iter().map(|&g| self.sample_at_frame(g, sr)).collect();
+            if let Some(audio) = self.audio.as_mut() {
+                mixed = audio.pull_many(&untils, sources).unwrap_or_default();
             }
             note_stage(Stage::Audio, t.elapsed());
         }

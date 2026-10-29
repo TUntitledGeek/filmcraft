@@ -42,6 +42,15 @@ pub(crate) struct AudioOut {
     pub loudness: Option<LoudnessReport>,
 }
 
+pub(crate) type AudioBlock = Vec<Vec<f32>>;
+
+struct MixedBlock {
+    until: i64,
+    next_in: i64,
+    frames: usize,
+    samples: AudioBlock,
+}
+
 impl AudioOut {
     pub fn new(project: Arc<Project>, seq: ItemId, settings: &ExportSettings, range: TimeRange) -> Result<Self> {
         let q = project.sequence(seq).ok_or(ExportError::NoSequence)?;
@@ -170,17 +179,40 @@ impl AudioOut {
     }
 
     /// Output samples up to `until` (exclusive), planar; None when there is nothing new.
-    pub fn pull(&mut self, until: i64, sources: &dyn SourceProvider) -> Option<Vec<Vec<f32>>> {
-        let until = until.min(self.end);
-        if until <= self.out {
-            return None;
+    pub fn pull(&mut self, until: i64, sources: &dyn SourceProvider) -> Option<AudioBlock> {
+        self.pull_many(&[until], sources)?.pop().flatten()
+    }
+
+    /// Prepare every interleave block before advancing any cursor or limiter history. A later
+    /// pending read must not discard an earlier, successful block when the video batch retries.
+    /// None leaves all state unchanged and retains the pending flag for the exporter.
+    pub fn pull_many(&mut self, untils: &[i64], sources: &dyn SourceProvider) -> Option<Vec<Option<AudioBlock>>> {
+        let (mut next_in, mut out) = (self.next_in, self.out);
+        let mut prepared = Vec::with_capacity(untils.len());
+        for &until in untils {
+            let until = until.min(self.end);
+            if until <= out {
+                prepared.push(None);
+                continue;
+            }
+            let want_in = until.saturating_add(self.latency);
+            let frames = want_in.saturating_sub(next_in).max(0) as usize;
+            let samples = self.mix(next_in, frames, sources);
+            if filmcraft_media::pending::is_set() {
+                return None;
+            }
+            prepared.push(Some(MixedBlock { until, next_in: want_in, frames, samples }));
+            next_in = want_in;
+            out = until;
         }
-        let want_in = until + self.latency;
-        let n_in = (want_in - self.next_in).max(0) as usize;
-        let mut buf = self.mix(self.next_in, n_in, sources);
+        Some(prepared.into_iter().map(|block| block.map(|block| self.finish_pull(block))).collect())
+    }
+
+    fn finish_pull(&mut self, block: MixedBlock) -> AudioBlock {
+        let MixedBlock { until, next_in, frames: n_in, samples: mut buf } = block;
         // the first call also fills the limiter's look-ahead
         let drop = (self.latency - (self.next_in - self.out)).clamp(0, n_in as i64) as usize;
-        self.next_in = want_in;
+        self.next_in = next_in;
         if self.gain != 1.0 {
             buf.iter_mut().for_each(|c| c.iter_mut().for_each(|s| *s *= self.gain));
         }
@@ -194,7 +226,7 @@ impl AudioOut {
             c.resize(n_out, 0.0);
         }
         self.out = until;
-        Some(buf)
+        buf
     }
 
     /// Output samples still to come (per channel).
@@ -222,6 +254,93 @@ pub(crate) fn interleave(planar: &[Vec<f32>]) -> Vec<f32> {
 
 #[cfg(test)]
 mod bounds_tests {
+    use filmcraft_render::{SourceMap, SourceProvider};
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct Deferring<'a> {
+        sources: &'a SourceMap,
+        defer: AtomicBool,
+    }
+
+    impl SourceProvider for Deferring<'_> {
+        fn source(&self, item: filmcraft_project::ItemId) -> Option<filmcraft_media::SharedSource> {
+            if self.defer.swap(false, Ordering::SeqCst) {
+                filmcraft_media::pending::mark();
+                None
+            } else {
+                self.sources.source(item)
+            }
+        }
+    }
+
+    #[test]
+    fn a_later_pending_interleave_block_does_not_consume_earlier_blocks() {
+        use std::sync::atomic::AtomicUsize;
+        struct SecondMissing<'a> {
+            sources: &'a SourceMap,
+            calls: AtomicUsize,
+        }
+        impl SourceProvider for SecondMissing<'_> {
+            fn source(&self, item: filmcraft_project::ItemId) -> Option<filmcraft_media::SharedSource> {
+                if self.calls.fetch_add(1, Ordering::SeqCst) == 1 {
+                    filmcraft_media::pending::mark();
+                    None
+                } else {
+                    self.sources.source(item)
+                }
+            }
+        }
+        for limited in [false, true] {
+            let _ = filmcraft_media::pending::take();
+            let (project, seq, sources) = crate::tests::project();
+            let range = filmcraft_time::TimeRange::new(filmcraft_time::Tick::ZERO, filmcraft_time::Tick::from_seconds_f64(1.0));
+            let mut settings = crate::ExportSettings::default();
+            settings.effects.loudness.enabled = limited;
+            let mut reference = super::AudioOut::new(project.clone(), seq, &settings, range).unwrap();
+            let mut retry = super::AudioOut::new(project, seq, &settings, range).unwrap();
+            let untils = [2048, 4096, 8192];
+            let expected = reference.pull_many(&untils, &sources).unwrap();
+            let missing = SecondMissing { sources: &sources, calls: AtomicUsize::new(0) };
+            assert!(retry.pull_many(&untils, &missing).is_none());
+            assert!(filmcraft_media::pending::take());
+            assert_eq!((retry.out, retry.next_in), (0, 0));
+            let actual = retry.pull_many(&untils, &sources).unwrap();
+            assert_eq!(actual, expected, "earlier interleave blocks or limiter history were lost");
+        }
+    }
+
+    #[test]
+    fn pending_audio_retries_preserve_samples_positions_and_limiter_history() {
+        let (project, seq, sources) = crate::tests::project();
+        let range = filmcraft_time::TimeRange::new(filmcraft_time::Tick::ZERO, filmcraft_time::Tick::from_seconds_f64(1.0));
+        for limited in [false, true] {
+            let _ = filmcraft_media::pending::take();
+            let mut settings = crate::ExportSettings::default();
+            settings.effects.loudness.enabled = limited;
+            let mut reference = super::AudioOut::new(project.clone(), seq, &settings, range).unwrap();
+            let mut retry = super::AudioOut::new(project.clone(), seq, &settings, range).unwrap();
+            let deferred = Deferring { sources: &sources, defer: AtomicBool::new(false) };
+            for until in [2048, 4096, 6000, 48_000] {
+                let expected = reference.pull(until, &sources).unwrap();
+                let before = (retry.out, retry.next_in, retry.remaining());
+                // Repeat a missing read both at startup and after the limiter has history.
+                for _ in 0..2 {
+                    deferred.defer.store(true, Ordering::SeqCst);
+                    assert!(retry.pull(until, &deferred).is_none());
+                    assert!(filmcraft_media::pending::take(), "caller must still observe pending");
+                    assert_eq!((retry.out, retry.next_in, retry.remaining()), before);
+                }
+                let actual = retry.pull(until, &sources).unwrap();
+                for (a, b) in actual.iter().flatten().zip(expected.iter().flatten()) {
+                    assert_eq!(a.to_bits(), b.to_bits(), "audio changed after retry, limiter={limited}");
+                }
+                assert_eq!(actual.iter().map(Vec::len).collect::<Vec<_>>(), expected.iter().map(Vec::len).collect::<Vec<_>>());
+                assert!(actual.iter().flatten().any(|x| x.abs() > 0.01), "fixture must contain audible samples");
+            }
+            assert_eq!(retry.remaining(), 0);
+        }
+    }
+
     #[test]
     fn ragged_audio_planes_keep_channel_positions_without_panicking() {
         assert_eq!(super::interleave(&[vec![1.0, 2.0], vec![3.0]]), vec![1.0, 3.0, 2.0, 0.0]);
