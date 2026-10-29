@@ -1,0 +1,8 @@
+asset:        before-editing-dark.png
+title:        FilmCraft V7 phase-one verification
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-29 by FilmCraft contributors
+notes:        Baseline Clean Editing, controlled generated AVC fixture; real Chrome screenshot at 1656x894.

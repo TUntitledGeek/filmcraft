@@ -1,0 +1,8 @@
+asset:        after-fullscreen.png
+title:        FilmCraft V7 phase-one verification
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-29 by FilmCraft contributors
+notes:        Actual browser Fullscreen API entered from the header; procedural FilmCraft demo only; real Chrome screenshot at 1656x894.

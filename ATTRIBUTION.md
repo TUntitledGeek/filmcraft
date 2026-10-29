@@ -280,3 +280,7 @@ The Tabler integration is adapted from Fallzola/filmcraft PR #2308, head d3f0ba4
 | `assets/icons/filmcraft/slide-edit.svg` | FilmCraft contributors | Original work | MIT OR Apache-2.0 (LICENSE-MIT, LICENSE-APACHE) |
 | `assets/icons/filmcraft/insert-edit.svg` | FilmCraft contributors | Original work | MIT OR Apache-2.0 (LICENSE-MIT, LICENSE-APACHE) |
 | `assets/icons/filmcraft/overwrite-edit.svg` | FilmCraft contributors | Original work | MIT OR Apache-2.0 (LICENSE-MIT, LICENSE-APACHE) |
+| `docs/screenshots/v7-phase1/before-editing-dark.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-phase1/after-editing-dark.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-phase1/after-preferences.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-phase1/after-fullscreen.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
