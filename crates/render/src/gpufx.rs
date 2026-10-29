@@ -224,6 +224,7 @@ pub const GPU_EFFECTS: &[&str] = &[
     "crop",
     "edge_feather",
     "transform",
+    "wiggle",
     "horizontal_flip",
     "vertical_flip",
     "mirror",
@@ -387,6 +388,15 @@ impl FxOp {
             "edge_feather" => {
                 let amt = f(e, "amount", cx) / 100.0 * (w.min(h) as f32) * 0.5;
                 FxOp::crop_rect(w, h, 0.0, 0.0, 0.0, 0.0, amt)
+            }
+            "wiggle" => {
+                let transform = crate::vfx::wiggle_transform(e, cx, w, h);
+                if minifies(&transform, w, h) {
+                    // Preserve Image::transformed's mip-filtered CPU path for strong shrinking.
+                    FxOp::Resample(Resample { inv: Some(transform), rect: [u32::MAX; 4], opacity: 1.0 })
+                } else {
+                    FxOp::Resample(resample(w, h, &transform, 1.0))
+                }
             }
             "transform" => {
                 let img = Image { w, h, px: Vec::new() };
@@ -1102,6 +1112,68 @@ fn resample_cpu(src: &Image, inv: &Affine, rect: [u32; 4]) -> Image {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wiggle_resampler_matches_the_original_cpu_effect_with_alpha_and_hdr_pixels() {
+        use filmcraft_project::{ParamValue, find_effect};
+        use filmcraft_time::Tick;
+        for (w, h) in [(17usize, 13usize), (64, 47)] {
+            let pixels: Vec<f32> = (0..w * h)
+                .flat_map(|i| {
+                    let alpha = (i % 5) as f32 / 4.0;
+                    [i as f32 / (w * h) as f32 * 2.0 * alpha, 0.3 * alpha, 0.8 * alpha, alpha]
+                })
+                .collect();
+            for seconds in [0.0, 0.37, 2.75] {
+                for (amount, rotation, scale, dimensions) in [(0.0, 0.0, 0.0, 0), (12.0, 0.0, 0.0, 1), (5.0, 12.0, 25.0, 2), (20.0, 40.0, 90.0, 0)] {
+                    let mut effect = find_effect("wiggle").unwrap().instance();
+                    for (id, value) in [("amount", amount), ("rotation", rotation), ("scale", scale)] {
+                        effect.params.get_mut(id).unwrap().value = ParamValue::Float(value);
+                    }
+                    effect.params.get_mut("dimensions").unwrap().value = ParamValue::Choice(dimensions);
+                    let cx = FxCtx {
+                        t: Tick::from_seconds_f64(seconds),
+                        px_scale: 0.5,
+                        seconds,
+                        timecode: "",
+                        clip_name: "",
+                        project: None,
+                        env: None,
+                        frame_rate: 30.0,
+                        working: filmcraft_color::WorkingSpace::Rec709,
+                    };
+                    let mut reference = Image { w, h, px: pixels.clone() };
+                    assert!(crate::vfx::apply(&mut reference, &effect, &cx));
+                    let mut evaluated = Image { w, h, px: pixels.clone() };
+                    FxOp::eval(&effect, &cx, w, h).unwrap().apply(&mut evaluated);
+                    for (original, actual) in reference.px.iter().zip(&evaluated.px) {
+                        assert!((original - actual).abs() <= 1e-6, "Wiggle changed at {w}x{h}, t={seconds}: {original} vs {actual}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wiggle_default_translation_is_gpu_eligible_and_changes_with_time() {
+        let effect = filmcraft_project::find_effect("wiggle").unwrap().instance();
+        let mut cx = FxCtx {
+            t: filmcraft_time::Tick::ZERO,
+            px_scale: 1.0,
+            seconds: 0.0,
+            timecode: "",
+            clip_name: "",
+            project: None,
+            env: None,
+            frame_rate: 30.0,
+            working: filmcraft_color::WorkingSpace::Rec709,
+        };
+        let first = FxOp::eval(&effect, &cx, 1280, 720).unwrap();
+        cx.seconds = 0.37;
+        let second = FxOp::eval(&effect, &cx, 1280, 720).unwrap();
+        assert!(first.gpu_ok() && second.gpu_ok());
+        assert_ne!(first, second, "animated displacement must not become a static cached transform");
+    }
     use filmcraft_project::{ParamValue, find_effect};
     use filmcraft_time::Tick;
 

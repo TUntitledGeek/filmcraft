@@ -330,6 +330,12 @@ pub fn spin(img: &mut Image, e: &EffectInstance, cx: &FxCtx) {
 
 /// Wiggle: smooth random position / rotation / scale jitter.
 pub fn wiggle(img: &mut Image, e: &EffectInstance, cx: &FxCtx) {
+    let transform = wiggle_transform(e, cx, img.w, img.h);
+    affine_warp(img, &transform);
+}
+
+/// The original Wiggle placement, evaluated once for either CPU or GPU resampling.
+pub(crate) fn wiggle_transform(e: &EffectInstance, cx: &FxCtx, w: usize, h: usize) -> Affine {
     let t = cx.seconds * fv(e, "frequency", cx) as f64;
     let seed = fv(e, "seed", cx).max(0.0) as u64;
     let amt = (fv(e, "amount", cx) * cx.px_scale) as f64;
@@ -338,8 +344,12 @@ pub fn wiggle(img: &mut Image, e: &EffectInstance, cx: &FxCtx) {
     let oy = if dims == 1 { 0.0 } else { noise1(t, 1, seed) as f64 * amt * 1.6 };
     let rot = noise1(t, 2, seed) as f64 * fv(e, "rotation", cx) as f64 * 1.6;
     let sc = 1.0 + noise1(t, 3, seed) as f64 * fv(e, "scale", cx) as f64 / 100.0 * 1.6;
-    let c = Vec2::new(img.w as f64 / 2.0, img.h as f64 / 2.0);
-    place(img, c, Vec2::new(ox, oy), sc.max(1e-3), rot);
+    let c = Vec2::new(w as f64 / 2.0, h as f64 / 2.0);
+    let scale = sc.max(1e-3);
+    Affine::translate(c.x + ox, c.y + oy)
+        .then_apply(&Affine::rotate_deg(rot))
+        .then_apply(&Affine::scale(scale, scale))
+        .then_apply(&Affine::translate(-c.x, -c.y))
 }
 
 /// Camera Shake: layered smooth noise on position, rotation and zoom, with optional motion blur.

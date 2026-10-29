@@ -168,6 +168,8 @@ fn cases() -> Vec<(&'static str, Vec<(&'static str, ParamValue)>, bool)> {
         ("crop", vec![("left", fl(70.0)), ("right", fl(70.0)), ("feather", fl(5000.0))], false),
         ("edge_feather", vec![("amount", fl(30.0))], false),
         ("transform", vec![("scale_height", fl(150.0)), ("rotation", fl(30.0)), ("position", pt(30.0, 20.0)), ("opacity", fl(60.0))], false),
+        ("wiggle", vec![("amount", fl(5.0))], false),
+        ("wiggle", vec![("amount", fl(0.0)), ("rotation", fl(12.0)), ("scale", fl(15.0))], false),
         (
             "transform",
             vec![
@@ -375,6 +377,11 @@ fn gpu_effect_chains_match_cpu() {
     let px = picture(w, h);
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
     let chains: Vec<Vec<EffectInstance>> = vec![
+        vec![
+            effect("lumetri", &[("exposure", fl(0.6)), ("contrast", fl(12.0)), ("saturation", fl(110.0))]),
+            effect("gaussian_blur", &[("blurriness", fl(8.0))]),
+            effect("wiggle", &[("amount", fl(5.0))]),
+        ],
         vec![
             effect("brightness_contrast", &[("brightness", fl(20.0)), ("contrast", fl(30.0))]),
             effect("gaussian_blur", &[("blurriness", fl(8.0))]),
