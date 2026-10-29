@@ -114,6 +114,16 @@ fn none() -> Value {
 }
 
 #[test]
+fn an_explicit_pinch_still_zooms_after_wheel_routing_is_separated() {
+    let mut d = Driver::tall();
+    d.ok("ui.move", json!({"id":"timeline.tracks","fx":0.5,"fy":0.2}));
+    d.frames(4);
+    d.harness.input_mut().events.push(egui::Event::Zoom(1.2));
+    d.frames(3);
+    assert!((d.view().1 - 60.0).abs() < 1e-4, "pinch must keep zooming the timeline");
+}
+
+#[test]
 fn the_wheel_moves_the_tracks_up_and_down() {
     let mut d = Driver::tall();
     // over the video tracks: wheeling up brings the higher tracks in (Video 1 is at the bottom)

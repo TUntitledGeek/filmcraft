@@ -2379,7 +2379,10 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
         && let Some(p) = ctx.pointer_hover_pos()
     {
         let w = wheel_input(&ctx);
-        let zoom_delta = ctx.input(|i| i.zoom_delta());
+        // zoom_delta also includes egui's smoothed Command/Ctrl-wheel zoom. This panel
+        // routes those raw wheel events as horizontal scrolling; only real touch pinch
+        // or an explicit Zoom event may take the pinch path, including on later frames.
+        let zoom_delta = ctx.input(|i| i.multi_touch().map_or(1.0, |touch| touch.zoom_delta));
         let pinch = if (w.pinch - 1.0).abs() > 1e-4 {
             w.pinch
         } else if (zoom_delta - 1.0).abs() > 1e-4 {

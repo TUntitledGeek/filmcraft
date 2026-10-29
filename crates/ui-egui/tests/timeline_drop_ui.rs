@@ -216,6 +216,8 @@ fn several_files_dropped_together_are_placed_in_one_undo_step() {
 
 fn float_panel(h: &mut Harness<'static, FilmcraftApp>, panel: &str, rect: [f32; 4]) {
     let ctx = h.ctx.clone();
+    // Clean Editing does not include Info until explicitly opened.
+    filmcraft_ui_egui::menus::invoke(h.state_mut(), &ctx, &format!("window.panel.{panel}"), json!({})).unwrap();
     filmcraft_ui_egui::menus::invoke(h.state_mut(), &ctx, "window.floatPanel", json!({"panel": panel, "rect": rect})).unwrap();
     for _ in 0..4 {
         step(h);
