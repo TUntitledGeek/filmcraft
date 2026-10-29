@@ -123,6 +123,8 @@ struct Shared {
     workers: usize,
     /// Always-on counters for `perf.stats`.
     stats: Mutex<FrameStats>,
+    /// Set under the queue lock when the owning server is dropped.
+    stop: AtomicBool,
 }
 
 /// Cumulative frame-job statistics (`perf.stats`): cheap enough to keep on all the time.
@@ -433,6 +435,7 @@ impl FrameServer {
             render_cost: Mutex::new(0.0),
             workers: if cfg!(target_arch = "wasm32") { 1 } else { workers.max(1) },
             stats: Mutex::new(FrameStats::default()),
+            stop: AtomicBool::new(false),
         });
         let repaint: Arc<Mutex<Option<Box<dyn Fn() + Send + Sync>>>> = Arc::new(Mutex::new(None));
         #[cfg(not(target_arch = "wasm32"))]
@@ -732,6 +735,19 @@ impl FrameServer {
     }
 }
 
+impl Drop for FrameServer {
+    fn drop(&mut self) {
+        let mut queue = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+        self.shared.stop.store(true, Ordering::Relaxed);
+        queue.clear();
+        drop(queue);
+        for (_, cancel, _) in self.shared.in_flight.lock().unwrap_or_else(|e| e.into_inner()).iter() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.shared.cv.notify_all();
+    }
+}
+
 /// Counts shown and dropped frames while playing.
 ///
 /// A frame of the timeline is *shown* when its exact picture was on screen at some refresh while
@@ -825,6 +841,9 @@ fn worker(
         let job = {
             let mut q = sh.queue.lock().unwrap_or_else(|e| e.into_inner());
             loop {
+                if sh.stop.load(Ordering::Relaxed) {
+                    return;
+                }
                 if !q.is_empty() {
                     // highest priority (lowest number) first; FIFO among equals
                     let best = q.iter().enumerate().min_by_key(|(i, j)| (j.prio, *i)).map(|(i, _)| i).unwrap_or(0);
@@ -861,7 +880,14 @@ pub fn inject_job_panics(n: u32) {
 static INJECT_PANICS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 fn run_job(sh: &Shared, job: &Job, pool: &Arc<MediaPool>, services: &Arc<dyn Services>, previews: &PreviewStore) -> bool {
-    sh.in_flight.lock().unwrap_or_else(|e| e.into_inner()).push((job.key, job.cancel.clone(), job.prefetch));
+    {
+        let mut in_flight = sh.in_flight.lock().unwrap_or_else(|e| e.into_inner());
+        // Cover the race where a worker took a job just before Drop cancelled the list.
+        if sh.stop.load(Ordering::Relaxed) {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+        in_flight.push((job.key, job.cancel.clone(), job.prefetch));
+    }
     if INJECT_PANICS.load(Ordering::Relaxed) > 0 && INJECT_PANICS.fetch_sub(1, Ordering::Relaxed) > 0 {
         crate::crash::injected_fault("injected frame-job fault");
     }
@@ -1027,6 +1053,40 @@ fn render_job(job: &Job, pool: &Arc<MediaPool>, services: &Arc<dyn Services>, pr
 mod tests {
     use super::{PlaybackMeter, Target, background_work, playback_plan};
     use filmcraft_project::ItemId;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn dropping_the_server_releases_worker_state_media_and_queued_projects() {
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+        let session = filmcraft_engine::Session::default();
+        let server = super::FrameServer::new(session.media.clone(), session.services.clone(), session.previews.clone(), 3);
+        let project = Arc::new(filmcraft_project::Project::new("Worker lifetime"));
+        let key = super::FrameKey { target: Target::Item(ItemId(999)), frame: 0, size: 32, revision: 0, draft: false };
+        server.request(key, filmcraft_time::Tick::ZERO, 0.1, &project, 0);
+        let (shared, media, queued_project) = (Arc::downgrade(&server.shared), Arc::downgrade(&session.media), Arc::downgrade(&project));
+        drop(project);
+        drop(server);
+        drop(session);
+        let started = Instant::now();
+        while (shared.strong_count() > 0 || media.strong_count() > 0 || queued_project.strong_count() > 0) && started.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(shared.strong_count(), 0, "dropped server's workers still own its caches");
+        assert_eq!(media.strong_count(), 0, "dropped server's workers still own its media pool");
+        assert_eq!(queued_project.strong_count(), 0, "queued job still owns its project");
+    }
+
+    #[test]
+    fn a_job_taken_just_before_drop_is_cancelled_before_rendering() {
+        let session = filmcraft_engine::Session::default();
+        let server = super::FrameServer::new(session.media.clone(), session.services.clone(), session.previews.clone(), 1);
+        let job = queued(0, 0, false);
+        server.shared.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        super::run_job(&server.shared, &job, &server.pool, &server.services, &server.previews);
+        assert!(job.cancel.load(std::sync::atomic::Ordering::Relaxed));
+        assert!(!server.is_ready(&job.key), "a cancelled job must not publish a frame");
+    }
 
     fn queued(frame: i64, revision: u64, prefetch: bool) -> super::Job {
         super::Job {
