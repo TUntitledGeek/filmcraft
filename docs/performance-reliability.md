@@ -6,15 +6,18 @@ No deployment, protected-branch update or merge was performed.
 
 ## Recovery handoff at the user's 5% usage warning
 
-Stop expanding scope. Preserve/push the current source first. The optimized production WASM
-compile passed; final wasm-bindgen packaging is finishing in
-`target/performance-production-final.log`. The earlier production package including the GPU,
+Source is pushed through `6e8c68d5` (`947c8eb0` GPU effects, `aed3b68b` Source/decoder fixes,
+`6e8c68d5` Fusion and evidence). The working tree was clean after remote-hash verification.
+The final optimized production WASM compile **and wasm-bindgen packaging passed**: 42.9 MB WASM,
+43.1 MB distribution, recorded in `target/performance-production-final.log`.
+The earlier production package including the GPU,
 decode and Source-drop fixes passed and was used for the browser measurements below.
 
 Verified in this phase: 228 UI library tests; Clean Editing 10; keyboard 7; monitor geometry 8;
 shared docking 12; existing Source-to-timeline 13; layer and asset checks. Actual Chrome pointer
 checks passed media double-click after warm-up, Project-to-Source replacement, timeline-to-Source
 without timeline edits, trimming with undo/redo, and keyboard split/undo.
+Workspace formatting also passed. The preview returned HTTP 200 after final packaging.
 
 The browser track-control assertion initially inspected sequence contents instead of editor
 targeting state; the harness now queries `state.inspect`, but that corrected assertion, normal
@@ -30,7 +33,7 @@ Background commands already queued (do not start duplicate jobs):
 - `target/performance-gpu-parity.log`: native GPU/CPU parity; then media tests write
   `target/performance-media-final.log`.
 - `target/performance-clippy-final.log`: workspace/all-target Clippy, waiting for the build lock.
-- `target/performance-production-final.log`: final optimized WASM package.
+- `target/performance-production-final.log`: final optimized WASM package, **passed**.
 
 Use pinned Rust 1.99.0. No compilation may overlap any resumed performance benchmark. The
 preview server remains local at `http://127.0.0.1:8766/`. Keep `studio-pro`, `visual-design-v1`
