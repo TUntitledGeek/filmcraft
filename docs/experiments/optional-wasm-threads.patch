@@ -1,0 +1,955 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index b6067158..b081b04e 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2417,9 +2417,11 @@ dependencies = [
+  "getrandom 0.3.4",
+  "js-sys",
+  "log",
++ "rayon",
+  "serde_json",
+  "wasm-bindgen",
+  "wasm-bindgen-futures",
++ "wasm-bindgen-rayon",
+  "web-sys",
+  "web-time",
+ ]
+@@ -4947,6 +4949,7 @@ checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
+ dependencies = [
+  "either",
+  "rayon-core",
++ "wasm_sync",
+ ]
+ 
+ [[package]]
+@@ -4957,6 +4960,7 @@ checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
+ dependencies = [
+  "crossbeam-deque",
+  "crossbeam-utils",
++ "wasm_sync",
+ ]
+ 
+ [[package]]
+@@ -6507,6 +6511,18 @@ dependencies = [
+  "wasm-bindgen-shared",
+ ]
+ 
++[[package]]
++name = "wasm-bindgen-rayon"
++version = "1.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9a16c60a56c81e4dc3b9c43d76ba5633e1c0278211d59a9cb07d61b6cd1c6583"
++dependencies = [
++ "crossbeam-channel",
++ "js-sys",
++ "rayon",
++ "wasm-bindgen",
++]
++
+ [[package]]
+ name = "wasm-bindgen-shared"
+ version = "0.2.129"
+@@ -6516,6 +6532,17 @@ dependencies = [
+  "unicode-ident",
+ ]
+ 
++[[package]]
++name = "wasm_sync"
++version = "0.1.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cff360cade7fec41ff0e9d2cda57fe58258c5f16def0e21302394659e6bbb0ea"
++dependencies = [
++ "js-sys",
++ "wasm-bindgen",
++ "web-sys",
++]
++
+ [[package]]
+ name = "wayland-backend"
+ version = "0.3.17"
+diff --git a/apps/filmcraft-web/Cargo.toml b/apps/filmcraft-web/Cargo.toml
+index 5cd254b5..26c95fe4 100644
+--- a/apps/filmcraft-web/Cargo.toml
++++ b/apps/filmcraft-web/Cargo.toml
+@@ -12,6 +12,10 @@ workspace = true
+ [lib]
+ crate-type = ["cdylib", "rlib"]
+ 
++[features]
++# Optional application artifact for ordinary browsers with shared WASM memory.
++threads = ["dep:rayon", "dep:wasm-bindgen-rayon"]
++
+ # Everything is wasm32-only: on other targets this crate is empty (so `cargo test --workspace`
+ # and clippy stay cheap). Build with `cargo xtask web` (see docs/web.md).
+ [target.'cfg(target_arch = "wasm32")'.dependencies]
+@@ -30,6 +34,8 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu"] }
+ serde_json = { workspace = true }
+ log = { workspace = true }
+ wasm-bindgen = "=0.2.129"
++rayon = { workspace = true, optional = true }
++wasm-bindgen-rayon = { version = "=1.3.0", features = ["no-bundler"], optional = true }
+ wasm-bindgen-futures = "0.4"
+ js-sys = "0.3"
+ getrandom = { version = "0.3", features = ["wasm_js"] }
+diff --git a/apps/filmcraft-web/src/lib.rs b/apps/filmcraft-web/src/lib.rs
+index 0bef39f1..8a813b88 100644
+--- a/apps/filmcraft-web/src/lib.rs
++++ b/apps/filmcraft-web/src/lib.rs
+@@ -17,6 +17,7 @@
+ //! Everything here is `wasm32`-only; on other targets the crate is empty.
+ #![cfg(target_arch = "wasm32")]
+ #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
++mod decoder_policy;
+ 
+ pub mod api;
+ pub mod audio;
+@@ -140,6 +141,10 @@ fn url_hash_key() -> Option<String> {
+     })
+ }
+ 
++/// Starts the optional Rayon Web Worker pool before the application or any media is opened.
++#[cfg(feature = "threads")]
++pub use wasm_bindgen_rayon::init_thread_pool;
++
+ /// Entry point (called by the page's bootstrap script once the wasm module is instantiated).
+ #[wasm_bindgen]
+ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
+@@ -149,10 +154,16 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
+     let canvas: web_sys::HtmlCanvasElement = doc.get_element_by_id(&canvas_id).ok_or("no canvas")?.dyn_into()?;
+ 
+     let isolated = js_sys::Reflect::get(&js_sys::global(), &"crossOriginIsolated".into()).ok().and_then(|v| v.as_bool()).unwrap_or(false);
+-    // Frame rendering runs cooperatively on this thread. wasm threads need a cross-origin
+-    // isolated page *and* a build with atomics (nightly `build-std`); this build has none.
++    // The frame queue stays cooperative. The optional artifact parallelizes eligible inner
++    // loops on Rayon workers; its synchronous joins are not a preemptible frame-job runtime.
++    #[cfg(feature = "threads")]
++    let rayon_threads = rayon::current_num_threads();
++    #[cfg(not(feature = "threads"))]
++    let rayon_threads = 1usize;
+     set_info("crossOriginIsolated", json!(isolated));
+-    set_info("threads", json!(false));
++    set_info("threads", json!(rayon_threads > 1));
++    set_info("threadedBuild", json!(cfg!(feature = "threads")));
++    set_info("rayonThreads", json!(rayon_threads));
+     set_info("frameWorkers", json!("cooperative"));
+     set_info("opfs", json!(opfs::available()));
+ 
+diff --git a/apps/filmcraft-web/src/webcodecs.rs b/apps/filmcraft-web/src/webcodecs.rs
+index 3ae1ff7d..004c2a39 100644
+--- a/apps/filmcraft-web/src/webcodecs.rs
++++ b/apps/filmcraft-web/src/webcodecs.rs
+@@ -1,4 +1,4 @@
+-//! WebCodecs (hardware) video decoding for MP4/MOV, with our own decoders as the fallback.
++//! WebCodecs video decoding for MP4/MOV, with our own decoders as the fallback.
+ //!
+ //! WebCodecs decodes asynchronously, and our [`VideoDecoder`] trait is synchronous, so the
+ //! WebCodecs path plugs in one level up, as a media source: [`reader_opener`] (registered ahead of
+@@ -66,6 +66,7 @@ thread_local! {
+     static FALLBACKS: Cell<u64> = const { Cell::new(0) };
+     static SOURCES: Cell<u64> = const { Cell::new(0) };
+     static TRANSFERS: RefCell<Transfers> = RefCell::new(Transfers::default());
++    static SMALL_AVC_SOFTWARE: Cell<bool> = const { Cell::new(false) };
+ }
+ 
+ fn now_ms() -> f64 {
+@@ -142,6 +143,30 @@ pub async fn probe() {
+         crate::set_info("webcodecs", json!(false));
+         return;
+     };
++    // Current preview downloads every decoded picture to WASM. On the measured Intel/Windows
++    // Chrome path, native software AVC avoids a costly GPU readback. Other platforms and large
++    // or higher-bit-depth sources retain the browser default; GPU-resident decoding is separate.
++    let nav = get(&js_sys::global(), "navigator");
++    let agent = get(&nav, "userAgent").as_string().unwrap_or_default();
++    if agent.contains("Windows") && agent.contains("Chrome/") {
++        let gpu = get(&nav, "gpu");
++        if let Ok(promise) = call(&gpu, "requestAdapter", &[])
++            && let Ok(adapter) = JsFuture::from(js_sys::Promise::resolve(&promise)).await
++            && get(&get(&adapter, "info"), "vendor").as_string().is_some_and(|vendor| vendor.eq_ignore_ascii_case("intel"))
++        {
++            let config = obj(&[
++                ("codec", "avc1.640028".into()),
++                ("codedWidth", 1920.into()),
++                ("codedHeight", 1080.into()),
++                ("hardwareAcceleration", "prefer-software".into()),
++            ]);
++            if let Ok(promise) = call(&vd, "isConfigSupported", &[&config])
++                && let Ok(support) = JsFuture::from(js_sys::Promise::resolve(&promise)).await
++            {
++                SMALL_AVC_SOFTWARE.with(|policy| policy.set(get(&support, "supported").as_bool().unwrap_or(false)));
++            }
++        }
++    }
+     if web_sys::window().and_then(|w| w.location().search().ok()).is_some_and(|s| s.contains("nowebcodecs")) {
+         crate::set_info("webcodecs", json!("disabled"));
+         return;
+@@ -173,7 +198,7 @@ pub fn stats() -> serde_json::Value {
+         ss.borrow()
+             .iter()
+             .map(|(id, s)| {
+-                json!({"id": id, "start": s.start, "next": s.next, "target": s.target, "needsKey": s.needs_key, "flushing": s.flushing.get(),
++                json!({"id": id, "requestedAcceleration": s.acceleration.get(), "start": s.start, "next": s.next, "target": s.target, "needsKey": s.needs_key, "flushing": s.flushing.get(),
+                     "errored": s.errored.get(), "queue": s.queue(), "copies": s.copying.get(), "idleMs": now_ms() - s.last_output.get()})
+             })
+             .collect()
+@@ -182,7 +207,7 @@ pub fn stats() -> serde_json::Value {
+         let s = s.borrow();
+         json!({"nativeFrames":s.native,"canvasFrames":s.canvas,"closedFrames":s.closed,"staleFrames":s.stale,"nativeBytes":s.bytes,"nativeMs":s.native_ms,"canvasMs":s.canvas_ms,"canvasReasons":s.reasons})
+     });
+-    json!({"sources": SOURCES.with(Cell::get), "framesDecoded": DECODED.with(Cell::get), "fallbacks": FALLBACKS.with(Cell::get), "sessions": sessions,"transfers":transfers})
++    json!({"sources": SOURCES.with(Cell::get), "framesDecoded": DECODED.with(Cell::get), "fallbacks": FALLBACKS.with(Cell::get), "sessions": sessions,"transfers":transfers,"smallAvcCpuReadbackPolicy":SMALL_AVC_SOFTWARE.with(Cell::get)})
+ }
+ 
+ /// A [`SharedReader`] as the demuxer's byte source.
+@@ -221,6 +246,16 @@ pub fn reader_opener(name: &str, head: &[u8], reader: &SharedReader) -> Option<R
+     // the decoder wants the coded size; `info` reports the display size after the track's rotation
+     let rotation = file.tracks[track].display_rotation().unwrap_or(0);
+     let (w, h) = info.video.as_ref().map(|v| if rotation % 2 == 1 { (v.height, v.width) } else { (v.width, v.height) }).unwrap_or((0, 0));
++    let acceleration = crate::decoder_policy::acceleration(
++        crate::query_param("decoder").as_deref(),
++        match &entry.codec {
++            CodecConfig::Avc(avc) => Some(avc.profile),
++            _ => None,
++        },
++        w,
++        h,
++        SMALL_AVC_SOFTWARE.with(Cell::get),
++    );
+     let id = NEXT_ID.with(|n| {
+         let id = n.get();
+         n.set(id + 1);
+@@ -237,13 +272,15 @@ pub fn reader_opener(name: &str, head: &[u8], reader: &SharedReader) -> Option<R
+         file,
+         track,
+         id,
+-        config: Config { codec, description, width: w, height: h, rotation, color, par },
++        config: Config { codec, description, width: w, height: h, rotation, color, par, acceleration },
+         state: Mutex::new(Cache::default()),
+     })))
+ }
+ 
+ #[derive(Clone)]
+ struct Config {
++    /// Requested policy, not a claim that a browser honored a hardware/software preference.
++    acceleration: &'static str,
+     codec: String,
+     description: Option<Vec<u8>>,
+     width: u32,
+@@ -263,6 +300,7 @@ struct Cache {
+ /// The browser decoder of one source (UI thread only; JS objects are not `Send`).
+ struct Session {
+     decoder: JsValue,
++    acceleration: Cell<&'static str>,
+     /// Sync sample the session started at, next sample to feed.
+     start: usize,
+     next: usize,
+@@ -415,6 +453,7 @@ impl Session {
+         let decoder = js_sys::Reflect::construct(&vd, &js_sys::Array::of1(&init))?;
+         let s = Session {
+             decoder,
++            acceleration: Cell::new(cfg.acceleration),
+             start: 0,
+             next: 0,
+             needs_key: true,
+@@ -439,11 +478,25 @@ impl Session {
+             ("codedWidth", cfg.width.into()),
+             ("codedHeight", cfg.height.into()),
+             ("optimizeForLatency", true.into()),
++            ("hardwareAcceleration", cfg.acceleration.into()),
+         ];
+         if let Some(d) = &cfg.description {
+             pairs.push(("description", js_sys::Uint8Array::from(&d[..]).into()));
+         }
+-        call(&self.decoder, "configure", &[&obj(&pairs)]).map(|_| ())
++        match call(&self.decoder, "configure", &[&obj(&pairs)]) {
++            Ok(_) => {
++                self.acceleration.set(cfg.acceleration);
++                Ok(())
++            }
++            Err(error) if cfg.acceleration != "no-preference" => {
++                log::warn!("WebCodecs rejected {}; retrying the browser default: {error:?}", cfg.acceleration);
++                pairs.retain(|(key, _)| *key != "hardwareAcceleration");
++                call(&self.decoder, "configure", &[&obj(&pairs)])?;
++                self.acceleration.set("no-preference");
++                Ok(())
++            }
++            Err(error) => Err(error),
++        }
+     }
+ 
+     fn queue(&self) -> u32 {
+diff --git a/apps/filmcraft-web/tests/studio-review.mjs b/apps/filmcraft-web/tests/studio-review.mjs
+index c8382614..8b4bcd10 100644
+--- a/apps/filmcraft-web/tests/studio-review.mjs
++++ b/apps/filmcraft-web/tests/studio-review.mjs
+@@ -11,11 +11,17 @@ const seconds = Number(arg('seconds', '12'));
+ const port = Number(arg('port', String(9400 + Math.floor(Math.random()*500))));
+ mkdirSync(out, {recursive:true});
+ const chrome = arg('chrome', 'C:/Program Files/Google/Chrome/Application/chrome.exe');
+-const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'fc-review-'))}`, '--no-first-run', '--no-default-browser-check', '--enable-unsafe-webgpu', '--autoplay-policy=no-user-gesture-required', '--window-size=1656,894', 'about:blank'], {stdio:['ignore','ignore','pipe'], windowsHide:true});
++const softwareVideo=arg('software-video','false')==='true';
++const unsafeWebgpu=arg('unsafe-webgpu','false')==='true';
++const blockThreadWorkers=arg('block-thread-workers','false')==='true';
++const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'fc-review-'))}`, '--no-first-run', '--no-default-browser-check', ...(unsafeWebgpu?['--enable-unsafe-webgpu']:[]), ...(softwareVideo?['--disable-accelerated-video-decode']:[]), '--autoplay-policy=no-user-gesture-required', '--window-size=1656,894', 'about:blank'], {stdio:['ignore','ignore','pipe'], windowsHide:true});
+ const sleep = ms => new Promise(r => setTimeout(r, ms));
+ let ws, serial = 0;
+ const pending = new Map();
+ const report = {url, viewport:[1656,894], hardware:{cpu:cpus()[0]?.model, logicalCpus:cpus().length, memoryGB:totalmem()/2**30}, errors:[], captures:{}};
++report.hardwareVideoDecodeDisabled=softwareVideo;
++report.unsafeWebgpu=unsafeWebgpu;
++report.blockThreadWorkers=blockThreadWorkers;
+ proc.stderr.on('data',s=>{report.chromeLog=((report.chromeLog??'')+s).slice(-12000);});
+ function send(method, params={}) {
+   return new Promise((resolve,reject) => {
+@@ -55,6 +61,10 @@ try {
+     (report.console??=[]).push({type:m.params.type,text:m.params.args.map(a=>a.value??a.description??'').join(' ').slice(0,1600)});
+   }});
+   await send('Page.enable');await send('Runtime.enable');
++  if(blockThreadWorkers) {
++    await send('Network.enable');
++    await send('Network.setBlockedURLs',{urls:['*workerHelpers*']});
++  }
+   report.browser=await send('Browser.getVersion');
+   await send('Emulation.setDeviceMetricsOverride',{width:1656,height:894,deviceScaleFactor:1,mobile:false});
+   await send('Page.navigate',{url});
+diff --git a/apps/filmcraft-web/web/index.html b/apps/filmcraft-web/web/index.html
+index 089f5623..16a666cb 100644
+--- a/apps/filmcraft-web/web/index.html
++++ b/apps/filmcraft-web/web/index.html
+@@ -125,7 +125,7 @@
+       }
+     });
+   </script>
+-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
++  <script crossorigin="anonymous" src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+   <script>
+     window.filmcraftCollabBridge = {
+       room: null,
+@@ -237,17 +237,45 @@
+     // `__FC_BUILD__` is replaced by `cargo xtask web` with a hash of the build: the glue and the
+     // wasm are cached as immutable, so their URLs must change with every build.
+     const build = "__FC_BUILD__";
+-    const v = build.startsWith("__") ? "" : "?v=" + build;
++    const mtBuild = "__FC_BUILD_MT__";
+     const t0 = performance.now();
+     const params = new URLSearchParams(location.search);
++    let sharedMemory = false;
++    try {
++      sharedMemory = crossOriginIsolated && typeof SharedArrayBuffer === "function"
++        && new WebAssembly.Memory({initial:1, maximum:1, shared:true}).buffer instanceof SharedArrayBuffer;
++    } catch {}
++    const threaded = !!mtBuild && !mtBuild.startsWith("__") && sharedMemory && !params.has("nothreads");
++    const stamp = threaded ? mtBuild : build;
++    const v = stamp.startsWith("__") ? "" : "?v=" + stamp;
++    const root = threaded ? "./mt/" : "./";
++    window.filmcraftLoad.threadedBuild = threaded;
++    try {
++      window.filmcraftLoad.threadFallback = sessionStorage.getItem("filmcraft.threadFallback");
++      sessionStorage.removeItem("filmcraft.threadFallback");
++    } catch {}
+     try {
+       const s = document.getElementById("status");
+-      if (s) s.textContent = "Downloading & compiling FilmCraft engine (12.9 MB)…";
+-      const { default: init, start } = await import("./filmcraft_web.js" + v);
+-      await init({ module_or_path: new URL("filmcraft_web_bg.wasm" + v, location.href) });
++      if (s) s.textContent = "Downloading and compiling FilmCraft…";
++      const module = await import(root + "filmcraft_web.js" + v);
++      await module.default({ module_or_path: new URL(root + "filmcraft_web_bg.wasm" + v, location.href) });
++      if (threaded) {
++        if (typeof module.initThreadPool !== "function") throw new Error("Threaded artifact has no worker initializer");
++        const requested = Number(params.get("threads"));
++        const available = Number(navigator.hardwareConcurrency) || 4;
++        const count = Math.min(8, Math.max(1, Math.floor(requested > 0 && Number.isFinite(requested) ? requested : available - 1)));
++        if (s) s.textContent = "Starting FilmCraft processing workers…";
++        let timeout;
++        try {
++          await Promise.race([module.initThreadPool(count), new Promise((_, reject) => {
++            timeout = setTimeout(() => reject(new Error("Processing worker startup timed out")), 15000);
++          })]);
++        } finally { clearTimeout(timeout); }
++        window.filmcraftLoad.rayonThreads = count;
++      }
+       if (s) s.textContent = "Initializing GPU Video Engine…";
+       window.filmcraftLoad.wasmMs = performance.now() - t0;
+-      await start("filmcraft_canvas");
++      await module.start("filmcraft_canvas");
+       window.filmcraftLoad.readyMs = performance.now() - t0;
+       const loader = document.getElementById("loading");
+       if (loader) {
+@@ -257,15 +285,23 @@
+     } catch (e) {
+       const text = String(e && e.stack || e);
+       window.filmcraftLoad.error = String(e);
+-      // WebGPU was found but could not be started: try again on WebGL2 (once)
+-      if (!params.has("webgl") && !params.has("cpu") && /wgpu|webgpu|requestDevice|requestAdapter|GPUDevice|surface/i.test(text)) {
++      // Restart before editing begins. Navigation also releases partially started workers.
++      let redirect = false;
++      if (threaded && !params.has("nothreads")) {
++        try { sessionStorage.setItem("filmcraft.threadFallback", String(e)); } catch {}
++        params.set("nothreads", "");
++        redirect = true;
++      } else if (!params.has("webgl") && !params.has("cpu") && /wgpu|webgpu|requestDevice|requestAdapter|GPUDevice|surface/i.test(text)) {
+         params.set("webgl", "");
++        redirect = true;
++      }
++      if (redirect) {
+         location.replace(location.pathname + "?" + params.toString().replace(/=(&|$)/g, "$1") + location.hash);
+       } else {
+         const s = document.getElementById("status");
+         if (s) { s.className = "err"; s.textContent = "FilmCraft failed to start:\n" + text; }
+       }
+-      throw e;
++      if (!redirect) throw e;
+     }
+   </script>
+ </body>
+diff --git a/crates/gpu/src/export_renderer.rs b/crates/gpu/src/export_renderer.rs
+index ada18cf3..f733dc1d 100644
+--- a/crates/gpu/src/export_renderer.rs
++++ b/crates/gpu/src/export_renderer.rs
+@@ -78,6 +78,7 @@ pub mod timing {
+ static DEVICE_FAILED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+ 
+ /// Retire the shared export device, logging the first reason only.
++#[cfg(not(target_arch = "wasm32"))]
+ fn mark_device_failed(why: &str) {
+     if !DEVICE_FAILED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+         log::error!("GPU export disabled for this session ({why}); exports render on the CPU");
+@@ -98,8 +99,16 @@ pub struct ExportRenderer {
+ }
+ 
+ impl ExportRenderer {
++    /// Browser exports use the stepped CPU renderer. Blocking device creation and readback
++    /// cannot run on a browser event loop, including an atomics-enabled build.
++    #[cfg(target_arch = "wasm32")]
++    pub fn new() -> Option<Self> {
++        None
++    }
++
+     /// The off-screen device, or `None` when this host has no usable adapter or this build no
+     /// wgpu backend.
++    #[cfg(not(target_arch = "wasm32"))]
+     pub fn new() -> Option<Self> {
+         // `None` is kept too: a machine without an adapter does not search again on every export
+         static SHARED: std::sync::OnceLock<Option<(wgpu::Instance, wgpu::Device, wgpu::Queue)>> = std::sync::OnceLock::new();
+diff --git a/crates/ui-egui/src/frames.rs b/crates/ui-egui/src/frames.rs
+index 87b9e10d..21dd8c74 100644
+--- a/crates/ui-egui/src/frames.rs
++++ b/crates/ui-egui/src/frames.rs
+@@ -231,12 +231,25 @@ pub fn process_cpu_time() -> Option<Duration> {
+ }
+ 
+ thread_local! {
++    // Browser UI objects must remain on the event-loop thread even when WASM has atomics.
++    // Cooperative frame completion and browser transport callbacks run on that thread.
++    #[cfg(target_arch = "wasm32")]
++    static BROWSER_CONTEXT: std::cell::RefCell<Option<egui::Context>> = const { std::cell::RefCell::new(None) };
+     /// (wall, cpu) spent in source `video_frame` calls by this worker during the current job.
+     static SOURCE_TIME: Cell<(Duration, Duration)> = const { Cell::new((Duration::ZERO, Duration::ZERO)) };
+     /// This worker is profiling the current job (thread CPU of source calls is measured).
+     static PROFILING: Cell<bool> = const { Cell::new(false) };
+ }
+ 
++#[cfg(target_arch = "wasm32")]
++pub(crate) fn browser_repaint() {
++    BROWSER_CONTEXT.with(|context| {
++        if let Some(context) = context.borrow().as_ref() {
++            context.request_repaint();
++        }
++    });
++}
++
+ /// Run `f`, adding its wall/CPU time to this thread's source-time accumulator.
+ fn timed_source<R>(f: impl FnOnce() -> R) -> R {
+     let cpu = || if PROFILING.with(Cell::get) { thread_cpu_time().unwrap_or_default() } else { Duration::ZERO };
+@@ -458,10 +471,19 @@ impl FrameServer {
+     }
+ 
+     pub fn set_context(&self, ctx: &egui::Context) {
++        #[cfg(target_arch = "wasm32")]
++        BROWSER_CONTEXT.with(|context| *context.borrow_mut() = Some(ctx.clone()));
+         let mut g = self.repaint.lock().unwrap_or_else(|e| e.into_inner());
+         if g.is_none() {
+-            let ctx = ctx.clone();
+-            *g = Some(Box::new(move || ctx.request_repaint()));
++            #[cfg(target_arch = "wasm32")]
++            {
++                *g = Some(Box::new(browser_repaint));
++            }
++            #[cfg(not(target_arch = "wasm32"))]
++            {
++                let ctx = ctx.clone();
++                *g = Some(Box::new(move || ctx.request_repaint()));
++            }
+         }
+     }
+ 
+diff --git a/crates/ui-egui/src/lib.rs b/crates/ui-egui/src/lib.rs
+index 2f4ec2ba..af1fab80 100644
+--- a/crates/ui-egui/src/lib.rs
++++ b/crates/ui-egui/src/lib.rs
+@@ -2033,10 +2033,15 @@ impl FilmcraftApp {
+         let Some(transport) = &self.collab_transport else { return };
+         if !self.collab_wakeup_registered {
+             self.collab_wakeup_registered = true;
+-            let c = ctx.clone();
+-            transport.set_wakeup(std::sync::Arc::new(move || {
+-                c.request_repaint();
+-            }));
++            #[cfg(target_arch = "wasm32")]
++            transport.set_wakeup(std::sync::Arc::new(crate::frames::browser_repaint));
++            #[cfg(not(target_arch = "wasm32"))]
++            {
++                let c = ctx.clone();
++                transport.set_wakeup(std::sync::Arc::new(move || {
++                    c.request_repaint();
++                }));
++            }
+         }
+         let start = web_time::Instant::now();
+         let mut count = 0;
+diff --git a/docs/performance-architecture-review.md b/docs/performance-architecture-review.md
+index 06f2e6b6..5a0872dc 100644
+--- a/docs/performance-architecture-review.md
++++ b/docs/performance-architecture-review.md
+@@ -16,6 +16,13 @@ require a custom browser. It requires shared WASM memory and appropriate site he
+ 1.99.0 builds the normal artifact; approved nightly-2026-10-28 builds only the optional artifact.
+ Both startup and the original single-threaded fallback still require real browser verification.
+ 
++Two integration boundaries surfaced at compile time with atomics: the native GPU export
++device's process-wide OnceLock cannot hold browser-only wgpu objects, and egui's browser
++Context cannot be captured by Send + Sync callbacks. Native export initialization is now
++native-only. Browser cooperative completion/collaboration callbacks look up the UI context on
++the event-loop thread; native callbacks retain their existing thread-safe context capture.
++No unsafe Send/Sync assertion or relaxed compiler check was introduced.
++
+ The measured Intel/Windows Chrome 720p30 path spends substantial sampled CPU time in copyTo.
+ Disabling accelerated video decoding in a controlled Chrome experiment improved presentation;
+ an application-level prefer-software hint for this measured small-AVC case is being tested.
+@@ -31,3 +38,48 @@ the existing half/float conversion and are covered by GPU parity tests.
+ 
+ Further analysis and final build/benchmark status will be appended after validation. Unsupported
+ platforms and unfinished experiments must not be described as verified.
++
++## Scheduling, ownership and memory
++
++The frame server orders foreground monitor work before prefetch/thumbnails, caches by project
++revision and source identity, coalesces compatible revisions, and retries asynchronous media
++without caching incomplete pictures. The browser pump checks its budget **between** jobs: a
++single generator/effect operation can exceed it. Rayon reduces work inside eligible operations;
++it does not turn that pump into a preemptive scheduler. Native frame jobs remain on their
++existing worker threads. Source preview retains an independent playhead and In/Out state.
++
++Existing budgets are distinct: the frame-server cache starts at 768 MiB, the software GOP cache
++shares a nominal 1 GiB budget, browser Blob reads have a 384 MiB chunk LRU, and WebCodecs retains
++up to 40 decoded pictures per source. These are not a single process-memory ceiling. In
++particular, this baseline's software GOP cache can enlarge its allowance for 64 frames without
++the later upstream byte ceiling; a count-limited WebCodecs cache also grows with frame size.
++Large-frame/many-source stress remains necessary. Do not promise that the sum fits an 8 GiB
++machine or apply #3520's throughput relaxation without its preceding security ceiling.
++
++Dropping a replaced native frame server now releases its queue, media, caches and worker-owned
++state after cancellation. Ownership regression tests verify those lifetimes. This is distinct
++from allocator/driver working-set reclamation and does not establish steady-state RSS or VRAM.
++Browser VideoFrames retain the existing close-on-transfer/stale/error discipline; transfer,
++closed-frame and fallback counters remain available through `filmcraft.info()`.
++
++## Audio, desktop and export boundaries
++
++Browser audio still uses an AudioWorklet supplied by UI-thread mixing ahead of device playback.
++Main-thread stalls can starve that supply even when video decode itself is asynchronous. A
++successful worker initialization or an audioWorklet flag does not prove audible A/V sync or
++absence of underruns. The export transaction fix protects offline output cursor/limiter state;
++it does not by itself solve live audio starvation.
++
++Desktop platform factories remain behind the existing safe media interfaces: Media Foundation
++on Windows, VideoToolbox on macOS, and VA-API/NVDEC on supported Linux hosts, with software
++fallback. Registration means availability of a factory, not proof that a particular stream
++used hardware. Hardware frame/session/fallback counters are the evidence to inspect.
++
++Native GPU export shares one off-screen device and retains CPU fallback on unsupported plans
++or device errors. It now requests the high-performance adapter unless `WGPU_POWER_PREF`
++overrides it. Bulk copies of mapped rows precede scalar conversion, avoiding repeated uncached
++reads without changing color arithmetic. The native end-to-end GPU export test actually
++rendered eight frames (including odd dimensions) and matched CPU PNG pixels exactly. Browser
++exports retain the stepped CPU renderer: native blocking device initialization/readback is
++explicitly excluded from WASM, including atomics builds. GPU-resident decode/export, GPU YUV
++readback and HDR/LUT shader migrations have not been introduced by this checkpoint.
+diff --git a/docs/performance-before-after.md b/docs/performance-before-after.md
+index 1a584a38..6d89618d 100644
+--- a/docs/performance-before-after.md
++++ b/docs/performance-before-after.md
+@@ -27,3 +27,21 @@ Correctness checkpoints so far: 123 export tests (including pending-audio transa
+ 41 GPU parity/readback tests, 230 UI library tests, Source drops 3, Source playback 9, timeline OS
+ drops 11, escape/cancel 6, option/plain moves 2, scroll/pinch 11, track heights 2. Additional suites,
+ the corrected new-track fixture, final WASM packaging and worker runtime verification are pending.
++
++The corrected new-track fixture now passes (16 trim tests, 2 intentionally ignored), along with
++keyboard-focus tests (2) and workspace tests (3). Native GPU export integration also passed:
++eight actual GPU-rendered PNG frames at 320×180, 17×13, 1×1 and 257×129 had RGB p99 and mean
++differences of zero against CPU output. This is output/counter evidence, not a throughput result.
++
++An ordinary-Chrome functional run (`functional-standard-retry`, no unsafe WebGPU flag, isolated
++headers, explicit standard artifact) passed source double-click, Project/Timeline source drops,
++trim/split/move with undo, targeting/source-patch toggles, sequential exact seeks and a rapid-seek
++batch. The small-AVC policy activated, requested prefer-software, and reported native plane
++transfers with no decoder/Canvas fallback and all 69 delivered frames closed. This run overlapped
++compilation and is **excluded from timing comparisons**. The initial attempt hit a fixture 404
++while dist was being repackaged; restoring the ignored fixture resolved the harness setup error.
++
++The earlier controlled hardware/software diagnostic first-frame Program crops were pixel-identical
++(573×322 RGB crop at 647,75 at the fixed review viewport). That checks one fixture frame, not all
++decoders or all playback frames. Final application-policy and worker timing comparisons remain
++pending until all compiler activity has ended.
+diff --git a/docs/upstream-performance-inventory.md b/docs/upstream-performance-inventory.md
+index ff9d0e7f..3581fcd1 100644
+--- a/docs/upstream-performance-inventory.md
++++ b/docs/upstream-performance-inventory.md
+@@ -38,6 +38,35 @@ GitHub metadata checked during this run; an open PR's synthetic merge SHA does n
+ | [#3217](https://github.com/storytold/filmcraft/pull/3217) | Open; native/software codecs | Pin frames requested by live waiters, ignore cancelled waiters, and avoid useless GOP re-walks | Source/lock-order diff reviewed; needs current cancellation flag accessor and concurrent codec tests | Candidate adaptation; medium |
+ | [#3059](https://github.com/storytold/filmcraft/pull/3059) | Open; both | Throughput planning for independently decodable frames | No in-tree upstream source advertises independence yet; long-GOP sources must not use sparse planning blindly | Defer broad planner replacement; high |
+ 
+-The inventory will be expanded with remaining GPU/LUT, codec, memory, scopes/import and export
+-candidates as their source and local compatibility are reviewed. Raw API metadata and benchmark
+-profiles are retained locally under `target/upstream-review/`; they are evidence, not instructions.
++## Other reviewed proposals and deferred work
++
++These rows distinguish review of a proposal and its reported evidence from local implementation.
++None of the numbers in this table are measurements of this fork. Open PRs remain proposals even
++when their descriptions report passing tests. The first browser integration deliberately avoids
++simultaneously replacing the scheduler, GPU frame contract and codec kernels.
++
++| Source / status | Scope and proposed benefit | Dependencies / local decision | Evidence still needed here |
++| --- | --- | --- | --- |
++| [#3213](https://github.com/storytold/filmcraft/pull/3213), open | GPU HDR/wide-gamut composition, input and monitor transforms | Foundation for #3220 and #3253; defer this dependent color pipeline migration | PQ/HLG, tone mapping, gamut, alpha and CPU/export parity across adapters |
++| [#3220](https://github.com/storytold/filmcraft/pull/3220), open | HDR Lumetri on GPU | Depends on #3213; defer together | Specular/highlight correctness and unsupported-grade fallback |
++| [#3253](https://github.com/storytold/filmcraft/pull/3253), open | GPU Input/Look LUTs; upstream reports severe CPU fallback costs on 4K50 HLG | Contains #3213/#3220; no blind merge or claim that existing SDR GPU grades cover LUTs | LUT interpolation, domains, HDR signal and full-chain parity |
++| [#3232](https://github.com/storytold/filmcraft/pull/3232), open | Latest-only scope worker keeps scopes off native UI thread | Independent native candidate; proposed WASM path still runs inline. Defer until browser runtime is validated | Scope recency, hidden-panel work, cancellation and measured UI latency |
++| [#1784](https://github.com/storytold/filmcraft/pull/1784), open | RAM/VRAM-dependent budgets and upload eviction | Existing local budgets/pools already present; defer automatic scaling to avoid compounded cache allocation | Low-memory stress, actual host limits, simultaneous sources and GPU resources |
++| [#3520](https://github.com/storytold/filmcraft/pull/3520), open | Keep 16 large frames up to 1 GiB; upstream 8K cache miss/redecode evidence | Depends on merged #2899's 384 MiB ceiling. Local baseline lacks that ceiling; do not import the throughput relaxation alone | Byte caps, hostile dimensions, waiter pinning (#3217), 4K/8K decode counts |
++| [#3056](https://github.com/storytold/filmcraft/pull/3056), open | Asynchronous batch import and one placement transaction; upstream multi-second UI stalls | Defer command/job migration; preserve ordering, undo and drop destination | Slow/missing media, cancellation, import ordering and transactional placement |
++| [#3057](https://github.com/storytold/filmcraft/pull/3057), open | Cached background drive/directory reads; bounded concurrency for blocked SMB drives | Native usability candidate; defer I/O model migration | Unresponsive mapped drives and bounded thread lifetime |
++| [#2438](https://github.com/storytold/filmcraft/pull/2438), open | Stop native queued-frame 60 Hz polling and avoid per-frame media path lists | Review against local repaint/yield changes before adapting; web still needs cooperative progress | Native idle CPU/repaints, media-watch refresh correctness |
++| [#3051](https://github.com/storytold/filmcraft/pull/3051), open | Preconvert YUV on render workers instead of competing on encoding thread | Overlaps merged #3456; use that complete integration as the next export candidate | Byte-identical full exports, stage timing and pending-audio interaction |
++| [#3456](https://github.com/storytold/filmcraft/pull/3456), merged `0787ba4e` | H.264 transform/search reuse and earlier conversion; upstream median 7.86→6.14 s | 21-file diff/stat reviewed; not ported in this checkpoint. Requires codec-spec review, not third-party codec source | Local deterministic bitstream/oracle parity and repeated native export timings |
++| [#2119](https://github.com/storytold/filmcraft/pull/2119), open | Read opaque SDR GPU exports directly as sRGB RGBA8; upstream NVENC gain | Output rounding intentionally differs from prior GPU LUT conversion. Defer rather than conceal that difference | Per-pixel reference comparison, alpha/HDR exclusions, output-quality review |
++| [#1284](https://github.com/storytold/filmcraft/pull/1284), open | GPU BT.709 4:2:0 conversion and smaller readback | Broader encoder input contract; defer | Exact range, chroma, odd dimensions, SDR/HDR selection and fallback |
++| [#3379](https://github.com/storytold/filmcraft/pull/3379), open | SIMD software codec kernels; upstream M4 Pro oracle and throughput results | Proposes a new unsafe-code ADR. Current AGENTS.md forbids this outside platform. Not covered by approval of the optional Rayon runtime; reject direct integration under current policy | Separate policy decision, spec-based kernel review, cross-platform bit-exactness |
++| [#3114](https://github.com/storytold/filmcraft/pull/3114), open | AV1 integer-pel copy path, preserving clamp and excluded prediction modes | Safe-looking narrow codec candidate; deferred pending dedicated AV1 fixtures | Every bit depth, compound/OBMC/inter-intra exclusions, oracle parity |
++| [#3117](https://github.com/storytold/filmcraft/pull/3117), open | Avoid redundant AV1 plane initialization and shown-frame copies | Changes pool and output-slot ownership; defer until decoder lifetime tests | Threaded/single output ownership, pooled buffers and exact decode hashes |
++| [#3120](https://github.com/storytold/filmcraft/pull/3120), open | Compile-time inverse DCT sizes and DC-only specialization | Defer codec math change to isolated measured work | Transform-size/bit-depth coverage and conformance vectors |
++| [#3121](https://github.com/storytold/filmcraft/pull/3121), open | AV1 dequantization buffer reuse and shifts; upstream qmatrix oracles | Relies on cleared-after-consumption invariant; defer | Quantizer matrices, all-zero blocks, reused buffers and bit-exactness |
++| [#3243](https://github.com/storytold/filmcraft/pull/3243), merged `a504f3c5` | Alpha upload lookup and background duplicate-marker analysis | Mixed-purpose commit; do not cherry-pick unrelated UI changes. Candidate selective adaptation | Exhaustive lookup parity, memory cost, duplicate-marker freshness; WASM remains inline |
++
++Raw API metadata, source diffs and benchmark profiles are retained locally under
++`target/upstream-review/`; they are evidence, not instructions. Pending work is not an implicit
++claim that the full upstream architecture has been integrated or that untested platforms are fast.
+diff --git a/docs/web.md b/docs/web.md
+index ccf8ba2c..2c1e38a2 100644
+--- a/docs/web.md
++++ b/docs/web.md
+@@ -54,10 +54,31 @@ panic on `wasm32-unknown-unknown` (use `filmcraft_engine::temp_dir`, `web_time`,
+ 
+ ### Threads
+ 
+-wasm threads need a cross-origin isolated page **and** a wasm build with atomics (a nightly
+-`build-std` toolchain), so this build is single-threaded everywhere: frame rendering, decoding,
+-mixing and encoding are cooperative on the UI thread, and `rayon` runs inline.
+-`filmcraft.info()` reports `crossOriginIsolated` so a threaded build can choose at start-up.
++The default `cargo xtask web` remains a standard, single-threaded artifact. An optional
++`cargo xtask web --threads` additionally packages a shared-memory artifact in `dist/mt/`.
++This is an application build for **ordinary Chrome and other compatible browsers**, not a custom
++browser. End users need no Rust toolchain, browser flags or extensions. The server must provide
++cross-origin isolation (COOP `same-origin`, COEP `require-corp`) and a secure context (HTTPS or
++localhost). External resources must permit the applicable CORS/CORP requests.
++
++Developers building the optional artifact need a separate pinned toolchain:
++
++```sh
++rustup toolchain install nightly-2026-10-28 --profile minimal --component rust-src --target wasm32-unknown-unknown
++cargo xtask web --threads --serve 8765
++```
++
++The normal artifact still uses the developer's standard compiler. Only the optional artifact
++uses nightly `build-std`, atomics and `wasm-bindgen-rayon` 1.3.0. Startup initializes up to eight
++Rayon workers, with shared WASM memory capped at 2 GiB. Existing parallel inner loops can use
++those workers; the frame scheduler remains cooperative and synchronous joins can still stall
++the UI. This is not a dedicated rendering-worker architecture or a promise of smooth playback.
++
++When isolation/shared memory is unavailable, startup selects the standard artifact. A threaded
++startup failure reloads once with `?nothreads` before editing begins, releasing partial workers.
++`?nothreads` explicitly selects the standard artifact; `?threads=1` through `?threads=8` bound the
++optional worker count for controlled comparisons. `filmcraft.info()` reports `crossOriginIsolated`,
++`threadedBuild`, actual `rayonThreads` and the distinct cooperative `frameWorkers` model.
+ Commands that need a thread on the desktop (render previews, proxies, Project Manager, mask
+ tracking) report an error on the web for now.
+ 
+diff --git a/xtask/src/main.rs b/xtask/src/main.rs
+index fdd91035..bacbdeaa 100644
+--- a/xtask/src/main.rs
++++ b/xtask/src/main.rs
+@@ -21,6 +21,7 @@
+ mod ico;
+ mod parity;
+ mod version;
++mod web_threads;
+ 
+ use std::process::{Command, ExitCode};
+ 
+@@ -287,6 +288,7 @@ fn target_dir() -> std::path::PathBuf {
+ /// Build the web app into `<target>/web/dist` (see docs/web.md).
+ fn web(args: &[String]) -> Result<(), String> {
+     let dev = args.iter().any(|a| a == "--dev");
++    let threads = args.iter().any(|a| a == "--threads");
+     let serve = args.iter().position(|a| a == "--serve").map(|i| args.get(i + 1).and_then(|p| p.parse::<u16>().ok()).unwrap_or(8765));
+     let profile = if dev { "dev" } else { "release" };
+     let mut build = Command::new(env!("CARGO"));
+@@ -314,7 +316,7 @@ fn web(args: &[String]) -> Result<(), String> {
+         // optional: smaller and faster (binaryen); skipped when not installed
+         let opt = dist.join("filmcraft_web_opt.wasm");
+         run(Command::new("wasm-opt")
+-            .args(["-O2", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals"])
++            .args(["-O2", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-simd"])
+             .arg(&bg)
+             .arg("-o")
+             .arg(&opt))?;
+@@ -331,22 +333,33 @@ fn web(args: &[String]) -> Result<(), String> {
+         }
+         format!("{h:016x}")
+     };
++    // Publish a complete standard artifact before the optional build starts. A missing nightly,
++    // failed worker build or long compile must not leave the local preview without index.html.
++    write_web_assets(&dist, &build, "")?;
++    if threads {
++        let mt_build = web_threads::build(&dist, &target_dir(), dir, profile, dev)?;
++        write_web_assets(&dist, &build, &mt_build)?;
++    }
++    let size = |p: &std::path::Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
++    let total = web_threads::tree_bytes(&dist)?;
++    println!("web: {} ({:.1} MB wasm, {:.1} MB total)", dist.display(), size(&bg) as f64 / 1e6, total as f64 / 1e6);
++    if let Some(port) = serve {
++        serve_dir(&dist, port)?;
++    }
++    Ok(())
++}
++
++fn write_web_assets(dist: &std::path::Path, build: &str, mt_build: &str) -> Result<(), String> {
+     let web = std::path::Path::new("apps/filmcraft-web/web");
+     for e in std::fs::read_dir(web).map_err(|e| e.to_string())?.flatten() {
+         let name = e.file_name().to_string_lossy().to_string();
+         if name == "index.html" {
+             let html = std::fs::read_to_string(e.path()).map_err(|e| format!("{name}: {e}"))?;
+-            std::fs::write(dist.join(&name), html.replace("__FC_BUILD__", &build)).map_err(|e| format!("{name}: {e}"))?;
++            std::fs::write(dist.join(&name), html.replace("__FC_BUILD__", build).replace("__FC_BUILD_MT__", mt_build)).map_err(|e| format!("{name}: {e}"))?;
+         } else if !name.ends_with(".attribution") {
+             std::fs::copy(e.path(), dist.join(&name)).map_err(|e| format!("{name}: {e}"))?;
+         }
+     }
+-    let size = |p: &std::path::Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+-    let total: u64 = std::fs::read_dir(&dist).map_err(|e| e.to_string())?.flatten().map(|e| size(&e.path())).sum();
+-    println!("web: {} ({:.1} MB wasm, {:.1} MB total)", dist.display(), size(&bg) as f64 / 1e6, total as f64 / 1e6);
+-    if let Some(port) = serve {
+-        serve_dir(&dist, port)?;
+-    }
+     Ok(())
+ }
+ 
+diff --git a/apps/filmcraft-web/src/decoder_policy.rs b/apps/filmcraft-web/src/decoder_policy.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/filmcraft-web/src/decoder_policy.rs
+@@ -0,0 +1,19 @@
++//! Conservative policy for the current CPU-backed WebCodecs-to-WASM frame path.
++//! Prefer software only on the small-AVC/Intel/Windows Chrome combination measured locally.
++pub fn acceleration(explicit: Option<&str>, avc_profile: Option<u8>, width: u32, height: u32, measured_platform: bool) -> &'static str {
++    match explicit {
++        Some("software") => "prefer-software",
++        Some("hardware") => "prefer-hardware",
++        Some("default") => "no-preference",
++        _ if measured_platform
++            && matches!(avc_profile, Some(66 | 77 | 100))
++            && width > 0
++            && height > 0
++            && width.max(height) <= 1920
++            && u64::from(width) * u64::from(height) <= 1920 * 1080 =>
++        {
++            "prefer-software"
++        }
++        _ => "no-preference",
++    }
++}
+diff --git a/apps/filmcraft-web/tests/decoder_policy.rs b/apps/filmcraft-web/tests/decoder_policy.rs
+new file mode 100644
+--- /dev/null
++++ b/apps/filmcraft-web/tests/decoder_policy.rs
+@@ -0,0 +1,27 @@
++#[path = "../src/decoder_policy.rs"]
++mod policy;
++
++#[test]
++fn measured_policy_is_limited_to_small_eight_bit_avc_on_the_measured_platform() {
++    for profile in [66, 77, 100] {
++        assert_eq!(policy::acceleration(None, Some(profile), 1280, 720, true), "prefer-software");
++    }
++    assert_eq!(policy::acceleration(None, Some(100), 1080, 1920, true), "prefer-software");
++    for (profile, width, height, platform) in [
++        (Some(100), 1280, 720, false),
++        (None, 1280, 720, true),
++        (Some(110), 1280, 720, true),
++        (Some(100), 3840, 2160, true),
++        (Some(100), 0, 720, true),
++        (Some(100), u32::MAX, u32::MAX, true),
++    ] {
++        assert_eq!(policy::acceleration(None, profile, width, height, platform), "no-preference");
++    }
++}
++
++#[test]
++fn explicit_decoder_choices_override_the_policy() {
++    for (choice, expected) in [("hardware", "prefer-hardware"), ("software", "prefer-software"), ("default", "no-preference")] {
++        assert_eq!(policy::acceleration(Some(choice), Some(100), 1280, 720, true), expected);
++    }
++}
+diff --git a/xtask/src/web_threads.rs b/xtask/src/web_threads.rs
+new file mode 100644
+--- /dev/null
++++ b/xtask/src/web_threads.rs
+@@ -0,0 +1,138 @@
++//! Optional shared-memory application artifact. No custom browser or browser flags are needed.
++use std::path::Path;
++use std::process::Command;
++
++const TOOLCHAIN: &str = "nightly-2026-10-28";
++
++pub fn tree_bytes(root: &Path) -> Result<u64, String> {
++    let mut pending = vec![(root.to_path_buf(), 0)];
++    let mut bytes = 0u64;
++    while let Some((path, depth)) = pending.pop() {
++        if depth > 12 {
++            return Err("web artifact directory is too deeply nested".into());
++        }
++        let metadata = std::fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
++        if metadata.is_file() {
++            bytes = bytes.saturating_add(metadata.len());
++        } else if metadata.is_dir() {
++            for entry in std::fs::read_dir(path).map_err(|error| error.to_string())? {
++                pending.push((entry.map_err(|error| error.to_string())?.path(), depth + 1));
++            }
++        }
++    }
++    Ok(bytes)
++}
++
++fn flags(existing: &str) -> String {
++    let mut flags = existing.to_string();
++    let mut push = |arg: &str| {
++        if !flags.is_empty() {
++            flags.push('\u{1f}');
++        }
++        flags.push_str(arg);
++    };
++    // An encoded override supersedes .cargo/config.toml, so retain its required backend cfg.
++    push("--cfg");
++    push("getrandom_backend=\"wasm_js\"");
++    push("-C");
++    push("target-feature=+atomics,+bulk-memory,+mutable-globals,+simd128");
++    for arg in [
++        "--import-memory",
++        "--export-memory",
++        "--shared-memory",
++        "--initial-memory=67108864",
++        "--max-memory=2147483648",
++        "--export=__wasm_init_tls",
++        "--export=__tls_size",
++        "--export=__tls_align",
++        "--export=__tls_base",
++    ] {
++        push("-C");
++        push(&format!("link-arg={arg}"));
++    }
++    flags
++}
++
++pub fn build(dist: &Path, target: &Path, dir: &str, profile: &str, dev: bool) -> Result<String, String> {
++    let mt_target = target.join("web-mt");
++    let mut command = Command::new("rustup");
++    command.args([
++        "run",
++        TOOLCHAIN,
++        "cargo",
++        "build",
++        "-Z",
++        "build-std=std,panic_abort",
++        "--target",
++        "wasm32-unknown-unknown",
++        "-p",
++        "filmcraft-web",
++        "--features",
++        "threads",
++        "--locked",
++        "--profile",
++        profile,
++    ]);
++    // A caller may place stable's real binaries ahead of rustup's shims in PATH.
++    // Resolve this compiler explicitly so build-std cannot mix compiler and std sources.
++    let compiler =
++        Command::new("rustup").args(["which", "--toolchain", TOOLCHAIN, "rustc"]).output().map_err(|error| format!("locate {TOOLCHAIN} compiler: {error}"))?;
++    if !compiler.status.success() {
++        return Err(format!("{TOOLCHAIN} compiler is unavailable: {}", String::from_utf8_lossy(&compiler.stderr)));
++    }
++    let compiler = String::from_utf8(compiler.stdout).map_err(|error| error.to_string())?;
++    command.env("RUSTC", compiler.trim()).env_remove("RUSTDOC").env("RUSTUP_TOOLCHAIN", TOOLCHAIN);
++    command.env("CARGO_TARGET_DIR", &mt_target);
++    command.env("CARGO_ENCODED_RUSTFLAGS", flags(&std::env::var("CARGO_ENCODED_RUSTFLAGS").unwrap_or_default()));
++    super::run(&mut command).map_err(|error| format!("optional threaded build ({TOOLCHAIN} + rust-src required): {error}"))?;
++    let mt = dist.join("mt");
++    std::fs::create_dir_all(&mt).map_err(|error| error.to_string())?;
++    let wasm = mt_target.join("wasm32-unknown-unknown").join(dir).join("filmcraft_web.wasm");
++    super::run(Command::new("wasm-bindgen").args(["--target", "web", "--no-typescript", "--out-dir"]).arg(&mt).arg(wasm))?;
++    let bg = mt.join("filmcraft_web_bg.wasm");
++    if !dev && Command::new("wasm-opt").arg("--version").output().is_ok() {
++        let optimized = mt.join("filmcraft_web_opt.wasm");
++        super::run(
++            Command::new("wasm-opt")
++                .args([
++                    "-O2",
++                    "--enable-bulk-memory",
++                    "--enable-nontrapping-float-to-int",
++                    "--enable-sign-ext",
++                    "--enable-mutable-globals",
++                    "--enable-simd",
++                    "--enable-threads",
++                ])
++                .arg(&bg)
++                .arg("-o")
++                .arg(&optimized),
++        )?;
++        std::fs::rename(optimized, &bg).map_err(|error| error.to_string())?;
++    }
++    let mut hash = 0xcbf2_9ce4_8422_2325u64;
++    for file in [mt.join("filmcraft_web.js"), bg] {
++        for byte in std::fs::read(file).map_err(|error| error.to_string())? {
++            hash = (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3);
++        }
++    }
++    Ok(format!("{hash:016x}"))
++}
++
++#[cfg(test)]
++mod tests {
++    #[test]
++    fn atomics_build_keeps_caller_flags_and_required_browser_backend() {
++        let flags = super::flags("--cfg\u{1f}caller_setting");
++        assert!(flags.starts_with("--cfg\u{1f}caller_setting\u{1f}"));
++        for arg in [
++            "getrandom_backend=\"wasm_js\"",
++            "link-arg=--shared-memory",
++            "link-arg=--import-memory",
++            "link-arg=--max-memory=2147483648",
++            "link-arg=--export=__wasm_init_tls",
++        ] {
++            assert!(flags.split('\u{1f}').any(|flag| flag == arg), "missing {arg}");
++        }
++        assert!(!flags.starts_with('\u{1f}'));
++    }
++}
