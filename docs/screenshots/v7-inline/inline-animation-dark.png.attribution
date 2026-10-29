@@ -1,0 +1,8 @@
+asset:        inline-animation-dark.png
+title:        FilmCraft inline clip animation verification
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-29 by FilmCraft contributors
+notes:        Actual Chrome screenshot, generated AVC fixture, two canonical Opacity keys, dark theme.

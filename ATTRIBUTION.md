@@ -284,3 +284,5 @@ The Tabler integration is adapted from Fallzola/filmcraft PR #2308, head d3f0ba4
 | `docs/screenshots/v7-phase1/after-editing-dark.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-phase1/after-preferences.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-phase1/after-fullscreen.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-inline/inline-animation-dark.png` | FilmCraft contributors | Original FilmCraft UI with generated media | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-inline/inline-animation-light.png` | FilmCraft contributors | Original FilmCraft UI with generated media | MIT OR Apache-2.0 |

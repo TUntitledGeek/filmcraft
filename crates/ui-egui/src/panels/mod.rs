@@ -16,6 +16,7 @@ pub mod frame_export;
 pub mod graphics;
 pub mod graphics_templates;
 pub mod import_mode;
+pub mod inline_animation;
 pub mod interchange_export;
 pub mod keyboard;
 pub mod lumetri;

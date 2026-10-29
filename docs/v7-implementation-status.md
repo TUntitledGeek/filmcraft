@@ -1,6 +1,23 @@
 # FilmCraft V7 implementation status
 
-## Checkpoint: verified partial implementation, 29 October 2026
+## V7.4 follow-up: first working inline slice
+
+This section supersedes the earlier checkpoint's statement that no inline UI exists.
+The entire master prompt and both references remain required; all untouched ledger entries remain pending.
+
+- Select a clip and use Clip > Show/Hide Clip Animation, or its timeline context menu. Close it independently with the drawer's close control.
+- One actual clip drawer reserves track height, shares the main ruler transform, has its own property scrolling and excludes its visible area from clip gestures/new-track drops. Collapsing restores the compact geometry without editing the project.
+- Actual ordered effects and canonical property values are displayed. The unique intrinsic Opacity control edits static values without implicit animation and adds/removes real keys through existing engine commands. Undo/redo is shared with the editor. Two real keyframes were created in Chrome.
+- State is transient and scoped to clip ID, sequence and workspace. No filename or effect-index identity is stored. Project replacement and clip deletion clear stale state.
+- Key positions/editing are limited to normal-speed, non-reversed, non-held clips. Other mappings explicitly disable the quick editor. Other properties are read-only; there is no per-effect disclosure state.
+- Native: 230 existing UI unit tests plus 2 new geometry/lifecycle tests passed. Focused all-target UI Clippy, formatting, optimized standard WASM, layers and attribution passed. Real Chrome tested expansion, non-destructive view state, hit exclusion, static editing, key creation, undo/redo and close.
+- Screenshots: [dark](screenshots/v7-inline/inline-animation-dark.png), [light](screenshots/v7-inline/inline-animation-light.png). Evidence: [v7-inline-slice.json](verification/v7-inline-slice.json). Full native workspace/other OS coverage remains incomplete.
+
+Known limitation: in short timeline docks the expanded drawer can push the clip header partly above the visible video region; vertical track scrolling or enlarging the timeline is needed. Adaptive drawer height remains pending.
+
+Next: add audio/narrow/scroll regression cases, stable effect identity before persistent per-effect state, then incremental property editors and key interactions. Multiple simultaneous drawers, filters, group disclosure, nonlinear/held/reverse domains, saved drawer state, Graph and Focus remain pending. All original UX and Wave/Glow requirements remain pending as recorded below. No merge or deployment.
+
+## Earlier checkpoint: verified partial implementation, 29 October 2026
 
 Branch: `filmcraft-v7-animation-and-ux`, based on verified local/remote
 `a7c98a5ee7d34eda046930b12b291cb758f069b8` (`performance-upstream-integration`).

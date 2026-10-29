@@ -140,6 +140,52 @@ try {
   }
   await call('ui.set',{mode:'edit',workspace:arg('workspace','Editing')});
   await execute('edit.deselectAll');
+  if(arg('inline-tests','false')==='true') {
+    const q=await execute('sequence.inspect');
+    const clip=q.video.flatMap(t=>t.items).find(i=>i.clip)?.clip;
+    if(!clip)throw new Error('No clip for inline animation');
+    await execute('timeline.select',{clips:[clip],linked:false});
+    const before=JSON.stringify(await execute('sequence.inspect'));
+    const click=async id=>{
+      const e=(await call('ui.elements')).find(e=>e.id===id);
+      if(!e)throw new Error('Missing inline control '+id);
+      const [x,y,w,h]=e.rect;
+      for(const type of ['mouseMoved','mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,x:x+w/2,y:y+h/2,button:type==='mouseMoved'?'none':'left',clickCount:1});
+      await sleep(200);
+    };
+    const opacity=async()=>{const q=await execute('sequence.inspect');return q.video.flatMap(t=>t.items).find(i=>i.clip===clip).effects.find(e=>e.effect==='opacity').params.opacity;};
+    await execute('timeline.animation.toggle');await sleep(300);
+    report.inline={viewOnly:before===JSON.stringify(await execute('sequence.inspect'))};
+    if(!report.inline.viewOnly)throw new Error('Opening the drawer edited the project');
+    const drawer=(await call('ui.elements')).find(e=>e.id==='timeline.animation.drawer');
+    if(!drawer)throw new Error('No inline drawer');
+    report.inline.hit=await call('ui.timeline.hit',{x:drawer.rect[0]+drawer.rect[2]*.7,y:drawer.rect[1]+drawer.rect[3]*.5});
+    if(report.inline.hit.hit!=='none')throw new Error('Drawer overlaps timeline clip hit testing');
+    const original=await opacity();
+    const value=(await call('ui.elements')).find(e=>e.id==='timeline.animation.opacity.value');
+    const [x,y,w,h]=value.rect;const start={x:x+w/2,y:y+h/2};
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',...start});
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',...start,button:'left',clickCount:1});
+    for(let i=1;i<=8;i++){await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:start.x-i*5,y:start.y,button:'left',buttons:1});await sleep(30);}
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:start.x-40,y:start.y,button:'left',clickCount:1});await sleep(200);
+    report.inline.edited=await opacity();
+    if(report.inline.edited.value===original.value||report.inline.edited.keyframes!==0)throw new Error('Static inline edit failed or implicitly animated');
+    await execute('edit.undo');if((await opacity()).value!==original.value)throw new Error('Inline edit undo failed');
+    await execute('edit.redo');if((await opacity()).value!==report.inline.edited.value)throw new Error('Inline edit redo failed');
+    await click('timeline.animation.opacity.addKey');
+    if((await opacity()).keyframes!==1)throw new Error('Inline key creation failed');
+    await execute('edit.undo');if((await opacity()).keyframes!==0)throw new Error('Inline key undo failed');
+    await execute('edit.redo');
+    await execute('playhead.set',{seconds:1});await click('timeline.animation.opacity.addKey');
+    if((await opacity()).keyframes!==2)throw new Error('Second inline key failed');
+    report.inline.twoKeys=await opacity();
+    await capture('inline-animation-dark');
+    await call('ui.set',{theme:'light'});await capture('inline-animation-light');
+    await click('timeline.animation.close');
+    if((await call('ui.elements')).some(e=>e.id==='timeline.animation.drawer'))throw new Error('Drawer did not close');
+    report.inline.collapsed=true;
+    await call('ui.set',{theme:'dark'});
+  }
   const addedEffects=arg('effects','none').split(',').filter(e=>e!=='none');
   if(addedEffects.length) {
     const sequence=await execute('sequence.inspect');

@@ -40,6 +40,8 @@ pub type PeakKey = (ItemId, usize);
 /// Transient interaction state.
 #[derive(Default)]
 pub struct TlState {
+    /// Transient view state; no effect identity is stored.
+    pub animation: Option<(ItemId, ClipId, String)>,
     pub drag: Option<Drag>,
     /// What the primary button went down on in the Timeline (#259); see [`Pressed`].
     pub pressed: Option<Pressed>,
@@ -72,6 +74,7 @@ impl TlState {
     /// (opening another project would otherwise show the old project's waveforms). Peak jobs
     /// still running finish into the old maps and are dropped.
     pub fn reset_media_caches(&mut self) {
+        self.animation = None;
         self.peaks = Default::default();
         self.peaks_pending = Default::default();
         self.seq_peak_keys = Default::default();
@@ -196,6 +199,7 @@ pub struct Row {
 
 #[derive(Clone, Debug)]
 pub struct Layout {
+    pub animation: Option<Rect>,
     pub content: Rect,
     pub ruler: Rect,
     pub rows: Vec<Row>,
@@ -221,7 +225,7 @@ impl Layout {
 /// track) or below the last audio track (an audio track), never over a track, the caption tracks
 /// or the Mix row. Gives the kind and the band the new track would take (`vh` / `ah` high).
 fn new_track_at(seq: &Sequence, layout: &Layout, y: f32, vh: f32, ah: f32) -> Option<(TrackKind, Rect)> {
-    if layout.row_at(y).is_some() {
+    if layout.animation.is_some_and(|r| y >= r.min.y && y < r.max.y) || layout.row_at(y).is_some() {
         return None;
     }
     let cap_n = seq.caption_tracks.len();
@@ -320,6 +324,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         empty_state(app, ui, rect);
         return;
     };
+    let expanded = super::inline_animation::clip(app, seq_id, seq);
+    let expanded_track = expanded.and_then(|c| seq.find_item(c).map(|(track, _)| track));
     let rate = seq.settings.frame_rate;
     let dt = ctx.input(|i| i.stable_dt).min(0.05) as f64;
     let header_w = app.ui.timeline.header_w;
@@ -428,27 +434,66 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     let caption_area = Rect::from_min_max(pos2(rect.min.x, content.min.y), pos2(content.max.x, content.min.y + cap_n as f32 * super::timeline_captions::ROW_H));
     let cap_h = if cap_n > 0 { caption_area.height() + DIVIDER_H } else { 0.0 };
     let tracks_area = Rect::from_min_max(pos2(content.min.x, content.min.y + cap_h), content.max);
-    let split_y = tracks_area.min.y + (tracks_area.height() - DIVIDER_H) * app.ui.timeline.split;
+    let base_video_h = (tracks_area.height() - DIVIDER_H) * app.ui.timeline.split;
+    let video_h = if expanded_track.is_some_and(|id| seq.track(id).is_some_and(|t| t.kind == TrackKind::Video)) {
+        base_video_h.max(app.ui.timeline.video_track_h + super::inline_animation::HEIGHT).min((tracks_area.height() - MASTER_H - 40.0).max(0.0))
+    } else {
+        base_video_h
+    };
+    let split_y = tracks_area.min.y + video_h;
     let video_area = Rect::from_min_max(pos2(rect.min.x, tracks_area.min.y), pos2(content.max.x, split_y));
     let audio_area = Rect::from_min_max(pos2(rect.min.x, split_y + DIVIDER_H), pos2(content.max.x, tracks_area.max.y - MASTER_H));
     let vh = app.ui.timeline.video_track_h;
     let ah = app.ui.timeline.audio_track_h;
     let mut rows = Vec::new();
     let nv = seq.video_tracks.len();
-    let (video_tops, max_vs) = video_row_tops(video_area, nv, vh, &mut app.ui.timeline.v_scroll);
+    let extra = super::inline_animation::HEIGHT;
+    let video_heights: Vec<f32> = seq.video_tracks.iter().map(|tr| vh + if Some(tr.id) == expanded_track { extra } else { 0.0 }).collect();
+    let (video_tops, max_vs) = if expanded.is_some() {
+        let total = video_heights.iter().sum::<f32>() + vh;
+        let max = (total - video_area.height()).max(0.0);
+        app.ui.timeline.v_scroll = app.ui.timeline.v_scroll.clamp(0.0, max);
+        let mut y = video_area.max.y + app.ui.timeline.v_scroll;
+        (
+            video_heights
+                .iter()
+                .map(|h| {
+                    y -= h;
+                    y
+                })
+                .collect(),
+            max,
+        )
+    } else {
+        video_row_tops(video_area, nv, vh, &mut app.ui.timeline.v_scroll)
+    };
     for ((i, tr), top) in seq.video_tracks.iter().enumerate().zip(video_tops) {
         let rect = Rect::from_min_max(pos2(content.min.x, top), pos2(content.max.x, top + vh));
         rows.push(Row { track: tr.id, kind: TrackKind::Video, index: i, rect, lane: false });
     }
     let na = seq.audio_tracks.len();
-    let max_as = (na as f32 * ah - audio_area.height()).max(0.0);
+    let audio_extra = if expanded_track.is_some_and(|id| seq.track(id).is_some_and(|t| t.kind == TrackKind::Audio)) { extra } else { 0.0 };
+    let max_as = (na as f32 * ah + audio_extra - audio_area.height()).max(0.0);
     app.ui.timeline.a_scroll = app.ui.timeline.a_scroll.clamp(0.0, max_as);
+    let mut audio_offset = 0.0;
     for (i, tr) in seq.audio_tracks.iter().enumerate() {
-        let top = audio_area.min.y + i as f32 * ah - app.ui.timeline.a_scroll;
+        let top = audio_area.min.y + i as f32 * ah + audio_offset - app.ui.timeline.a_scroll;
+        if Some(tr.id) == expanded_track {
+            audio_offset += extra;
+        }
         let rect = Rect::from_min_max(pos2(content.min.x, top), pos2(content.max.x, top + ah));
         rows.push(Row { track: tr.id, kind: TrackKind::Audio, index: i, rect, lane: app.ui.timeline.track_lanes.contains_key(&tr.id.0) });
     }
-    let layout = Layout { content, ruler, rows: rows.clone(), pps, scroll, split_y };
+    let drawer_rect = expanded_track
+        .and_then(|track| rows.iter().find(|r| r.track == track))
+        .map(|r| Rect::from_min_max(pos2(rect.min.x, r.rect.max.y), pos2(content.max.x, r.rect.max.y + extra)));
+    // Hit zones follow the visible host region even when the expanded track is scrolled away.
+    let animation = drawer_rect.and_then(|r| {
+        let bounds = if expanded_track.is_some_and(|id| seq.track(id).is_some_and(|t| t.kind == TrackKind::Video)) { video_area } else { audio_area };
+        let visible = r.intersect(bounds);
+        visible.is_positive().then_some(visible)
+    });
+    let layout = Layout { animation, content, ruler, rows: rows.clone(), pps, scroll, split_y };
     app.tl.layout = Some(layout.clone());
 
     // ---- backgrounds
@@ -770,6 +815,16 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     super::timeline_automation::show(app, ui, seq, &layout, aclip);
     if cap_n > 0 {
         super::timeline_captions::interact(app, ui, seq, caption_area, &layout);
+    }
+    if let (Some(clip), Some(drawer)) = (expanded, drawer_rect)
+        && let Some((track, it)) = seq.find_item(clip)
+    {
+        let bounds = if seq.track(track).is_some_and(|t| t.kind == TrackKind::Video) { vclip } else { aclip };
+        let mut drawer_ui = ui.new_child(egui::UiBuilder::new().max_rect(drawer));
+        drawer_ui.set_clip_rect(bounds.intersect(ui.clip_rect()));
+        if drawer.intersects(bounds) {
+            super::inline_animation::show(app, &mut drawer_ui, &layout, drawer, clip, it);
+        }
     }
     let _ = (visible, TICKS_PER_SECOND);
 }
@@ -2341,6 +2396,14 @@ fn scrub_playhead(app: &mut FilmcraftApp, seq: &Sequence, layout: &Layout, p: Po
 }
 
 fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &Layout, rect: Rect) {
+    if app.tl.drag.is_none()
+        && layout
+            .animation
+            .is_some_and(|r| ui.input(|i| i.pointer.hover_pos().is_some_and(|p| r.contains(p)) || i.pointer.press_origin().is_some_and(|p| r.contains(p))))
+    {
+        app.tl.pressed = None;
+        return;
+    }
     let ctx = ui.ctx().clone();
     let area = Rect::from_min_max(pos2(layout.content.min.x, layout.ruler.min.y), layout.content.max);
     let resp = ui.interact(area, egui::Id::new("timeline-area"), Sense::click_and_drag());
@@ -3064,6 +3127,14 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
         }
         let sel = app.session.state.selection.clone();
         let picked: Vec<&filmcraft_project::TrackItem> = sel.iter().filter_map(|c| seq.find_item(*c).map(|(_, it)| it)).collect();
+        let animation = ui.add_enabled(!picked.is_empty(), egui::Button::new("Show/Hide Clip Animation"));
+        app.auto.add_response("timeline.animation.toggle", &animation, "Show/Hide Clip Animation");
+        if animation.clicked() {
+            if let Err(error) = crate::menus::invoke(app, &ctx, "timeline.animation.toggle", json!({})) {
+                app.ui.status = error;
+            }
+            ui.close();
+        }
         let all_enabled = !picked.is_empty() && picked.iter().all(|it| it.enabled);
         let linked = picked.iter().any(|it| it.link.is_some());
         let mut first = true;
@@ -3562,6 +3633,7 @@ mod new_track_tests {
             lane: false,
         };
         let layout = Layout {
+            animation: None,
             content: Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 500.0)),
             ruler: Rect::from_min_max(pos2(0.0, -20.0), pos2(800.0, 0.0)),
             rows: vec![row(TrackKind::Video, &seq.video_tracks[0], 150.0), row(TrackKind::Audio, &seq.audio_tracks[0], 205.0)],
@@ -3602,6 +3674,7 @@ mod new_track_tests {
             })
             .collect();
         let layout = Layout {
+            animation: None,
             content: Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 500.0)),
             ruler: Rect::from_min_max(pos2(0.0, -20.0), pos2(800.0, 0.0)),
             rows,

@@ -1,3 +1,5 @@
+Implemented follow-up: one transient clip drawer with canonical read-only hierarchy and a unique intrinsic Opacity editor. See the V7.4 section in v7-implementation-status.md. The remaining architecture below is still future work.
+
 # V7 animation integration: source audit and implementation boundaries
 
 Status: integration plan, **not an implemented animation workspace**. The first V7 runtime
