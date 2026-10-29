@@ -53,6 +53,9 @@ pub use mask::GpuMask;
 pub const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const ACCUM_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
+#[cfg(target_arch = "wasm32")]
+type PendingFx = Arc<std::sync::Mutex<Option<Result<fx::FxStage, String>>>>;
+
 struct Uploaded {
     /// Y, Cb, Cr (or the RGBA texture) and the alpha plane (the dummy texture when there is none).
     views: [wgpu::TextureView; 4],
@@ -88,6 +91,11 @@ pub struct GpuCompositor {
     /// The effect stage (None on devices without compute shaders or storage textures: layers
     /// with effects are then rendered on the CPU here).
     fx: Option<fx::FxStage>,
+    #[cfg(target_arch = "wasm32")]
+    pending_fx: PendingFx,
+    fx_initializing: bool,
+    pub cpu_effect_layers: u64,
+    pub gpu_effect_layers: u64,
     transition: transition::PushStage,
     transition_inputs: [Option<(wgpu::Texture, wgpu::TextureView, (u32, u32))>; 2],
     pub gpu_transitions: u64,
@@ -391,17 +399,39 @@ impl GpuCompositor {
         // The effect stage's pipelines can still be invalid on a device that passes the limits
         // check (Rgba32Float is not renderable everywhere, e.g. software Vulkan/GL). Validation
         // errors would panic, so they are captured: without the stage, effects render on the CPU.
-        let fx = fx::FxStage::supported(device)
+        let fx_supported = fx::FxStage::supported(device);
+        #[cfg(target_arch = "wasm32")]
+        let pending_fx = PendingFx::default();
+        let fx = fx_supported
             .then(|| {
                 let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
                 let stage = fx::FxStage::new(device, &shader, &layer_bgl);
-                match poll_now(scope.pop()) {
-                    Some(None) => Some(stage),
-                    Some(Some(e)) => {
-                        log::warn!("GPU effects unavailable on this device, rendering them on the CPU: {e}");
-                        None
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    match poll_now(scope.pop()) {
+                        Some(None) => Some(stage),
+                        Some(Some(e)) => {
+                            log::warn!("GPU effects unavailable on this device, rendering them on the CPU: {e}");
+                            None
+                        }
+                        None => None,
                     }
-                    None => None,
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    // WebGPU error scopes resolve asynchronously. A pending Promise is not
+                    // evidence that compute is unsupported: retain the stage until validated.
+                    // Keep the exact CPU path available while validation is in flight.
+                    let validation = scope.pop();
+                    let ready = pending_fx.clone();
+                    wasm_bindgen_futures::spawn_local(async move {
+                        let result = match validation.await {
+                            None => Ok(stage),
+                            Some(error) => Err(error.to_string()),
+                        };
+                        *ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(result);
+                    });
+                    None
                 }
             })
             .flatten();
@@ -422,11 +452,40 @@ impl GpuCompositor {
             clock: 0,
             dummy,
             fx,
+            #[cfg(target_arch = "wasm32")]
+            pending_fx,
+            fx_initializing: cfg!(target_arch = "wasm32") && fx_supported,
+            cpu_effect_layers: 0,
+            gpu_effect_layers: 0,
             transition: transition::PushStage::new(device),
             transition_inputs: [None, None],
             gpu_transitions: 0,
             cpu_transitions: 0,
             uploaded_bytes: 0,
+        }
+    }
+
+    pub fn effects_status(&self) -> &'static str {
+        if self.fx.is_some() {
+            "ready"
+        } else if self.fx_initializing {
+            "initializing"
+        } else {
+            "unavailable"
+        }
+    }
+
+    fn finish_effects_initialization(&mut self) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let result = self.pending_fx.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+            if let Some(result) = result {
+                self.fx_initializing = false;
+                match result {
+                    Ok(stage) => self.fx = Some(stage),
+                    Err(error) => log::warn!("GPU effects validation failed; using the CPU reference: {error}"),
+                }
+            }
         }
     }
 
@@ -707,6 +766,7 @@ impl GpuCompositor {
     /// [`composite`](Self::composite) with texel conversions already done by [`prepare`] (the
     /// result is identical; only the upload work on this thread differs).
     pub fn composite_prepared(&mut self, plan: &FramePlan, prep: Option<&PreparedPlan>) -> (wgpu::TextureView, (u32, u32)) {
+        self.finish_effects_initialization();
         self.render_plan(plan, prep, true, true)
     }
 
@@ -753,6 +813,9 @@ impl GpuCompositor {
                 Some(PlanLayer::new(Arc::new(VideoFrame::rgba_f32(img.w as u32, img.h as u32, img.px)), l.matrix, l.opacity, l.blend))
             })
             .collect();
+        self.cpu_effect_layers = self.cpu_effect_layers.saturating_add(cpu_fx.iter().filter(|layer| layer.is_some()).count() as u64);
+        self.gpu_effect_layers =
+            self.gpu_effect_layers.saturating_add(layers.iter().zip(&cpu_fx).filter(|(layer, cpu)| layer.fx.is_some() && cpu.is_none()).count() as u64);
         let resolved: Vec<&PlanLayer> = layers.iter().zip(&cpu_fx).map(|(l, c)| c.as_ref().unwrap_or(l)).collect();
         let layers = resolved;
         let keys: Vec<(usize, u32, u32)> = layers
@@ -984,6 +1047,7 @@ impl GpuCompositor {
     /// applied, read back as linear premultiplied RGBA f32 (what `LayerFx` ops produce on the
     /// CPU from the same frame). None when the working image does not fit in a texture.
     pub fn effect_image(&mut self, frame: &VideoFrame, fx: &filmcraft_render::plan::LayerFx) -> Option<(u32, u32, Vec<f32>)> {
+        self.finish_effects_initialization();
         let key = self.upload(frame, None);
         let src = self.src_info(frame, key)?;
         let views = self.uploads.get(&key)?.views.clone();
@@ -1177,6 +1241,7 @@ const UNIFORM_FLOATS: usize = 52;
 
 /// Poll a future once: wgpu's native error scopes resolve immediately. `None` if it is still
 /// pending (then the caller assumes the worst).
+#[cfg(not(target_arch = "wasm32"))]
 fn poll_now<F: std::future::Future>(f: F) -> Option<F::Output> {
     let mut f = std::pin::pin!(f);
     match f.as_mut().poll(&mut std::task::Context::from_waker(std::task::Waker::noop())) {

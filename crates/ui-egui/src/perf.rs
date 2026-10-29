@@ -38,6 +38,9 @@ pub fn stats(app: &FilmcraftApp) -> Value {
             "uploadedBytes": g.compositor.uploaded_bytes,
             "transitions": g.compositor.gpu_transitions,
             "cpuTransitions": g.compositor.cpu_transitions,
+            "effectsStatus": g.compositor.effects_status(),
+            "cpuEffectLayers": g.compositor.cpu_effect_layers,
+            "gpuEffectLayers": g.compositor.gpu_effect_layers,
             "submitMs": g.last_ms,
         })
     });
