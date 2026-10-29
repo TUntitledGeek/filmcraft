@@ -1,0 +1,1757 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-29T04:16:43.147Z",
+  "baselineCommit": "825226cc857ea75e605c3c329e7ad6b9b09eac1a",
+  "sourceCommit": "53b796fa",
+  "fixtureSha256": "0c6b57c1504f5a86f16c9ce2e3bee004163da0c8b6e9043a72e44fe38ce42cb5",
+  "baselineWasmSha256": "d26ee3598e241cd096a2c317211bb99f6e7b47d1be6b0e4c028436c96a18cac5",
+  "finalWasmSha256": "6be42104d80e66d29ddefec91ebcf7e73ca657ae2ec043404d1238f5a4bb2a40",
+  "conditions": {
+    "compiler": "1.99.0",
+    "profile": "release, thin LTO, codegen-units=1, simd128",
+    "ordinaryChrome": true,
+    "unsafeWebgpuFlag": false,
+    "disabledHardwareDecodeFlag": false,
+    "crossOriginIsolated": true,
+    "concurrentCompilation": false,
+    "cpuProfiler": false,
+    "secondsPerRun": 12,
+    "runsPerCondition": 3,
+    "order": "Interleaved before/after within each workload; none, stack, demo; repeated three times",
+    "viewport": [
+      1656,
+      894
+    ],
+    "playbackResolution": "1/2",
+    "hardware": {
+      "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+      "logicalCpus": 22,
+      "memoryGB": 31.367168426513672
+    },
+    "browser": "Chrome/155.0.8059.86"
+  },
+  "metricDefinitions": {
+    "presentedFps": "App unique presented images divided by measured wall interval; distinct from UI FPS and exact-deadline shown count.",
+    "dropped": "App exact-deadline misses during the play.",
+    "aggregates": "Median of three per-run values. rAF p95 is computed within each run then medianed."
+  },
+  "aggregates": {
+    "normal-after-demo": {
+      "runs": [
+        "normal-after-demo-1",
+        "normal-after-demo-2",
+        "normal-after-demo-3"
+      ],
+      "count": 3,
+      "presentedFps": 11.222292212101358,
+      "dropped": 273,
+      "rafP95Ms": 133.34500000000116,
+      "maxRafMs": 199.86999999999898,
+      "stallsOver50Ms": 118,
+      "worstSampledFrameLag": 4,
+      "pauseUpperBoundMs": 40.30879999999888
+    },
+    "normal-after-none": {
+      "runs": [
+        "normal-after-none-1",
+        "normal-after-none-2",
+        "normal-after-none-3"
+      ],
+      "count": 3,
+      "presentedFps": 29.823245350605895,
+      "dropped": 0,
+      "rafP95Ms": 16.679999999998472,
+      "maxRafMs": 33.625,
+      "stallsOver50Ms": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 17.56459999999788
+    },
+    "normal-after-stack": {
+      "runs": [
+        "normal-after-stack-1",
+        "normal-after-stack-2",
+        "normal-after-stack-3"
+      ],
+      "count": 3,
+      "presentedFps": 29.50716623922696,
+      "dropped": 0,
+      "rafP95Ms": 16.69000000000051,
+      "maxRafMs": 33.36000000000058,
+      "stallsOver50Ms": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 16.08969999999681
+    },
+    "normal-before-demo": {
+      "runs": [
+        "normal-before-demo-1",
+        "normal-before-demo-2",
+        "normal-before-demo-3"
+      ],
+      "count": 3,
+      "presentedFps": 11.336135515705463,
+      "dropped": 275,
+      "rafP95Ms": 142.01000000000204,
+      "maxRafMs": 208.3700000000008,
+      "stallsOver50Ms": 121,
+      "worstSampledFrameLag": 5,
+      "pauseUpperBoundMs": 50.411800000001676
+    },
+    "normal-before-none": {
+      "runs": [
+        "normal-before-none-1",
+        "normal-before-none-2",
+        "normal-before-none-3"
+      ],
+      "count": 3,
+      "presentedFps": 23.09240533982801,
+      "dropped": 81,
+      "rafP95Ms": 66.63500000000022,
+      "maxRafMs": 125.10999999999876,
+      "stallsOver50Ms": 62,
+      "worstSampledFrameLag": 2,
+      "pauseUpperBoundMs": 15.84690000000046
+    },
+    "normal-before-stack": {
+      "runs": [
+        "normal-before-stack-1",
+        "normal-before-stack-2",
+        "normal-before-stack-3"
+      ],
+      "count": 3,
+      "presentedFps": 24.574397177583993,
+      "dropped": 67,
+      "rafP95Ms": 58.51000000000204,
+      "maxRafMs": 108.64999999999964,
+      "stallsOver50Ms": 64,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 16.012500000000728
+    }
+  },
+  "runs": [
+    {
+      "name": "normal-after-demo-1",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.375,
+      "effects": [],
+      "elapsedWallMs": 12079.155400000001,
+      "presented": 135,
+      "presentedFps": 11.176278103020348,
+      "deadlineShown": 12,
+      "dropped": 273,
+      "rafP50Ms": 83.29000000000087,
+      "rafP95Ms": 141.65999999999985,
+      "maxRafMs": 199.86999999999898,
+      "stallsOver50Ms": 117,
+      "longTaskCount": 116,
+      "worstSampledFrameLag": 5,
+      "pauseUpperBoundMs": 40.30879999999888,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.0600000619888306,
+        "transitions": 0,
+        "uploadedBytes": 248443304
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 415.6700000166893,
+        "readyMs": 1423.0099999904633
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-demo-2",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.375,
+      "effects": [],
+      "elapsedWallMs": 12033.018199999999,
+      "presented": 199,
+      "presentedFps": 16.53782922060236,
+      "deadlineShown": 78,
+      "dropped": 209,
+      "rafP50Ms": 50.0099999999984,
+      "rafP95Ms": 91.43000000000029,
+      "maxRafMs": 149.71500000000015,
+      "stallsOver50Ms": 130,
+      "longTaskCount": 135,
+      "worstSampledFrameLag": 3,
+      "pauseUpperBoundMs": 34.359700000000885,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.0399999618530273,
+        "transitions": 0,
+        "uploadedBytes": 397742504
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 1057.3450000286102,
+        "readyMs": 2580.5750000476837
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-demo-3",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.375,
+      "effects": [],
+      "elapsedWallMs": 12118.736299999999,
+      "presented": 136,
+      "presentedFps": 11.222292212101358,
+      "deadlineShown": 13,
+      "dropped": 273,
+      "rafP50Ms": 91.38500000000204,
+      "rafP95Ms": 133.34500000000116,
+      "maxRafMs": 200.3099999999995,
+      "stallsOver50Ms": 118,
+      "longTaskCount": 118,
+      "worstSampledFrameLag": 4,
+      "pauseUpperBoundMs": 49.5528000000013,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 0.8700000047683716,
+        "transitions": 0,
+        "uploadedBytes": 260107304
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 323.7450000047684,
+        "readyMs": 1799.6349999904633
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-none-1",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [],
+      "elapsedWallMs": 12032.042,
+      "presented": 361,
+      "presentedFps": 30.00321973610132,
+      "deadlineShown": 361,
+      "dropped": 0,
+      "rafP50Ms": 8.340000000000146,
+      "rafP95Ms": 16.670000000000073,
+      "maxRafMs": 33.625,
+      "stallsOver50Ms": 0,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 17.56459999999788,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.159999966621399,
+        "transitions": 0,
+        "uploadedBytes": 494683200
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 399,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 115,
+            "needsKey": false,
+            "next": 370,
+            "queue": 0,
+            "requestedAcceleration": "prefer-software",
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 399,
+          "nativeBytes": 551577600,
+          "nativeFrames": 399,
+          "nativeMs": 350,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 538.1800000071526,
+        "readyMs": 1645.9449999928474
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-none-2",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [],
+      "elapsedWallMs": 12039.7102,
+      "presented": 357,
+      "presentedFps": 29.651876504469353,
+      "deadlineShown": 357,
+      "dropped": 0,
+      "rafP50Ms": 8.345000000001164,
+      "rafP95Ms": 16.7549999999992,
+      "maxRafMs": 33.86499999999978,
+      "stallsOver50Ms": 0,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 22.023000000001048,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.5699999332427979,
+        "transitions": 0,
+        "uploadedBytes": 494683200
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 399,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 118,
+            "needsKey": false,
+            "next": 370,
+            "queue": 0,
+            "requestedAcceleration": "prefer-software",
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 399,
+          "nativeBytes": 551577600,
+          "nativeFrames": 399,
+          "nativeMs": 387,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 448.3149999976158,
+        "readyMs": 1665.6850000023842
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-none-3",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [],
+      "elapsedWallMs": 12037.59,
+      "presented": 359,
+      "presentedFps": 29.823245350605895,
+      "deadlineShown": 359,
+      "dropped": 0,
+      "rafP50Ms": 8.340000000000146,
+      "rafP95Ms": 16.679999999998472,
+      "maxRafMs": 25.274999999999636,
+      "stallsOver50Ms": 0,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 16.451100000002043,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1,
+        "transitions": 0,
+        "uploadedBytes": 494683200
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 399,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 120,
+            "needsKey": false,
+            "next": 370,
+            "queue": 0,
+            "requestedAcceleration": "prefer-software",
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 399,
+          "nativeBytes": 551577600,
+          "nativeFrames": 399,
+          "nativeMs": 328,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 439.4399999976158,
+        "readyMs": 1611.6650000214577
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-stack-1",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [
+        {
+          "effect": "gaussian_blur",
+          "params": {
+            "blurriness": 8
+          }
+        },
+        {
+          "effect": "lumetri",
+          "params": {
+            "exposure": 0.6,
+            "contrast": 12,
+            "saturation": 110
+          }
+        }
+      ],
+      "elapsedWallMs": 12049.9799,
+      "presented": 355,
+      "presentedFps": 29.46063005466092,
+      "deadlineShown": 355,
+      "dropped": 0,
+      "rafP50Ms": 8.345000000001164,
+      "rafP95Ms": 16.700000000000728,
+      "maxRafMs": 33.5049999999992,
+      "stallsOver50Ms": 0,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 11.928599999999278,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 360,
+        "submitMs": 1.2450000047683716,
+        "transitions": 0,
+        "uploadedBytes": 491918400
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 402,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 25,
+            "needsKey": false,
+            "next": 372,
+            "queue": 0,
+            "requestedAcceleration": "prefer-software",
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 402,
+          "nativeBytes": 555724800,
+          "nativeFrames": 402,
+          "nativeMs": 356,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 508.3899999856949,
+        "readyMs": 1530.0400000214577
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-stack-2",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [
+        {
+          "effect": "gaussian_blur",
+          "params": {
+            "blurriness": 8
+          }
+        },
+        {
+          "effect": "lumetri",
+          "params": {
+            "exposure": 0.6,
+            "contrast": 12,
+            "saturation": 110
+          }
+        }
+      ],
+      "elapsedWallMs": 12030.9757,
+      "presented": 355,
+      "presentedFps": 29.50716623922696,
+      "deadlineShown": 355,
+      "dropped": 0,
+      "rafP50Ms": 8.344999999999345,
+      "rafP95Ms": 16.69000000000051,
+      "maxRafMs": 25.279999999998836,
+      "stallsOver50Ms": 0,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 21.593000000000757,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 360,
+        "submitMs": 1.7100000381469727,
+        "transitions": 0,
+        "uploadedBytes": 491918400
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 402,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 53,
+            "needsKey": false,
+            "next": 372,
+            "queue": 0,
+            "requestedAcceleration": "prefer-software",
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 402,
+          "nativeBytes": 555724800,
+          "nativeFrames": 402,
+          "nativeMs": 373,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 424.55000001192093,
+        "readyMs": 1809.5349999666214
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-after-stack-3",
+      "url": "http://127.0.0.1:8771/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [
+        {
+          "effect": "gaussian_blur",
+          "params": {
+            "blurriness": 8
+          }
+        },
+        {
+          "effect": "lumetri",
+          "params": {
+            "exposure": 0.6,
+            "contrast": 12,
+            "saturation": 110
+          }
+        }
+      ],
+      "elapsedWallMs": 12023.989700000002,
+      "presented": 357,
+      "presentedFps": 29.690644196077443,
+      "deadlineShown": 357,
+      "dropped": 0,
+      "rafP50Ms": 8.340000000000146,
+      "rafP95Ms": 16.674999999999272,
+      "maxRafMs": 33.36000000000058,
+      "stallsOver50Ms": 0,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 16.08969999999681,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 362,
+        "submitMs": 2.694999933242798,
+        "transitions": 0,
+        "uploadedBytes": 494683200
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 402,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 90,
+            "needsKey": false,
+            "next": 372,
+            "queue": 0,
+            "requestedAcceleration": "prefer-software",
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "smallAvcCpuReadbackPolicy": true,
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 402,
+          "nativeBytes": 555724800,
+          "nativeFrames": 402,
+          "nativeMs": 378,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 402.5600000023842,
+        "readyMs": 1653.3450000286102
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-demo-1",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.375,
+      "effects": [],
+      "elapsedWallMs": 12163.7606,
+      "presented": 131,
+      "presentedFps": 10.769695681120195,
+      "deadlineShown": 12,
+      "dropped": 275,
+      "rafP50Ms": 83.31500000000051,
+      "rafP95Ms": 142.01000000000204,
+      "maxRafMs": 274.89500000000044,
+      "stallsOver50Ms": 128,
+      "longTaskCount": 130,
+      "worstSampledFrameLag": 6,
+      "pauseUpperBoundMs": 62.421400000002905,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.3249999284744263,
+        "transitions": 0,
+        "uploadedBytes": 248443312
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 267.33999997377396,
+        "readyMs": 1584.864999949932
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-demo-2",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.375,
+      "effects": [],
+      "elapsedWallMs": 12085.2472,
+      "presented": 137,
+      "presentedFps": 11.336135515705463,
+      "deadlineShown": 9,
+      "dropped": 276,
+      "rafP50Ms": 83.31500000000233,
+      "rafP95Ms": 141.76000000000022,
+      "maxRafMs": 208.3700000000008,
+      "stallsOver50Ms": 121,
+      "longTaskCount": 118,
+      "worstSampledFrameLag": 5,
+      "pauseUpperBoundMs": 50.411800000001676,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.4449999332427979,
+        "transitions": 0,
+        "uploadedBytes": 265939296
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 242.25499999523163,
+        "readyMs": 1491.5600000023842
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-demo-3",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.375,
+      "effects": [],
+      "elapsedWallMs": 12114.555300000002,
+      "presented": 141,
+      "presentedFps": 11.638891936875305,
+      "deadlineShown": 12,
+      "dropped": 274,
+      "rafP50Ms": 75.27000000000044,
+      "rafP95Ms": 142.01000000000204,
+      "maxRafMs": 191.48500000000058,
+      "stallsOver50Ms": 121,
+      "longTaskCount": 121,
+      "worstSampledFrameLag": 4,
+      "pauseUpperBoundMs": 37.02419999999984,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.2049999237060547,
+        "transitions": 0,
+        "uploadedBytes": 263606512
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 0,
+        "sessions": [],
+        "sources": 0,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 0,
+          "nativeBytes": 0,
+          "nativeFrames": 0,
+          "nativeMs": 0,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 268.1599999666214,
+        "readyMs": 1600.0099999904633
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-none-1",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [],
+      "elapsedWallMs": 12040.9332,
+      "presented": 254,
+      "presentedFps": 21.094710499681206,
+      "deadlineShown": 249,
+      "dropped": 110,
+      "rafP50Ms": 8.395000000000437,
+      "rafP95Ms": 83.33499999999913,
+      "maxRafMs": 125.10999999999876,
+      "stallsOver50Ms": 78,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 2,
+      "pauseUpperBoundMs": 15.623400000000402,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.7599999904632568,
+        "transitions": 0,
+        "uploadedBytes": 352296000
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 87,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 6114,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 340.0799999833107,
+        "readyMs": 1700.6399999856949
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-none-2",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [],
+      "elapsedWallMs": 12038.589999999998,
+      "presented": 278,
+      "presentedFps": 23.09240533982801,
+      "deadlineShown": 272,
+      "dropped": 81,
+      "rafP50Ms": 8.350000000000364,
+      "rafP95Ms": 66.63500000000022,
+      "maxRafMs": 549.7250000000022,
+      "stallsOver50Ms": 62,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 2,
+      "pauseUpperBoundMs": 15.84690000000046,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 1.4199999570846558,
+        "transitions": 0,
+        "uploadedBytes": 382708800
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 399,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 70,
+            "needsKey": false,
+            "next": 366,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 399,
+          "nativeBytes": 551577600,
+          "nativeFrames": 399,
+          "nativeMs": 5532,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 292.91000002622604,
+        "readyMs": 1589.1800000071526
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-none-3",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [],
+      "elapsedWallMs": 12039.030799999999,
+      "presented": 305,
+      "presentedFps": 25.334265279892797,
+      "deadlineShown": 303,
+      "dropped": 56,
+      "rafP50Ms": 8.345000000001164,
+      "rafP95Ms": 58.335000000000946,
+      "maxRafMs": 124.75,
+      "stallsOver50Ms": 53,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 20.51759999999922,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 0,
+        "submitMs": 0.7200000286102295,
+        "transitions": 0,
+        "uploadedBytes": 422798400
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 97,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 5023,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 264.50999999046326,
+        "readyMs": 1692.5799999833107
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-stack-1",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [
+        {
+          "effect": "gaussian_blur",
+          "params": {
+            "blurriness": 8
+          }
+        },
+        {
+          "effect": "lumetri",
+          "params": {
+            "exposure": 0.6,
+            "contrast": 12,
+            "saturation": 110
+          }
+        }
+      ],
+      "elapsedWallMs": 12045.0564,
+      "presented": 296,
+      "presentedFps": 24.574397177583993,
+      "deadlineShown": 292,
+      "dropped": 67,
+      "rafP50Ms": 8.350000000000364,
+      "rafP95Ms": 58.51000000000204,
+      "maxRafMs": 108.64999999999964,
+      "stallsOver50Ms": 63,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 16.012500000000728,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 301,
+        "submitMs": 1.2300000190734863,
+        "transitions": 0,
+        "uploadedBytes": 410356800
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 82,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 5483,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 203.9399999976158,
+        "readyMs": 1420.2099999785423
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-stack-2",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [
+        {
+          "effect": "gaussian_blur",
+          "params": {
+            "blurriness": 8
+          }
+        },
+        {
+          "effect": "lumetri",
+          "params": {
+            "exposure": 0.6,
+            "contrast": 12,
+            "saturation": 110
+          }
+        }
+      ],
+      "elapsedWallMs": 12108.4103,
+      "presented": 269,
+      "presentedFps": 22.215963395293933,
+      "deadlineShown": 240,
+      "dropped": 120,
+      "rafP50Ms": 8.345000000001164,
+      "rafP95Ms": 83.31999999999971,
+      "maxRafMs": 116.81500000000051,
+      "stallsOver50Ms": 83,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 8,
+      "pauseUpperBoundMs": 13.642400000000634,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 274,
+        "submitMs": 0.85999995470047,
+        "transitions": 0,
+        "uploadedBytes": 373032000
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 411,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 30,
+            "needsKey": false,
+            "next": 378,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 411,
+          "nativeBytes": 568166400,
+          "nativeFrames": 411,
+          "nativeMs": 6229,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 243.94999998807907,
+        "readyMs": 1408.4750000238419
+      },
+      "error": null,
+      "errors": []
+    },
+    {
+      "name": "normal-before-stack-3",
+      "url": "http://127.0.0.1:8772/",
+      "browser": "Chrome/155.0.8059.86",
+      "hardware": {
+        "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+        "logicalCpus": 22,
+        "memoryGB": 31.367168426513672
+      },
+      "viewport": [
+        1656,
+        894
+      ],
+      "unsafeWebgpu": false,
+      "hardwareVideoDecodeDisabled": false,
+      "cpuProfile": false,
+      "isolated": true,
+      "threadedBuild": false,
+      "rayonThreads": 1,
+      "resolution": "1/2",
+      "renderScale": 0.5,
+      "effects": [
+        {
+          "effect": "gaussian_blur",
+          "params": {
+            "blurriness": 8
+          }
+        },
+        {
+          "effect": "lumetri",
+          "params": {
+            "exposure": 0.6,
+            "contrast": 12,
+            "saturation": 110
+          }
+        }
+      ],
+      "elapsedWallMs": 12027.315400000001,
+      "presented": 296,
+      "presentedFps": 24.610645863664637,
+      "deadlineShown": 296,
+      "dropped": 65,
+      "rafP50Ms": 8.360000000000582,
+      "rafP95Ms": 58.35000000000218,
+      "maxRafMs": 108.32999999999993,
+      "stallsOver50Ms": 64,
+      "longTaskCount": 0,
+      "worstSampledFrameLag": 0,
+      "pauseUpperBoundMs": 17.350899999997637,
+      "gpu": {
+        "cpuEffectLayers": 0,
+        "cpuTransitions": 0,
+        "effectsStatus": "ready",
+        "gpuEffectLayers": 301,
+        "submitMs": 1.6399999856948853,
+        "transitions": 0,
+        "uploadedBytes": 407592000
+      },
+      "webcodecs": {
+        "fallbacks": 0,
+        "framesDecoded": 407,
+        "sessions": [
+          {
+            "copies": 0,
+            "errored": false,
+            "flushing": false,
+            "id": 1,
+            "idleMs": 83,
+            "needsKey": false,
+            "next": 374,
+            "queue": 0,
+            "start": 0,
+            "target": -9223372036854776000
+          }
+        ],
+        "sources": 1,
+        "transfers": {
+          "canvasFrames": 0,
+          "canvasMs": 0,
+          "canvasReasons": {},
+          "closedFrames": 407,
+          "nativeBytes": 562636800,
+          "nativeFrames": 407,
+          "nativeMs": 5485,
+          "staleFrames": 0
+        }
+      },
+      "load": {
+        "wasmMs": 189.1599999666214,
+        "readyMs": 1327.1150000095367
+      },
+      "error": null,
+      "errors": []
+    }
+  ],
+  "pixelComparison": {
+    "crop": {
+      "x": 647,
+      "y": 75,
+      "width": 573,
+      "height": 322
+    },
+    "scope": "First displayed fixture frame only, not exhaustive decoder equivalence",
+    "results": [
+      {
+        "workload": "none",
+        "run": 1,
+        "meanRgb": [
+          0,
+          0,
+          0
+        ],
+        "maxRgb": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "workload": "none",
+        "run": 2,
+        "meanRgb": [
+          0,
+          0,
+          0
+        ],
+        "maxRgb": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "workload": "none",
+        "run": 3,
+        "meanRgb": [
+          0,
+          0,
+          0
+        ],
+        "maxRgb": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "workload": "stack",
+        "run": 1,
+        "meanRgb": [
+          0,
+          0,
+          0
+        ],
+        "maxRgb": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "workload": "stack",
+        "run": 2,
+        "meanRgb": [
+          0,
+          0,
+          0
+        ],
+        "maxRgb": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "workload": "stack",
+        "run": 3,
+        "meanRgb": [
+          0,
+          0,
+          0
+        ],
+        "maxRgb": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "functional": {
+    "concurrentCompilation": true,
+    "excludedFromPerformanceComparisons": true,
+    "editing": {
+      "doubleClick": true,
+      "projectDrop": true,
+      "timelineDrop": {
+        "item": 5,
+        "playhead": 614485872000,
+        "unchanged": true
+      },
+      "trimChanged": true,
+      "trimUndo": true,
+      "trimRedo": true,
+      "splitChanged": true,
+      "splitUndo": true,
+      "moveChanged": true,
+      "moveUndo": true,
+      "trackControls": {
+        "target": {
+          "changed": true,
+          "restored": true
+        },
+        "sourcePatch": {
+          "changed": true,
+          "restored": true
+        }
+      },
+      "fusionHidden": true
+    },
+    "seeks": [
+      {
+        "seconds": 1,
+        "exact": true
+      },
+      {
+        "seconds": 5,
+        "exact": true
+      },
+      {
+        "seconds": 2,
+        "exact": true
+      },
+      {
+        "seconds": 8,
+        "exact": true
+      },
+      {
+        "seconds": 3,
+        "exact": true
+      }
+    ],
+    "rapidSeekExact": true
+  },
+  "finalUi": {
+    "concurrentCompilation": false,
+    "errors": [],
+    "persistence": {
+      "switchRestored": true,
+      "reloadRestored": true
+    },
+    "captures": [
+      "editing-empty",
+      "editing-selected",
+      "color",
+      "project-hub",
+      "editing-light"
+    ],
+    "grading": {
+      "pointerToControlUpperBoundMs": 60.32499998807907,
+      "pointerToPreviewUpperBoundMs": 79.43000000715256,
+      "undoRestored": true,
+      "dragRenderScale": 0.25,
+      "releasedRenderScale": 0.75
+    }
+  },
+  "limits": [
+    "Local generated 720p30 AVC fixture and procedural demo; no universal 60 FPS claim.",
+    "Threaded artifact compiled but withdrawn for event-loop media-I/O correctness review; no threaded timing claim.",
+    "Full workspace test compilation stopped for remaining allowance; desktop release, other OS/GPU families, high-resolution imported media, long memory stress and audible A/V sync remain unverified."
+  ]
+}
