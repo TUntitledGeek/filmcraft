@@ -125,7 +125,7 @@
       }
     });
   </script>
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script>
     window.filmcraftCollabBridge = {
       room: null,
@@ -242,7 +242,7 @@
     const params = new URLSearchParams(location.search);
     try {
       const s = document.getElementById("status");
-      if (s) s.textContent = "Downloading & compiling FilmCraft engine (12.9 MB)…";
+      if (s) s.textContent = "Downloading and compiling FilmCraft…";
       const { default: init, start } = await import("./filmcraft_web.js" + v);
       await init({ module_or_path: new URL("filmcraft_web_bg.wasm" + v, location.href) });
       if (s) s.textContent = "Initializing GPU Video Engine…";

@@ -17,6 +17,7 @@
 //! Everything here is `wasm32`-only; on other targets the crate is empty.
 #![cfg(target_arch = "wasm32")]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
+mod decoder_policy;
 
 pub mod api;
 pub mod audio;

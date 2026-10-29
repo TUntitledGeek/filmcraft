@@ -1,4 +1,4 @@
-//! WebCodecs (hardware) video decoding for MP4/MOV, with our own decoders as the fallback.
+//! WebCodecs video decoding for MP4/MOV, with our own decoders as the fallback.
 //!
 //! WebCodecs decodes asynchronously, and our [`VideoDecoder`] trait is synchronous, so the
 //! WebCodecs path plugs in one level up, as a media source: [`reader_opener`] (registered ahead of
@@ -66,6 +66,7 @@ thread_local! {
     static FALLBACKS: Cell<u64> = const { Cell::new(0) };
     static SOURCES: Cell<u64> = const { Cell::new(0) };
     static TRANSFERS: RefCell<Transfers> = RefCell::new(Transfers::default());
+    static SMALL_AVC_SOFTWARE: Cell<bool> = const { Cell::new(false) };
 }
 
 fn now_ms() -> f64 {
@@ -142,6 +143,30 @@ pub async fn probe() {
         crate::set_info("webcodecs", json!(false));
         return;
     };
+    // Current preview downloads every decoded picture to WASM. On the measured Intel/Windows
+    // Chrome path, native software AVC avoids a costly GPU readback. Other platforms and large
+    // or higher-bit-depth sources retain the browser default; GPU-resident decoding is separate.
+    let nav = get(&js_sys::global(), "navigator");
+    let agent = get(&nav, "userAgent").as_string().unwrap_or_default();
+    if agent.contains("Windows") && agent.contains("Chrome/") {
+        let gpu = get(&nav, "gpu");
+        if let Ok(promise) = call(&gpu, "requestAdapter", &[])
+            && let Ok(adapter) = JsFuture::from(js_sys::Promise::resolve(&promise)).await
+            && get(&get(&adapter, "info"), "vendor").as_string().is_some_and(|vendor| vendor.eq_ignore_ascii_case("intel"))
+        {
+            let config = obj(&[
+                ("codec", "avc1.640028".into()),
+                ("codedWidth", 1920.into()),
+                ("codedHeight", 1080.into()),
+                ("hardwareAcceleration", "prefer-software".into()),
+            ]);
+            if let Ok(promise) = call(&vd, "isConfigSupported", &[&config])
+                && let Ok(support) = JsFuture::from(js_sys::Promise::resolve(&promise)).await
+            {
+                SMALL_AVC_SOFTWARE.with(|policy| policy.set(get(&support, "supported").as_bool().unwrap_or(false)));
+            }
+        }
+    }
     if web_sys::window().and_then(|w| w.location().search().ok()).is_some_and(|s| s.contains("nowebcodecs")) {
         crate::set_info("webcodecs", json!("disabled"));
         return;
@@ -173,7 +198,7 @@ pub fn stats() -> serde_json::Value {
         ss.borrow()
             .iter()
             .map(|(id, s)| {
-                json!({"id": id, "start": s.start, "next": s.next, "target": s.target, "needsKey": s.needs_key, "flushing": s.flushing.get(),
+                json!({"id": id, "requestedAcceleration": s.acceleration.get(), "start": s.start, "next": s.next, "target": s.target, "needsKey": s.needs_key, "flushing": s.flushing.get(),
                     "errored": s.errored.get(), "queue": s.queue(), "copies": s.copying.get(), "idleMs": now_ms() - s.last_output.get()})
             })
             .collect()
@@ -182,7 +207,7 @@ pub fn stats() -> serde_json::Value {
         let s = s.borrow();
         json!({"nativeFrames":s.native,"canvasFrames":s.canvas,"closedFrames":s.closed,"staleFrames":s.stale,"nativeBytes":s.bytes,"nativeMs":s.native_ms,"canvasMs":s.canvas_ms,"canvasReasons":s.reasons})
     });
-    json!({"sources": SOURCES.with(Cell::get), "framesDecoded": DECODED.with(Cell::get), "fallbacks": FALLBACKS.with(Cell::get), "sessions": sessions,"transfers":transfers})
+    json!({"sources": SOURCES.with(Cell::get), "framesDecoded": DECODED.with(Cell::get), "fallbacks": FALLBACKS.with(Cell::get), "sessions": sessions,"transfers":transfers,"smallAvcCpuReadbackPolicy":SMALL_AVC_SOFTWARE.with(Cell::get)})
 }
 
 /// A [`SharedReader`] as the demuxer's byte source.
@@ -221,6 +246,16 @@ pub fn reader_opener(name: &str, head: &[u8], reader: &SharedReader) -> Option<R
     // the decoder wants the coded size; `info` reports the display size after the track's rotation
     let rotation = file.tracks[track].display_rotation().unwrap_or(0);
     let (w, h) = info.video.as_ref().map(|v| if rotation % 2 == 1 { (v.height, v.width) } else { (v.width, v.height) }).unwrap_or((0, 0));
+    let acceleration = crate::decoder_policy::acceleration(
+        crate::query_param("decoder").as_deref(),
+        match &entry.codec {
+            CodecConfig::Avc(avc) => Some(avc.profile),
+            _ => None,
+        },
+        w,
+        h,
+        SMALL_AVC_SOFTWARE.with(Cell::get),
+    );
     let id = NEXT_ID.with(|n| {
         let id = n.get();
         n.set(id + 1);
@@ -237,13 +272,15 @@ pub fn reader_opener(name: &str, head: &[u8], reader: &SharedReader) -> Option<R
         file,
         track,
         id,
-        config: Config { codec, description, width: w, height: h, rotation, color, par },
+        config: Config { codec, description, width: w, height: h, rotation, color, par, acceleration },
         state: Mutex::new(Cache::default()),
     })))
 }
 
 #[derive(Clone)]
 struct Config {
+    /// Requested policy, not a claim that a browser honored a hardware/software preference.
+    acceleration: &'static str,
     codec: String,
     description: Option<Vec<u8>>,
     width: u32,
@@ -263,6 +300,7 @@ struct Cache {
 /// The browser decoder of one source (UI thread only; JS objects are not `Send`).
 struct Session {
     decoder: JsValue,
+    acceleration: Cell<&'static str>,
     /// Sync sample the session started at, next sample to feed.
     start: usize,
     next: usize,
@@ -415,6 +453,7 @@ impl Session {
         let decoder = js_sys::Reflect::construct(&vd, &js_sys::Array::of1(&init))?;
         let s = Session {
             decoder,
+            acceleration: Cell::new(cfg.acceleration),
             start: 0,
             next: 0,
             needs_key: true,
@@ -439,11 +478,25 @@ impl Session {
             ("codedWidth", cfg.width.into()),
             ("codedHeight", cfg.height.into()),
             ("optimizeForLatency", true.into()),
+            ("hardwareAcceleration", cfg.acceleration.into()),
         ];
         if let Some(d) = &cfg.description {
             pairs.push(("description", js_sys::Uint8Array::from(&d[..]).into()));
         }
-        call(&self.decoder, "configure", &[&obj(&pairs)]).map(|_| ())
+        match call(&self.decoder, "configure", &[&obj(&pairs)]) {
+            Ok(_) => {
+                self.acceleration.set(cfg.acceleration);
+                Ok(())
+            }
+            Err(error) if cfg.acceleration != "no-preference" => {
+                log::warn!("WebCodecs rejected {}; retrying the browser default: {error:?}", cfg.acceleration);
+                pairs.retain(|(key, _)| *key != "hardwareAcceleration");
+                call(&self.decoder, "configure", &[&obj(&pairs)])?;
+                self.acceleration.set("no-preference");
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
     }
 
     fn queue(&self) -> u32 {

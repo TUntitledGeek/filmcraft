@@ -11,11 +11,15 @@ const seconds = Number(arg('seconds', '12'));
 const port = Number(arg('port', String(9400 + Math.floor(Math.random()*500))));
 mkdirSync(out, {recursive:true});
 const chrome = arg('chrome', 'C:/Program Files/Google/Chrome/Application/chrome.exe');
-const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'fc-review-'))}`, '--no-first-run', '--no-default-browser-check', '--enable-unsafe-webgpu', '--autoplay-policy=no-user-gesture-required', '--window-size=1656,894', 'about:blank'], {stdio:['ignore','ignore','pipe'], windowsHide:true});
+const softwareVideo=arg('software-video','false')==='true';
+const unsafeWebgpu=arg('unsafe-webgpu','false')==='true';
+const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'fc-review-'))}`, '--no-first-run', '--no-default-browser-check', ...(unsafeWebgpu?['--enable-unsafe-webgpu']:[]), ...(softwareVideo?['--disable-accelerated-video-decode']:[]), '--autoplay-policy=no-user-gesture-required', '--window-size=1656,894', 'about:blank'], {stdio:['ignore','ignore','pipe'], windowsHide:true});
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let ws, serial = 0;
 const pending = new Map();
 const report = {url, viewport:[1656,894], hardware:{cpu:cpus()[0]?.model, logicalCpus:cpus().length, memoryGB:totalmem()/2**30}, errors:[], captures:{}};
+report.hardwareVideoDecodeDisabled=softwareVideo;
+report.unsafeWebgpu=unsafeWebgpu;
 proc.stderr.on('data',s=>{report.chromeLog=((report.chromeLog??'')+s).slice(-12000);});
 function send(method, params={}) {
   return new Promise((resolve,reject) => {

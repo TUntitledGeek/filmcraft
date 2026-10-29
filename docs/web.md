@@ -33,6 +33,18 @@ URL flags: `?empty` (no demo project), `?norecover` (don't reopen the auto-saved
 the page reloads with it when WebGPU is present but fails to start), `?nowebcodecs` (decode with
 FilmCraft's own decoders only).
 
+For controlled decoder comparisons, `?decoder=default`, `?decoder=hardware` and
+`?decoder=software` request the browser default, prefer-hardware and prefer-software policies.
+These are application URL diagnostics; ordinary users need no Chrome flags. Automatic policy
+uses prefer-software only for eight-bit AVC profiles 66/77/100 at 720p or smaller on the measured
+Windows Chrome / Intel WebGPU combination, after a browser support probe. Larger frames, other
+codec families, ten-bit AVC and other platforms retain browser defaults. Eight-bit AVC with HDR
+metadata is not separately classified or benchmarked. A hint is not proof of the decoder Chrome
+actually selected. `filmcraft.info().webcodecsStats.sessions[].requestedAcceleration` exposes the
+requested policy; synchronous hint rejection retries browser defaults, and the existing decoder
+error path retains FilmCraft's software fallback. See `performance-before-after.md` for evidence
+and limitations of the CPU-backed readback path.
+
 If the app panics after start-up (or runs out of memory), `index.html` shows a "FilmCraft stopped
 working" overlay with the panic message and a Reload button instead of a frozen canvas, and sets
 `window.filmcraftLoad.fatal`. Code the web build runs must not call `std::env::temp_dir`,
