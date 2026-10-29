@@ -127,6 +127,11 @@ pub struct AudioDevices {
 /// Host hooks for native file dialogs etc.
 #[derive(Default)]
 pub struct HostHooks {
+    /// Whole-editor fullscreen supplied by a host whose API differs from native viewports.
+    /// Asynchronous hosts report completion/errors through their own status integration.
+    pub toggle_fullscreen: Option<Box<dyn FnMut() -> Result<(), String>>>,
+    /// Current host state, including exits initiated outside FilmCraft (for example Escape).
+    pub fullscreen_state: Option<Box<dyn Fn() -> bool>>,
     pub pick_files: Option<Box<dyn FnMut(&[&str]) -> Vec<String>>>,
     /// The cursor in physical screen pixels. Where the windowing layer reports no pointer while files are dragged in from the OS (Windows), a drop is placed where this says it landed.
     pub cursor_screen_position: Option<Box<dyn Fn() -> Option<(i32, i32)>>>,

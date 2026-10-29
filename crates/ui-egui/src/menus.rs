@@ -145,6 +145,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     uic!("help.revealLogFiles", "Reveal Log Files…", ["Help"], None),
     uic!("help.systemCompatibilityReport", "System Compatibility Report…", ["Help"], None),
     uic!("app.about", "About FilmCraft", ["Help"], None),
+    uic!("app.fullscreen", "Full screen", ["View"], None),
     uic!("app.keyboardShortcuts", "Keyboard Shortcuts…", ["Edit"], Some("Cmd+Alt+K")),
     uic!("app.settings.general", "General…", ["Edit", "Preferences"], Some("Cmd+,")),
     uic!("app.settings.appearance", "Appearance…", ["Edit", "Preferences"], None),
@@ -179,6 +180,18 @@ pub fn targets_source(app: &FilmcraftApp, params: &Value) -> bool {
 
 /// Execute a UI or engine command by id.
 pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params: Value) -> Result<Value, String> {
+    if id == "app.fullscreen" {
+        if let Some(toggle) = &mut app.hooks.toggle_fullscreen {
+            if let Err(error) = toggle() {
+                app.ui.status = error.clone();
+                return Err(error);
+            }
+        } else {
+            let active = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!active));
+        }
+        return Ok(json!({"requested": true}));
+    }
     if id == "collab.toggleDialog" {
         app.collab_dialog_open = !app.collab_dialog_open;
         return Ok(Value::Null);

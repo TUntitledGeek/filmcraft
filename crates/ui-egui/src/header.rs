@@ -63,7 +63,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     } else {
         0.0
     };
-    let right_fixed_w = (if show_ws_name { 108.0 } else { 144.0 }) + ws_text_w + 14.0;
+    let right_fixed_w = (if show_ws_name { 144.0 } else { 180.0 }) + ws_text_w + 14.0;
     let right_fixed_start_x = rect.max.x - right_fixed_w;
 
     // =========================================================================
@@ -205,9 +205,19 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     };
 
     // Fullscreen toggle
-    if btn(ui, Icon::Fullscreen, "fullscreen", tl!("Full screen"), app, &mut rx).clicked() {
-        let fs = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
-        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fs));
+    let active = app.hooks.fullscreen_state.as_ref().map_or_else(|| ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false)), |state| state());
+    let fullscreen = btn(ui, Icon::Fullscreen, "fullscreen", tl!("Full screen"), app, &mut rx);
+    if active {
+        p.rect_stroke(fullscreen.rect.shrink(1.0), 3.0, Stroke::new(1.0, t.accent.gamma_multiply(0.6)), StrokeKind::Inside);
+    }
+    if fullscreen.clicked() {
+        let _ = crate::menus::invoke(app, ui.ctx(), "app.fullscreen", serde_json::json!({}));
+    }
+
+    if btn(ui, Icon::Gear, "settings", crate::i18n::t("Preferences"), app, &mut rx).clicked()
+        && let Err(error) = crate::menus::invoke(app, ui.ctx(), "app.settings.general", serde_json::json!({}))
+    {
+        app.ui.status = error;
     }
 
     // Appearance toggle

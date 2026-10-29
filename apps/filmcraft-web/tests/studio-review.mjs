@@ -72,6 +72,64 @@ try {
   if(!ready) throw new Error(`App control API did not become ready: ${JSON.stringify(report.load)}`);
   report.info=await js('filmcraft.info()');
   report.adapter=await js('(async()=>{const a=await navigator.gpu?.requestAdapter();if(!a)return null;return {vendor:a.info.vendor,architecture:a.info.architecture,device:a.info.device,description:a.info.description}})()');
+  if(arg('host-tests','false')==='true') {
+    const clickControl=async id=>{
+      const element=(await call('ui.elements')).find(e=>e.id===id);
+      if(!element)throw new Error('Missing host control '+id);
+      const [x,y,w,h]=element.rect;
+      for(const type of ['mouseMoved','mousePressed','mouseReleased'])
+        await send('Input.dispatchMouseEvent',{type,x:x+w/2,y:y+h/2,button:type==='mouseMoved'?'none':'left',clickCount:1});
+      await sleep(150);
+    };
+    const waitFullscreen=async(expected,required=true)=>{
+      for(let i=0;i<120;i++){
+        if(await js('!!document.fullscreenElement')===expected){await sleep(100);return true;}
+        await sleep(20);
+      }
+      if(required)throw new Error('Fullscreen state mismatch: '+JSON.stringify(await js('filmcraft.info().fullscreen')));
+      return false;
+    };
+    report.hostTests={};
+    const projectBefore=await execute('state.inspect');
+    await clickControl('header.fullscreen');await waitFullscreen(true);
+    report.hostTests.fullscreenEntered=await js('filmcraft.info().fullscreen');
+    await capture('fullscreen');
+    for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    const escapeObserved=await waitFullscreen(false,false);
+    report.hostTests.escapeExit={observed:escapeObserved,info:await js('filmcraft.info().fullscreen'),
+      note:escapeObserved?'Observed browser exit':'Headless CDP Escape did not invoke the browser accelerator; physical Escape remains a manual check'};
+    if(!escapeObserved){await js('document.exitFullscreen()');await waitFullscreen(false);}
+    await clickControl('header.fullscreen');await waitFullscreen(true);
+    // External exit exercises the same fullscreenchange path as Escape/window controls.
+    await js('document.exitFullscreen()');await waitFullscreen(false);
+    report.hostTests.externalExit=await js('filmcraft.info().fullscreen');
+    await clickControl('header.fullscreen');await waitFullscreen(true);
+    await clickControl('header.fullscreen');await waitFullscreen(false);
+    report.hostTests.buttonExit=await js('filmcraft.info().fullscreen');
+    // A test-only rejected API Promise verifies asynchronous denial handling; no browser
+    // permissions or policy are changed, and this is not evidence of a real denied request.
+    await js(`window.reviewOriginalFullscreen=document.documentElement.requestFullscreen;
+      document.documentElement.requestFullscreen=()=>Promise.reject(new DOMException('Verification denial','NotAllowedError'));`);
+    await clickControl('header.fullscreen');
+    for(let i=0;i<120;i++){
+      if((await js('filmcraft.info().fullscreen'))?.error?.includes('Verification denial'))break;
+      await sleep(20);
+    }
+    report.hostTests.syntheticDenial=await js('filmcraft.info().fullscreen');
+    await js('document.documentElement.requestFullscreen=reviewOriginalFullscreen;delete window.reviewOriginalFullscreen');
+    if(!report.hostTests.syntheticDenial.error?.includes('Verification denial'))throw new Error('Fullscreen rejection was not reported');
+    await clickControl('header.fullscreen');await waitFullscreen(true);
+    await js('document.exitFullscreen()');await waitFullscreen(false);
+    await clickControl('header.settings');
+    report.hostTests.preferences=(await js('filmcraft.inspect()')).ui.settings;
+    if(report.hostTests.preferences?.page!=='general')throw new Error('Preferences gear did not open existing settings');
+    await capture('preferences');
+    for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+    const projectAfter=await execute('state.inspect');
+    report.hostTests.projectUnchanged=JSON.stringify(projectBefore)===JSON.stringify(projectAfter);
+    if(!report.hostTests.projectUnchanged)throw new Error('Host controls modified editor/project state');
+    report.hostTests.finalInfo=await js('filmcraft.info().fullscreen');
+  }
   const media=arg('media','none');
   if(media==='none') await execute('file.openDemoProject');
   else {
@@ -237,10 +295,15 @@ try {
     })()`);
     }
     report.afterSeekInfo=await js('filmcraft.info()');
-    await capture('imported-video');
+    // Result screenshots are outside the measured window. Let slow CPU reference chains skip
+    // this optional readback without changing warmup, playback or sampling conditions.
+    if(arg('result-screenshot','true')==='true')await capture('imported-video');
   } else {
   await execute('playhead.set',{seconds:3});
-  const seq=report.sequence;
+  // Editing workflows may have opened the demo project after the imported-video measurement.
+  // Resolve current IDs rather than opening a stale item from the earlier project.
+  const seq=await execute('sequence.inspect');
+  report.uiSequence=seq;
   const text=JSON.stringify(seq);writeFileSync(join(out,'sequence.json'),text);
   // Select the first picture through the same command used by the timeline.
   const commands=await js('filmcraft.commands()');
@@ -346,7 +409,7 @@ try {
   report.error=String(e);console.error(e);process.exitCode=1;
   if(ws) {
     report.page=await js('({url:location.href,title:document.title,text:document.body.innerText.slice(0,2000),hasApi:!!window.filmcraft})').catch(()=>null);
-    const shot=await send('Page.captureScreenshot',{format:'png'}).catch(()=>null);
+    const shot=String(e).includes('Page.captureScreenshot')?null:await send('Page.captureScreenshot',{format:'png'}).catch(()=>null);
     if(shot)writeFileSync(join(out,'unavailable.png'),Buffer.from(shot.data,'base64'));
   }
 }

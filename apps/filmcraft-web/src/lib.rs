@@ -23,6 +23,7 @@ pub mod api;
 pub mod audio;
 pub mod download_pacing;
 pub mod fs;
+pub mod fullscreen;
 pub mod import;
 pub mod opfs;
 pub mod recovery;
@@ -210,6 +211,9 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                     app.workspaces = prefs;
                 }
                 import::install_hooks(&mut app);
+                if let Err(error) = fullscreen::install(&mut app) {
+                    app.ui.status = error;
+                }
                 // Settings ▸ General ▸ Interface Language ▸ System Language (#218): the browser's languages.
                 app.hooks.system_languages =
                     Some(Box::new(|| web_sys::window().map(|w| w.navigator().languages().iter().filter_map(|v| v.as_string()).collect()).unwrap_or_default()));
