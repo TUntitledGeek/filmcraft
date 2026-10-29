@@ -475,6 +475,9 @@ fn locked_edges_do_not_preview_a_trim() {
 
 fn move_existing_clip_to_a_new_track(audio: bool, linked: bool) {
     let mut d = Driver::demo();
+    // The destination must be empty track space, not the Mix row of a compact dock.
+    d.ok("ui.set", json!({"focused":"Timeline"}));
+    d.ok("ui.menu.invoke", json!({"id":"window.maximizeFrame"}));
     d.exec("sequence.linkedSelection", json!({"on": linked}));
     d.exec("sequence.snap", json!({"on": false}));
     d.ok("ui.set", json!({"timeline":{"videoTrackHeight":32,"audioTrackHeight":32}}));
@@ -515,7 +518,9 @@ fn move_existing_clip_to_a_new_track(audio: bool, linked: bool) {
     // A frame updates the gesture, then the next frame paints its destination.
     d.frames(2);
     let preview = d.ok("ui.elements", json!({"prefix":format!("timeline.newTrackPreview.{}",clip.0)}));
-    assert_eq!(preview.as_array().unwrap().len(), 1, "new destination is shown during the drag");
+    let drag = format!("{:?}", d.app().tl.drag);
+    let content = d.app().tl.layout.as_ref().unwrap().content;
+    assert_eq!(preview.as_array().unwrap().len(), 1, "new destination is shown during the drag: {drag}, from={from:?}, to={to:?}, content={content:?}");
     assert_eq!(*d.app().session.project, *before);
     assert_eq!(d.app().session.history.undo.len(), undo);
     d.harness.input_mut().events.push(egui::Event::PointerButton {
