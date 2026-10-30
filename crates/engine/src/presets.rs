@@ -155,6 +155,7 @@ fn kf(t_secs: f64, v: ParamValue) -> Keyframe {
 /// which the preset tests rule out).
 pub(crate) fn effect_instance(id: &str) -> EffectInstance {
     filmcraft_project::find_effect(id).map(|d| d.instance()).unwrap_or_else(|| EffectInstance {
+        instance_id: 0,
         effect: id.to_string(),
         enabled: true,
         params: Default::default(),
@@ -380,9 +381,11 @@ fn merge_keyframes(new: &mut EffectInstance, old: &EffectInstance) {
 /// outside the span the preset animates), others are inserted before the intrinsic effects.
 pub fn put_effects(it: &mut TrackItem, effects: Vec<EffectInstance>) {
     for mut e in effects {
+        e.instance_id = 0;
         let intrinsic = e.def().is_some_and(|d| d.intrinsic);
         if intrinsic && let Some(slot) = it.effects.iter_mut().find(|x| x.effect == e.effect) {
             merge_keyframes(&mut e, slot);
+            e.instance_id = slot.instance_id;
             *slot = e;
             continue;
         }

@@ -26,7 +26,22 @@ type Run = fn(&mut Session, &Value) -> Result<Value>;
 pub struct MaskSel {
     pub clip: ClipId,
     pub effect: usize,
+    #[serde(default, rename = "effectId", skip_serializing_if = "Option::is_none")]
+    pub effect_id: Option<u64>,
     pub mask: usize,
+}
+
+impl MaskSel {
+    pub fn of(clip: ClipId, effects: &[EffectInstance], effect: usize, mask: usize) -> Self {
+        Self { clip, effect, mask, effect_id: effects.get(effect).map(|e| e.instance_id).filter(|id| *id != 0) }
+    }
+
+    pub fn index(self, effects: &[EffectInstance]) -> Option<usize> {
+        match self.effect_id {
+            Some(id) => EffectInstance::instance_index(effects, id),
+            None => effects.get(self.effect).map(|_| self.effect),
+        }
+    }
 }
 
 fn spec(id: &'static str, label: &'static str, params: &'static str, run: Run) -> CommandSpec {
@@ -144,13 +159,12 @@ fn target_clip(s: &Session, p: &Value) -> Result<ClipId> {
 }
 
 fn effect_index(effects: &[EffectInstance], v: Option<&Value>, sel: Option<MaskSel>, clip: ClipId) -> Option<usize> {
-    match v {
-        Some(Value::Number(n)) => n.as_u64().map(|n| n as usize).filter(|i| *i < effects.len()),
-        Some(Value::String(id)) => effects.iter().position(|e| &e.effect == id),
-        _ => match sel {
-            Some(s) if s.clip == clip && s.effect < effects.len() => Some(s.effect),
-            _ => effects.iter().position(|e| e.effect == "opacity"),
-        },
+    if let Some(v) = v {
+        return crate::effect_refs::index(effects, v);
+    }
+    match sel {
+        Some(s) if s.clip == clip => s.index(effects),
+        _ => effects.iter().position(|e| e.effect == "opacity"),
     }
 }
 
@@ -246,7 +260,7 @@ fn add(s: &mut Session, p: &Value) -> Result<Value> {
         let name = format!("Mask ({n})");
         e.masks.push(Mask::new(name.clone(), path));
         let mi = e.masks.len() - 1;
-        st.selected_mask = Some(MaskSel { clip, effect: ei, mask: mi });
+        st.selected_mask = Some(MaskSel::of(clip, &it.effects, ei, mi));
         st.selected_effect = None;
         Ok((ei, mi, name))
     })?;
@@ -511,7 +525,7 @@ fn select(s: &mut Session, p: &Value) -> Result<Value> {
     if mi >= it.effects[ei].masks.len() {
         return Err(bad("masks.select", format!("no mask {mi}")));
     }
-    s.state.selected_mask = Some(MaskSel { clip, effect: ei, mask: mi });
+    s.state.selected_mask = Some(MaskSel::of(clip, &it.effects, ei, mi));
     s.state.selected_effect = None;
     Ok(Value::Null)
 }
@@ -544,7 +558,7 @@ fn list(s: &mut Session, p: &Value) -> Result<Value> {
                         "expansion": m.expansion.f64_at(mt),
                         "path": path_to_json(&m.path_at(mt)),
                         "pathKeyframes": m.path.keyframes.iter().map(|k| k.time.0).collect::<Vec<_>>(),
-                        "selected": s.state.selected_mask == Some(MaskSel { clip: it.id, effect: ei, mask: mi }),
+                        "selected": s.state.selected_mask == Some(MaskSel::of(it.id, &it.effects, ei, mi)),
                     }));
                 }
             }
@@ -692,7 +706,7 @@ fn track(s: &mut Session, p: &Value) -> Result<Value> {
     };
     let run = crate::export_tools::guard_job(job.progress.clone(), job.result.clone(), run);
     s.jobs.push(job);
-    s.mask_jobs.push(PendingTrack { job: id, target: MaskSel { clip, effect: ei, mask: mi }, seq: seq_id, keys, applied: 0 });
+    s.mask_jobs.push(PendingTrack { job: id, target: MaskSel::of(clip, &it.effects, ei, mi), seq: seq_id, keys, applied: 0 });
     let wait = crate::commands::bool_p(p, "wait").unwrap_or(false);
     if wait || cfg!(target_arch = "wasm32") {
         run();
@@ -727,7 +741,8 @@ pub fn poll(s: &mut Session) {
             let r = s.edit_merged("Track Mask", &key, move |pr, _| {
                 let q = pr.sequence_mut(seq_id).ok_or(EngineError::NoSequence)?;
                 let (_, it) = q.find_item_mut(target.clip).ok_or(filmcraft_edit::EditError::NoItem(target.clip))?;
-                let m = it.effects.get_mut(target.effect).and_then(|e| e.masks.get_mut(target.mask)).ok_or_else(|| bad("masks.track", "the mask is gone"))?;
+                let effect = target.index(&it.effects).ok_or_else(|| bad("masks.track", "the effect is gone"))?;
+                let m = it.effects.get_mut(effect).and_then(|e| e.masks.get_mut(target.mask)).ok_or_else(|| bad("masks.track", "the mask is gone"))?;
                 for (t, path) in new {
                     m.path.put_keyframe(t, ParamValue::Path(path));
                 }

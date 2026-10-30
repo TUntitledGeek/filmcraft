@@ -67,7 +67,7 @@ impl Autosave {
                 let meta = json!({"dirty": true, "name": s.project.name, "revision": s.revision, "time": js_sys::Date::now()});
                 let d1 = done(self.outcomes.clone(), failed.clone(), left.clone(), ctx.clone());
                 let d2 = done(self.outcomes.clone(), failed, left, ctx.clone());
-                opfs::write_then(SNAPSHOT.into(), filmcraft_format::encode(&s.project, false), Some(d1));
+                opfs::write_then(SNAPSHOT.into(), filmcraft_format::encode(&s.project_for_persistence(), false), Some(d1));
                 opfs::write_then(META.into(), meta.to_string().into_bytes(), Some(d2));
             }
             Action::WriteClean => {

@@ -17,6 +17,8 @@ const MAX_KEYS: usize = 4096;
 struct Key {
     clip: u64,
     effect: usize,
+    #[serde(default, rename = "effectId", skip_serializing_if = "Option::is_none")]
+    effect_id: Option<u64>,
     param: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     mask: Option<usize>,
@@ -51,12 +53,22 @@ pub(crate) fn move_many(s: &mut Session, p: &Value) -> Result<Value> {
     let q = s.active_sequence().ok_or(crate::EngineError::NoSequence)?;
     let frame = q.settings.frame_rate.frame_duration();
     let (mut low, mut high) = (i64::MIN, i64::MAX);
-    for key in &keys {
+    for key in &mut keys {
+        if let Some(id) = key.effect_id {
+            let (_, it) = q.find_item(ClipId(key.clip)).ok_or_else(|| bad(COMMAND, "clip does not exist"))?;
+            key.effect = filmcraft_project::EffectInstance::instance_index(&it.effects, id)
+                .ok_or_else(|| bad(COMMAND, "effect instance does not exist or is ambiguous"))?;
+        }
         if key.param.len() > 256 || !unique.insert(key.clone()) {
             return Err(bad(COMMAND, "duplicate or invalid keyframe reference"));
         }
         let (_, it) = q.find_item(ClipId(key.clip)).ok_or_else(|| bad(COMMAND, "clip does not exist"))?;
         let effect = it.effects.get(key.effect).ok_or_else(|| bad(COMMAND, "effect does not exist"))?;
+        if p.get("strictForward").and_then(Value::as_bool) == Some(true)
+            && (it.speed != 1.0 || it.reverse || it.frame_hold.is_some() || key.mask.is_some() || effect.effect == "time_remap")
+        {
+            return Err(bad(COMMAND, "inline movement requires a forward, unretimed effect property"));
+        }
         let param = match key.mask {
             Some(mask) => effect.masks.get(mask).and_then(|m| m.param(&key.param)),
             None => effect.params.get(&key.param),
@@ -92,11 +104,15 @@ pub(crate) fn move_many(s: &mut Session, p: &Value) -> Result<Value> {
         key.time = k.time;
         lanes.entry((key.clip, key.effect, key.mask, key.param.clone())).or_default().push((from, k));
     }
+    let reject_collisions = p.get("collision").and_then(Value::as_str) == Some("reject");
     s.edit_sequence("Move Keyframes", |sequence, _, _| {
         for (lane, moved) in lanes {
             let param = param_mut(sequence, &lane)?;
             let from: HashSet<_> = moved.iter().map(|(t, _)| *t).collect();
             let to: HashSet<_> = moved.iter().map(|(_, k)| k.time).collect();
+            if reject_collisions && (to.len() != moved.len() || param.keyframes.iter().any(|k| to.contains(&k.time) && !from.contains(&k.time))) {
+                return Err(bad(COMMAND, "another keyframe already occupies a destination; no keys were moved"));
+            }
             // Remove all originals before inserting any destination: selected keys can move into
             // each other's old positions without overwriting a key still waiting to be moved.
             param.keyframes.retain(|k| !from.contains(&k.time) && !to.contains(&k.time));
@@ -193,6 +209,52 @@ mod tests {
             assert!(s.execute(COMMAND, request).is_err());
             assert!(Arc::ptr_eq(&before, &s.project));
             assert_eq!(s.history.undo.len(), undo);
+        }
+    }
+
+    #[test]
+    fn collision_rejection_is_atomic_and_id_selectors_rebase_after_stack_changes() {
+        let (mut s, mut keys) = fixture();
+        let clip = ClipId(keys[0]["clip"].as_u64().unwrap());
+        let it = s.active_sequence().unwrap().find_item(clip).unwrap().1;
+        let id = it.effect("motion").unwrap().instance_id;
+        for key in &mut keys {
+            key["effectId"] = json!(id);
+        }
+        s.execute("effects.apply", json!({"clips":[clip.0],"effect":"gaussian_blur"})).unwrap();
+        let before = s.project.clone();
+        let undo = s.history.undo.len();
+        let delta = keys[1]["time"].as_i64().unwrap() - keys[0]["time"].as_i64().unwrap();
+        assert!(s.execute(COMMAND, json!({"keyframes":[keys[0]],"delta":delta,"collision":"reject"})).is_err());
+        assert!(Arc::ptr_eq(&before, &s.project));
+        assert_eq!(s.history.undo.len(), undo);
+        let result = s.execute(COMMAND, json!({"keyframes":keys,"delta":delta,"collision":"reject","strictForward":true})).unwrap();
+        for key in result["keyframes"].as_array().unwrap() {
+            assert_eq!(key["effectId"], id);
+            assert_ne!(key["effect"], keys[0]["effect"]);
+        }
+    }
+
+    #[test]
+    fn strict_inline_domain_rejects_reversed_speed_and_held_clips_without_edits() {
+        for domain in 0..3 {
+            let (mut s, keys) = fixture();
+            let clip = ClipId(keys[0]["clip"].as_u64().unwrap());
+            s.edit_sequence("domain", |q, _, _| {
+                let it = q.find_item_mut(clip).unwrap().1;
+                if domain == 0 {
+                    it.reverse = true;
+                } else if domain == 1 {
+                    it.speed = 2.0;
+                } else {
+                    it.frame_hold = Some(Default::default());
+                }
+                Ok(())
+            })
+            .unwrap();
+            let before = s.project.clone();
+            assert!(s.execute(COMMAND, json!({"keyframes":keys,"delta":100,"strictForward":true})).is_err());
+            assert!(Arc::ptr_eq(&before, &s.project));
         }
     }
 

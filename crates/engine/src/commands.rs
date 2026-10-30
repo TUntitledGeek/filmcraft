@@ -1140,6 +1140,7 @@ fn build() -> Vec<CommandSpec> {
         cmd!("file.newProject", "Project…", ["File", "New"], Some("Cmd+Alt+N"), r#"{"name":str}"#, always, |s, p| {
             let name = str_p(p, "name").unwrap_or("Untitled").to_string();
             s.project = std::sync::Arc::new(filmcraft_project::Project::new(&name));
+            s.reset_project_identity_scope();
             s.history = Default::default();
             s.history.limit = 200;
             s.state = crate::Session::default().state;
@@ -1152,8 +1153,10 @@ fn build() -> Vec<CommandSpec> {
             Ok(Value::Null)
         }),
         cmd!("file.openDemoProject", "Demo Project", ["File", "New"], None, "{}", always, |s, _| {
-            let (p, seq) = crate::demo::demo_project(&s.media);
+            let (mut p, seq) = crate::demo::demo_project(&s.media);
+            p.assign_effect_instance_ids(&mut 1, true).map_err(EngineError::Other)?;
             s.project = std::sync::Arc::new(p);
+            s.reset_project_identity_scope();
             s.history = Default::default();
             s.history.limit = 200;
             s.state = crate::Session::default().state;
@@ -2975,9 +2978,15 @@ fn build() -> Vec<CommandSpec> {
             })?;
             Ok(Value::Null)
         }),
+        cmd!("effects.duplicate", "Duplicate Effect", [], None, r#"{"clip":id,"effect":index|{"instanceId":id}}"#, has_seq, |s, p| {
+            crate::effect_refs::duplicate(s, p)
+        }),
+        cmd!("effects.reorder", "Reorder Effect", [], None, r#"{"clip":id,"effect":index|{"instanceId":id},"to":addedEffectPosition}"#, has_seq, |s, p| {
+            crate::effect_refs::reorder(s, p)
+        }),
         cmd!("effects.remove", "Remove Effect", [], None, r#"{"clip":id,"index":n}"#, has_seq, |s, p| {
             let c = clip_p(p, "clip").ok_or_else(|| bad("effects.remove", "need `clip`"))?;
-            let idx = u64_p(p, "index").ok_or_else(|| bad("effects.remove", "need `index`"))? as usize;
+            let idx = crate::effect_refs::clip_index(s, c, p, "effects.remove")?;
             // the selected effect: where it is, and its selection once the effect at `idx` is gone
             let effects = s.active_sequence().and_then(|q| q.find_item(c)).map(|(_, it)| it.effects.clone()).unwrap_or_default();
             let sel = s.state.selected_effect.clone().filter(|e| e.clip == c).and_then(|e| e.index(&effects));
@@ -3043,12 +3052,7 @@ fn build() -> Vec<CommandSpec> {
                 let keyframes = s.edit_sequence_as("Change Effect Parameter", merge.as_deref(), |q, _, _| {
                     let (_, it) = q.find_item_mut(c).ok_or(filmcraft_edit::EditError::NoItem(c))?;
                     let mt = it.source_time_at(at.unwrap_or_else(|| ph.clamp(it.start, (it.end() - Tick(1)).max(it.start))));
-                    let e = match &eff {
-                        Value::Number(n) => it.effects.get_mut(n.as_u64().unwrap_or(0) as usize),
-                        Value::String(sid) => it.effects.iter_mut().find(|e| &e.effect == sid),
-                        _ => None,
-                    }
-                    .ok_or_else(|| bad("effects.setParam", "no such effect on clip"))?;
+                    let e = crate::effect_refs::resolve_mut(&mut it.effects, &eff).ok_or_else(|| bad("effects.setParam", "no such effect on clip"))?;
                     // the parameter's definition (a mask's own parameters have none)
                     let def = if pq.get("mask").is_none_or(Value::is_null) { e.def().and_then(|d| d.param(&pid)) } else { None };
                     // a choice takes its option name as well as its index, as transition parameters do
@@ -3115,12 +3119,7 @@ fn build() -> Vec<CommandSpec> {
             s.edit_sequence("Toggle Animation", |q, _, _| {
                 let (_, it) = q.find_item_mut(c).ok_or(filmcraft_edit::EditError::NoItem(c))?;
                 let mt = it.source_time_at(ph.clamp(it.start, (it.end() - Tick(1)).max(it.start)));
-                let e = match &eff {
-                    Value::Number(n) => it.effects.get_mut(n.as_u64().unwrap_or(0) as usize),
-                    Value::String(sid) => it.effects.iter_mut().find(|e| &e.effect == sid),
-                    _ => None,
-                }
-                .ok_or_else(|| bad("effects.toggleAnimation", "no such effect"))?;
+                let e = crate::effect_refs::resolve_mut(&mut it.effects, &eff).ok_or_else(|| bad("effects.toggleAnimation", "no such effect"))?;
                 // a parameter an older instance lacks (added to the effect later) starts from its
                 // default, as the UI shows it, without touching an existing one
                 if p.get("mask").is_none_or(Value::is_null)
@@ -3136,7 +3135,7 @@ fn build() -> Vec<CommandSpec> {
         }),
         cmd!("effects.toggleEnabled", "Toggle Effect", [], None, r#"{"clip":id,"index":n}"#, has_seq, |s, p| {
             let c = clip_p(p, "clip").ok_or_else(|| bad("effects.toggleEnabled", "need `clip`"))?;
-            let idx = u64_p(p, "index").unwrap_or(0) as usize;
+            let idx = crate::effect_refs::clip_index(s, c, p, "effects.toggleEnabled")?;
             s.edit_sequence("Toggle Effect", |q, _, _| {
                 let (_, it) = q.find_item_mut(c).ok_or(filmcraft_edit::EditError::NoItem(c))?;
                 if let Some(e) = it.effects.get_mut(idx) {
@@ -3148,7 +3147,7 @@ fn build() -> Vec<CommandSpec> {
         }),
         cmd!("effects.reset", "Reset Effect", [], None, r#"{"clip":id,"index":n}"#, has_seq, |s, p| {
             let c = clip_p(p, "clip").ok_or_else(|| bad("effects.reset", "need `clip`"))?;
-            let idx = u64_p(p, "index").unwrap_or(0) as usize;
+            let idx = crate::effect_refs::clip_index(s, c, p, "effects.reset")?;
             let frame = s.active_sequence().map(|q| (q.settings.width, q.settings.height)).unwrap_or((1920, 1080));
             let ph = s.playhead();
             s.edit_sequence("Reset Effect", |q, _, _| {
@@ -3170,12 +3169,7 @@ fn build() -> Vec<CommandSpec> {
             s.edit_sequence("Reset Parameter", |q, _, _| {
                 let (_, it) = q.find_item_mut(c).ok_or(filmcraft_edit::EditError::NoItem(c))?;
                 let mt = it.source_time_at(ph.clamp(it.start, (it.end() - Tick(1)).max(it.start)));
-                let e = match &eff {
-                    Value::Number(n) => it.effects.get_mut(n.as_u64().unwrap_or(0) as usize),
-                    Value::String(sid) => it.effects.iter_mut().find(|e| &e.effect == sid),
-                    _ => None,
-                }
-                .ok_or_else(|| bad("effects.resetParam", "no such effect on clip"))?;
+                let e = crate::effect_refs::resolve_mut(&mut it.effects, &eff).ok_or_else(|| bad("effects.resetParam", "no such effect on clip"))?;
                 if !reset_params(e, Some(&pid), frame, mt) {
                     return Err(bad("effects.resetParam", format!("no param `{pid}`")));
                 }
@@ -3400,6 +3394,16 @@ fn build() -> Vec<CommandSpec> {
                     .collect(),
             ))
         }),
+        query!("effects.inspect", "Inspect Effect Instance", r#"{"clip":id,"effect":index|{"instanceId":id}}"#, |s, p| {
+            let clip = clip_p(p, "clip").ok_or_else(|| bad("effects.inspect", "need clip"))?;
+            let index = crate::effect_refs::clip_index(s, clip, p, "effects.inspect")?;
+            let effect = s
+                .active_sequence()
+                .and_then(|q| q.find_item(clip))
+                .and_then(|(_, it)| it.effects.get(index))
+                .ok_or_else(|| bad("effects.inspect", "effect no longer exists"))?;
+            serde_json::to_value(effect).map_err(|e| EngineError::Other(e.to_string()))
+        }),
         query!("project.inspect", "Inspect Project", "{}", |s, _| Ok(crate::commands::inspect_project(s))),
         query!("sequence.inspect", "Inspect Sequence", r#"{"item":id?}"#, |s, p| {
             let id = item_p(p, "item").or(s.state.active_sequence).ok_or(EngineError::NoSequence)?;
@@ -3499,12 +3503,7 @@ fn keyframe_op(s: &mut Session, p: &Value, op: &str) -> Result<Value> {
     s.edit_sequence_as(label, merge.as_deref(), |q, _, _| {
         let (_, it) = q.find_item_mut(c).ok_or(filmcraft_edit::EditError::NoItem(c))?;
         let mt_now = it.source_time_at(ph.clamp(it.start, (it.end() - Tick(1)).max(it.start)));
-        let e = match &eff {
-            Value::Number(n) => it.effects.get_mut(n.as_u64().unwrap_or(0) as usize),
-            Value::String(sid) => it.effects.iter_mut().find(|e| &e.effect == sid),
-            _ => None,
-        }
-        .ok_or_else(|| bad("keyframe", "no such effect"))?;
+        let e = crate::effect_refs::resolve_mut(&mut it.effects, &eff).ok_or_else(|| bad("keyframe", "no such effect"))?;
         let prm = crate::masks::target_param(e, p, &pid).ok_or_else(|| bad("keyframe", "no such param"))?;
         match op {
             "add" => {
@@ -3965,12 +3964,7 @@ fn select_effect(s: &mut Session, p: &Value) -> Result<Value> {
     let clip = clip_p(p, "clip").ok_or_else(|| bad(CMD, "need `clip` (or `none`)"))?;
     let q = s.active_sequence().ok_or(EngineError::NoSequence)?;
     let (_, it) = q.find_item(clip).ok_or_else(|| bad(CMD, "no such clip"))?;
-    let effect = match p.get("effect") {
-        Some(Value::Number(n)) => n.as_u64().and_then(|i| usize::try_from(i).ok()).filter(|i| *i < it.effects.len()),
-        Some(Value::String(id)) => it.effects.iter().position(|e| &e.effect == id),
-        _ => None,
-    }
-    .ok_or_else(|| bad(CMD, "no such effect on clip"))?;
+    let effect = p.get("effect").and_then(|selector| crate::effect_refs::index(&it.effects, selector)).ok_or_else(|| bad(CMD, "no such effect on clip"))?;
     s.state.selected_effect = crate::EffectSel::of(clip, &it.effects, effect);
     s.state.selected_mask = None;
     Ok(Value::Null)
@@ -4283,7 +4277,7 @@ pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence
                 "startFrame": rate.frame_at(i.start), "durationFrames": rate.frame_at(i.duration), "sourceIn": i.source_in.0, "speed": i.speed, "reverse": i.reverse,
                 "end": i.end().0, "endFrame": rate.frame_at(i.end()), "sourceOut": i.source_out().0, "gainDb": i.gain_db,
                 "enabled": i.enabled, "link": i.link, "label": i.label.name(),
-                "effects": i.effects.iter().map(|e| json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": e.params.iter().map(|(k, p)| (k.clone(), json!({"value": format!("{:?}", p.value), "keyframes": p.keyframes.len()}))).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
+                "effects": i.effects.iter().map(|e| json!({"effect": e.effect, "instanceId": e.instance_id, "enabled": e.enabled, "masks": e.masks.len(), "params": e.params.iter().map(|(k, p)| (k.clone(), json!({"value": format!("{:?}", p.value), "keyframes": p.keyframes.len()}))).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
             "transitions": t.transitions.iter().map(|x| json!({"id": x.id.0, "effect": x.effect.effect, "start": x.start.0, "duration": x.duration.0, "from": x.from.map(|c| c.0), "to": x.to.map(|c| c.0), "reverse": x.reverse, "align": filmcraft_edit::transitions::bounds(t, x).map(|b| filmcraft_edit::transitions::alignment(x, b.1, rate.frame_duration()).id()), "params": x.effect.params.iter().map(|(k, v)| (k.clone(), serde_json::to_value(&v.value).unwrap_or_default())).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
         })
@@ -4342,7 +4336,8 @@ fn write_project(s: &mut Session, path: &str, adopt: bool) -> Result<Value> {
     }
     // what is open (sequence tabs, how each is shown) goes into the file beside the project
     let view = s.project_view();
-    let bytes = filmcraft_format::encode_with_view(&s.project, Some(&view), false);
+    let project = s.project_for_persistence();
+    let bytes = filmcraft_format::encode_with_view(&project, Some(&view), false);
     let mut backup = None;
     if adopt && s.path.as_deref() == Some(path) && s.loaded_schema < filmcraft_format::SCHEMA_VERSION {
         let b = schema_backup_path(path, s.loaded_schema);
@@ -4355,6 +4350,7 @@ fn write_project(s: &mut Session, path: &str, adopt: bool) -> Result<Value> {
     }
     s.services.write_file(path, &bytes).map_err(|e| EngineError::Other(format!("{path}: {e}")))?;
     if adopt {
+        s.project = project;
         s.path = Some(path.to_string());
         s.previews_follow_path();
         s.note_recent_project();
@@ -4378,6 +4374,7 @@ fn install_project(s: &mut Session, proj: filmcraft_project::Project, path: Opti
     let first = proj.sequences().next().map(|i| i.id);
     s.media.add_stored(&proj, path.as_deref());
     s.project = std::sync::Arc::new(proj);
+    s.reset_project_identity_scope();
     s.history = Default::default();
     s.history.limit = 200;
     s.state = crate::Session::default().state;

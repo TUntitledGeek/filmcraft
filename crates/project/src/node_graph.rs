@@ -262,6 +262,7 @@ impl NodeGraph {
                 def.instance()
             } else {
                 EffectInstance {
+                    instance_id: 0,
                     effect: effect_name.into(),
                     enabled: node.enabled,
                     params: BTreeMap::new(),

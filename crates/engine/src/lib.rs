@@ -19,6 +19,7 @@ pub mod color;
 pub mod commands;
 pub mod demo;
 pub mod doc_path;
+mod effect_refs;
 pub mod essential_sound;
 pub mod export_tools;
 pub mod graphic_templates;
@@ -256,6 +257,9 @@ pub struct EffectSel {
     pub clip: ClipId,
     pub effect: String,
     pub instance: usize,
+    /// Authoritative identity for new selections. Legacy type/occurrence selections still load.
+    #[serde(default, rename = "instanceId", skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<u64>,
 }
 
 impl EffectSel {
@@ -263,11 +267,16 @@ impl EffectSel {
     pub fn of(clip: ClipId, effects: &[filmcraft_project::EffectInstance], index: usize) -> Option<Self> {
         let id = &effects.get(index)?.effect;
         let instance = effects.iter().take(index).filter(|e| &e.effect == id).count();
-        Some(Self { clip, effect: id.clone(), instance })
+        let instance_id = effects.get(index).map(|e| e.instance_id).filter(|id| *id != 0);
+        Some(Self { clip, effect: id.clone(), instance, instance_id })
     }
 
     /// Where the selected effect is in the clip's `effects`.
     pub fn index(&self, effects: &[filmcraft_project::EffectInstance]) -> Option<usize> {
+        if let Some(id) = self.instance_id {
+            let index = filmcraft_project::EffectInstance::instance_index(effects, id)?;
+            return effects.get(index).filter(|e| e.effect == self.effect).map(|_| index);
+        }
         effects.iter().enumerate().filter(|(_, e)| e.effect == self.effect).nth(self.instance).map(|(i, _)| i)
     }
 }
@@ -391,6 +400,10 @@ pub enum Event {
 }
 
 pub struct Session {
+    /// Document replacement scope, independent of edits/revisions and reused numeric clip IDs.
+    project_generation: u64,
+    /// Non-undoable allocation floor: abandoned redo branches never recycle effect identities.
+    effect_instance_floor: u64,
     pub project: Arc<Project>,
     pub history: History,
     pub revision: u64,
@@ -516,6 +529,8 @@ impl Session {
     pub fn new(services: Arc<dyn Services>) -> Self {
         Self {
             project: Arc::new(Project::new("Untitled")),
+            project_generation: 1,
+            effect_instance_floor: 1,
             history: History { limit: 200, ..Default::default() },
             revision: 1,
             saved_revision: 1,
@@ -563,6 +578,33 @@ impl Session {
             media_scan: None,
             edit_author: None,
         }
+    }
+
+    pub fn project_generation(&self) -> u64 {
+        self.project_generation
+    }
+
+    /// Called only when a different document is installed, not for ordinary edits or Save As.
+    pub(crate) fn reset_project_identity_scope(&mut self) {
+        for pending in &self.mask_jobs {
+            if let Some(job) = self.jobs.iter().find(|job| job.id == pending.job) {
+                job.progress.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        self.mask_jobs.clear();
+        self.project_generation = self.project_generation.wrapping_add(1);
+        self.effect_instance_floor = self.project.next_effect_instance_id.max(1);
+    }
+
+    /// Persist the non-undoable allocation floor without changing animation/history. Usually
+    /// this is just an Arc clone; after undo it raises allocator metadata in a save snapshot.
+    pub fn project_for_persistence(&self) -> Arc<Project> {
+        if self.project.next_effect_instance_id >= self.effect_instance_floor {
+            return self.project.clone();
+        }
+        let mut project = (*self.project).clone();
+        project.next_effect_instance_id = self.effect_instance_floor;
+        Arc::new(project)
     }
 
     /// Set the author attribution for edits executed on this session.
@@ -650,13 +692,15 @@ impl Session {
     /// channel send; serialization happens on the worker). Called after every command.
     pub fn sync_persistence(&mut self) {
         let dirty = self.is_dirty();
-        let Some(p) = self.persistence.as_mut() else { return };
+        let Some(p) = self.persistence.as_ref() else { return };
         let cur = autosave::Sent { revision: self.revision, saved_revision: self.saved_revision, path: self.path.clone() };
         if p.last_sent.as_ref() == Some(&cur) {
             return;
         }
-        if dirty {
-            p.send_dirty(self.project.clone(), self.revision, self.path.clone());
+        let snapshot = dirty.then(|| self.project_for_persistence());
+        let Some(p) = self.persistence.as_mut() else { return };
+        if let Some(project) = snapshot {
+            p.send_dirty(project, self.revision, self.path.clone());
         } else {
             p.send_clean();
         }
@@ -893,7 +937,10 @@ impl Session {
         let mut p = (*self.project).clone();
         let mut st = self.state.clone();
         let r = f(&mut p, &mut st)?;
+        let mut floor = self.effect_instance_floor;
+        p.assign_effect_instance_ids(&mut floor, false).map_err(EngineError::Other)?;
         self.refuse_self_nesting(&p)?;
+        self.effect_instance_floor = floor;
         let meta = self.current_edit_author();
         let old = std::mem::replace(&mut self.project, Arc::new(p));
         self.history.undo.push((label.to_string(), old));
@@ -908,6 +955,7 @@ impl Session {
         self.history.redo_meta.clear();
         self.history.merge_key = None;
         self.state = st;
+        self.fix_effect_state();
         self.drop_stale_gap();
         self.bump();
         Ok(r)
@@ -925,9 +973,13 @@ impl Session {
         let mut p = (*self.project).clone();
         let mut st = self.state.clone();
         let r = f(&mut p, &mut st)?;
+        let mut floor = self.effect_instance_floor;
+        p.assign_effect_instance_ids(&mut floor, false).map_err(EngineError::Other)?;
         self.refuse_self_nesting(&p)?;
+        self.effect_instance_floor = floor;
         self.project = Arc::new(p);
         self.state = st;
+        self.fix_effect_state();
         self.drop_stale_gap();
         self.bump();
         Ok(r)
@@ -1086,18 +1138,7 @@ impl Session {
     /// Drop dangling references after undo/redo/delete.
     pub fn fix_state(&mut self) {
         let p = self.project.clone();
-        if let Some(m) = self.state.selected_mask {
-            let ok =
-                self.active_sequence().and_then(|q| q.find_item(m.clip)).and_then(|(_, it)| it.effects.get(m.effect)).is_some_and(|e| m.mask < e.masks.len());
-            if !ok {
-                self.state.selected_mask = None;
-            }
-        }
-        if let Some(e) = &self.state.selected_effect
-            && self.active_sequence().and_then(|q| q.find_item(e.clip)).and_then(|(_, it)| e.index(&it.effects)).is_none()
-        {
-            self.state.selected_effect = None;
-        }
+        self.fix_effect_state();
         if let Some(s) = self.state.active_sequence
             && p.sequence(s).is_none()
         {
@@ -1120,6 +1161,25 @@ impl Session {
         }
         self.state.project_selection.retain(|i| p.item(*i).is_some());
         self.drop_stale_gap();
+    }
+
+    fn fix_effect_state(&mut self) {
+        for job in &mut self.mask_jobs {
+            if let Some(index) = self.project.sequence(job.seq).and_then(|q| q.find_item(job.target.clip)).and_then(|(_, it)| job.target.index(&it.effects)) {
+                job.target.effect = index;
+            }
+        }
+        self.state.selected_mask = self.state.selected_mask.and_then(|mut m| {
+            let effects = &self.active_sequence()?.find_item(m.clip)?.1.effects;
+            m.effect = m.index(effects)?;
+            m.effect_id = Some(effects[m.effect].instance_id).filter(|id| *id != 0);
+            (m.mask < effects[m.effect].masks.len()).then_some(m)
+        });
+        if let Some(e) = &self.state.selected_effect
+            && self.active_sequence().and_then(|q| q.find_item(e.clip)).and_then(|(_, it)| e.index(&it.effects)).is_none()
+        {
+            self.state.selected_effect = None;
+        }
     }
 
     /// Forget the selected gap when it is no longer a gap of the active sequence (a clip moved

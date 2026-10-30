@@ -247,12 +247,12 @@ pub fn audio_segments(project: &Project, seq_id: ItemId) -> Vec<AudioSegment> {
     cuts.dedup();
     let any_solo = seq.audio_tracks.iter().any(|t| t.solo);
     let mut global = Fnv128::new();
-    global.json(&(HASH_VERSION, "audio", sr, seq.master_volume_db, &seq.master_effects, &seq.master_mixer, any_solo));
+    global.json(&(HASH_VERSION, "audio", sr, seq.master_volume_db, &content_effects(&seq.master_effects), &seq.master_mixer, any_solo));
     for (ti, tr) in seq.audio_tracks.iter().enumerate() {
-        global.json(&(ti, tr.muted, tr.solo, tr.volume_db, tr.pan, tr.channels, &tr.effects, &tr.mixer));
+        global.json(&(ti, tr.muted, tr.solo, tr.volume_db, tr.pan, tr.channels, &content_effects(&tr.effects), &tr.mixer));
     }
     // submixes (routing, inserts, automation) affect every segment
-    global.json(&seq.submix_tracks);
+    global.json(&content_tracks(&seq.submix_tracks));
     let mut out = Vec::new();
     for w in cuts.windows(2) {
         let (a, b) = (w[0], w[1]);
@@ -269,6 +269,7 @@ pub fn audio_segments(project: &Project, seq_id: ItemId) -> Vec<AudioSegment> {
             }
             if let Some(x) = tr.transitions.iter().find(|x| x.range().contains(t)) {
                 let mut xc = x.clone();
+                xc.effect.instance_id = 0;
                 xc.id = Default::default();
                 xc.start -= t;
                 xc.from = None;
@@ -296,6 +297,29 @@ pub fn audio_segments(project: &Project, seq_id: ItemId) -> Vec<AudioSegment> {
     out
 }
 
+// Persisted owner identity does not change pixels or audio. Keep the pre-v16 content hash
+// representation (zero IDs serialize as absent), including nested mixes and transitions.
+fn content_effects(effects: &[filmcraft_project::EffectInstance]) -> Vec<filmcraft_project::EffectInstance> {
+    effects.iter().map(filmcraft_project::EffectInstance::fresh_copy).collect()
+}
+fn content_tracks(tracks: &[filmcraft_project::Track]) -> Vec<filmcraft_project::Track> {
+    let mut tracks = tracks.to_vec();
+    for track in &mut tracks {
+        for effect in &mut track.effects {
+            effect.instance_id = 0;
+        }
+        for item in &mut track.items {
+            for effect in &mut item.effects {
+                effect.instance_id = 0;
+            }
+        }
+        for transition in &mut track.transitions {
+            transition.effect.instance_id = 0;
+        }
+    }
+    tracks
+}
+
 fn prints_time(it: &TrackItem) -> bool {
     it.effects.iter().any(|e| e.enabled && e.effect == "timecode")
 }
@@ -305,6 +329,9 @@ fn prints_time(it: &TrackItem) -> bool {
 fn hash_item(h: &mut Fnv128, project: &Project, it: &TrackItem, origin: Tick, kind: TrackKind, depth: u32) {
     let mut c = it.clone();
     c.id = Default::default();
+    for effect in &mut c.effects {
+        effect.instance_id = 0;
+    }
     c.start -= origin;
     c.label = filmcraft_project::Label::ALL[0];
     c.markers.clear();
@@ -348,14 +375,15 @@ fn hash_source(h: &mut Fnv128, project: &Project, id: ItemId, kind: TrackKind, d
             h.json(&("sequence", &s.settings));
             if kind == TrackKind::Audio {
                 // the nest's sound is the nested sequence's whole mix (see `audio_segments`)
-                h.json(&("mix", s.master_volume_db, &s.master_effects, &s.master_mixer, &s.submix_tracks, &s.multicam));
+                h.json(&("mix", s.master_volume_db, &content_effects(&s.master_effects), &s.master_mixer, &content_tracks(&s.submix_tracks), &s.multicam));
                 for (ti, tr) in s.audio_tracks.iter().enumerate() {
-                    h.json(&("track", ti, tr.muted, tr.solo, tr.volume_db, tr.pan, tr.channels, &tr.effects, &tr.mixer, tr.items.len()));
+                    h.json(&("track", ti, tr.muted, tr.solo, tr.volume_db, tr.pan, tr.channels, &content_effects(&tr.effects), &tr.mixer, tr.items.len()));
                     for it in &tr.items {
                         hash_item(h, project, it, Tick::ZERO, kind, depth + 1);
                     }
                     for x in &tr.transitions {
                         let mut xc = x.clone();
+                        xc.effect.instance_id = 0;
                         xc.id = Default::default();
                         h.json(&xc);
                     }
@@ -371,6 +399,7 @@ fn hash_source(h: &mut Fnv128, project: &Project, id: ItemId, kind: TrackKind, d
                 }
                 for x in &tr.transitions {
                     let mut xc = x.clone();
+                    xc.effect.instance_id = 0;
                     xc.id = Default::default();
                     h.json(&xc);
                 }

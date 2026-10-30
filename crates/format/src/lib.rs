@@ -39,6 +39,9 @@
 //!   would drop them when saving.
 //! - **v15**: project notes (`Project::notes`, Window ▸ Project Notes). No-op step; older builds
 //!   would drop them when saving.
+//! - **v16**: stable effect-instance identities and their allocation counter. Older files acquire
+//!   identities on load without changing animation/order. Older readers refuse v16 so saving
+//!   through an old build cannot silently discard identity-bound editing references.
 
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
 
@@ -59,8 +62,10 @@ pub type Migration = fn(Value) -> Result<Value, String>;
 
 /// `MIGRATIONS[i]` upgrades schema `i + 1` to `i + 2`. Append one function per schema bump; never
 /// edit a shipped one.
-pub const MIGRATIONS: &[Migration] =
-    &[v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10, v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14, v14_to_v15];
+pub const MIGRATIONS: &[Migration] = &[
+    v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7, v7_to_v8, v8_to_v9, v9_to_v10, v10_to_v11, v11_to_v12, v12_to_v13, v13_to_v14, v14_to_v15,
+    v15_to_v16,
+];
 
 /// The schema version this build writes (and the newest it reads).
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32 + 1;
@@ -216,6 +221,8 @@ pub fn decode(bytes: &[u8]) -> Result<Loaded, FormatError> {
 /// Refuse only values that would overflow or exhaust memory later (`Sequence::check_bounds`);
 /// structural rules such as overlaps are left to the editor, so projects that open today still open.
 fn validate_loaded(mut loaded: Loaded) -> Result<Loaded, FormatError> {
+    let mut floor = loaded.project.next_effect_instance_id;
+    loaded.project.assign_effect_instance_ids(&mut floor, true).map_err(|e| FormatError::Corrupt(format!("effect identities: {e}")))?;
     // Out-of-range audio stream data is repaired, not refused: failing the load would lose the
     // whole project over one bad index. A media item keeps its first `MAX_AUDIO_STREAMS` streams; a
     // clip pointing past that plays stream 0.
@@ -361,13 +368,18 @@ fn v14_to_v15(doc: Value) -> Result<Value, String> {
     Ok(doc)
 }
 
+/// v15 → v16: IDs are assigned after typed deserialization and validation.
+fn v15_to_v16(doc: Value) -> Result<Value, String> {
+    Ok(doc)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn schema_version_matches_table() {
-        assert_eq!(SCHEMA_VERSION, 15);
+        assert_eq!(SCHEMA_VERSION, 16);
     }
 
     #[test]
@@ -470,6 +482,9 @@ mod tests {
         let seq = p.new_sequence("Sequence 01", SequenceSettings::default(), 1, 1, None);
         let ti = p.make_track_item(layer, TrackKind::Video, Tick::ZERO, TimeRange::new(Tick::ZERO, FrameRate::FPS_24.tick_of(48)), FrameRate::FPS_24).unwrap();
         p.sequence_mut(seq).unwrap().video_tracks[0].items.push(ti);
+        // Session attachment assigns v16 metadata before save; this test constructs a raw
+        // model directly. Keep its byte-stability assertion focused on unresolved Auto points.
+        p.assign_effect_instance_ids(&mut 1, false).unwrap();
         for pretty in [true, false] {
             let bytes = encode(&p, pretty);
             let text = String::from_utf8(bytes.clone()).unwrap();

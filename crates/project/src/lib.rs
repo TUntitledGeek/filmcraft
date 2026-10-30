@@ -11,6 +11,7 @@
 
 pub mod caption;
 pub mod effect;
+mod effect_identity;
 pub mod essential;
 pub mod find;
 pub mod graphic;
@@ -1241,6 +1242,10 @@ pub struct Project {
     pub items: BTreeMap<ItemId, ProjectItem>,
     /// Monotonic id source for all id types.
     pub next_id: u64,
+    /// Allocation source for effect-instance metadata, separate from clip/track/item IDs.
+    /// IDs are scoped by the owning clip/strip/source graphic; zero means unattached.
+    #[serde(default = "effect_identity::initial_counter")]
+    pub next_effect_instance_id: u64,
     /// The project's LUT library (Lumetri Input LUT / Creative Look "Browse…"). LUT files are
     /// embedded, so projects render without the original files.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1355,6 +1360,7 @@ impl Project {
             root: Bin { id: BinId(0), name: name.into(), children: Vec::new() },
             items: BTreeMap::new(),
             next_id: 1,
+            next_effect_instance_id: 1,
             luts: Vec::new(),
             transcripts: BTreeMap::new(),
             search_bins: Vec::new(),

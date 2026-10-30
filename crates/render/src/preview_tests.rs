@@ -38,6 +38,24 @@ fn setup() -> (Project, ItemId, ItemId, ItemId) {
     (p, matte, ocean, seq)
 }
 
+#[test]
+fn stable_effect_metadata_does_not_invalidate_picture_or_audio_preview_hashes() {
+    let (mut p, matte, _, seq) = setup();
+    place(&mut p, seq, 0, matte, 0, 48);
+    let rate = FrameRate::FPS_24;
+    let mut audio = p.make_track_item(matte, TrackKind::Audio, Tick::ZERO, TimeRange::new(Tick::ZERO, rate.tick_of(48)), rate).unwrap();
+    audio.effects.push(find_effect("volume").unwrap().instance());
+    let q = p.sequence_mut(seq).unwrap();
+    q.audio_tracks[0].items.push(audio);
+    q.master_effects.push(find_effect("volume").unwrap().instance());
+    q.audio_tracks[0].effects.push(find_effect("volume").unwrap().instance());
+    let video: Vec<_> = video_segments(&p, seq).iter().map(|s| s.hash.clone()).collect();
+    let audio: Vec<_> = audio_segments(&p, seq).iter().map(|s| s.hash.clone()).collect();
+    p.assign_effect_instance_ids(&mut 1, true).unwrap();
+    assert_eq!(video, video_segments(&p, seq).iter().map(|s| s.hash.clone()).collect::<Vec<_>>());
+    assert_eq!(audio, audio_segments(&p, seq).iter().map(|s| s.hash.clone()).collect::<Vec<_>>());
+}
+
 fn place(p: &mut Project, seq: ItemId, track: usize, item: ItemId, start_f: i64, dur_f: i64) -> ClipId {
     let r = FrameRate::FPS_24;
     let mut ti = p.make_track_item(item, TrackKind::Video, r.tick_of(start_f), TimeRange::new(Tick::ZERO, r.tick_of(dur_f)), r).unwrap();

@@ -66,7 +66,8 @@ fn continuous(a: &TrackItem, b: &TrackItem) -> bool {
         && a.source_out() == b.source_in
         && a.enabled == b.enabled
         && a.gain_db == b.gain_db
-        && a.effects == b.effects
+        && a.effects.len() == b.effects.len()
+        && a.effects.iter().zip(&b.effects).all(|(a, b)| a.same_content(b))
 }
 
 /// Remove through edits between pieces of the same multi-camera clip showing the same angle,
@@ -184,9 +185,11 @@ pub fn flatten_items(outer: &TrackItem, source_track: &Track, ctx: &mut EditCtx,
         for e in &outer.effects {
             let intrinsic = e.def().is_some_and(|d| d.intrinsic);
             if !intrinsic {
-                it.effects.push(e.clone());
+                it.effects.push(e.fresh_copy());
             } else if take_intrinsics && let Some(slot) = it.effects.iter_mut().find(|x| x.effect == e.effect) {
+                let identity = slot.instance_id;
                 *slot = e.clone();
+                slot.instance_id = identity;
             }
         }
         out.push(it);

@@ -90,6 +90,7 @@ impl EffectDef {
     }
     pub fn instance(&self) -> EffectInstance {
         EffectInstance {
+            instance_id: 0,
             effect: self.id.to_string(),
             enabled: true,
             params: self.params.iter().map(|p| (p.id.to_string(), Param::new(p.default.clone()))).collect(),
@@ -103,6 +104,11 @@ impl EffectDef {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EffectInstance {
+    /// Persistent instance identity within its owner. Zero is reserved for new, unattached
+    /// definitions/presets; the project assigns it at the load/edit boundary. Cloning an undo
+    /// snapshot preserves identity; copying an effect into a stack uses `fresh_copy` instead.
+    #[serde(default, skip_serializing_if = "unassigned_id")]
+    pub instance_id: u64,
     pub effect: String,
     pub enabled: bool,
     pub params: BTreeMap<String, Param>,
@@ -121,6 +127,36 @@ pub struct EffectInstance {
 }
 
 impl EffectInstance {
+    /// Processing equality for operations such as healing adjacent clip pieces. Owner-local
+    /// identity is deliberately excluded; ordinary PartialEq still includes persisted IDs.
+    pub fn same_content(&self, other: &Self) -> bool {
+        let Self { instance_id: _, effect, enabled, params, masks, post_fader, essential, layer } = self;
+        effect == &other.effect
+            && enabled == &other.enabled
+            && params == &other.params
+            && masks == &other.masks
+            && post_fader == &other.post_fader
+            && essential == &other.essential
+            && layer == &other.layer
+    }
+
+    pub fn fresh_copy(&self) -> Self {
+        let mut effect = self.clone();
+        effect.instance_id = 0;
+        effect
+    }
+
+    /// Resolve an identity exclusively. A missing, zero or ambiguous ID never falls back to
+    /// an effect type or array position, including on a malformed directly constructed model.
+    pub fn instance_index(effects: &[Self], instance_id: u64) -> Option<usize> {
+        if instance_id == 0 {
+            return None;
+        }
+        let mut matches = effects.iter().enumerate().filter(|(_, e)| e.instance_id == instance_id);
+        let (index, _) = matches.next()?;
+        matches.next().is_none().then_some(index)
+    }
+
     pub fn def(&self) -> Option<&'static EffectDef> {
         find_effect(&self.effect)
     }
@@ -139,6 +175,10 @@ impl EffectInstance {
     pub fn is_animated(&self) -> bool {
         self.params.values().any(Param::is_animated) || self.masks.iter().any(Mask::is_animated)
     }
+}
+
+fn unassigned_id(id: &u64) -> bool {
+    *id == 0
 }
 
 pub const BLEND_MODES: &[&str] = &[

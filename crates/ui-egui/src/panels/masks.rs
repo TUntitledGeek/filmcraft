@@ -80,7 +80,8 @@ pub(crate) fn effect_rows(
     for (k, m) in e.masks.iter().enumerate() {
         let key = format!("mask:{}:{}:{}", clip.0, idx, k);
         let open = !app.ui.collapsed_fx.contains(&key);
-        let selected = app.session.state.selected_mask == Some(filmcraft_engine::masks::MaskSel { clip, effect: idx, mask: k });
+        let selected = app.session.state.selected_mask
+            == Some(filmcraft_engine::masks::MaskSel { clip, effect: idx, effect_id: Some(e.instance_id).filter(|id| *id != 0), mask: k });
         let (r, resp) = ui.allocate_exact_size(vec2(body.width(), ROW_H), Sense::click());
         if selected {
             ui.painter().rect_filled(crate::panels::effect_controls::row_fill(r), 0.0, t.row_selected);
@@ -759,7 +760,7 @@ pub fn path_value(app: &mut FilmcraftApp, ui: &mut egui::Ui, clip: ClipId, effec
     let Some(e) = it.effects.get(effect) else { return };
     let Some(m) = e.masks.get(k) else { return };
     let base = format!("effectControls.{}.mask{k}", e.effect);
-    let target = filmcraft_engine::masks::MaskSel { clip, effect, mask: k };
+    let target = filmcraft_engine::masks::MaskSel::of(clip, &it.effects, effect, k);
     let running = app.session.mask_jobs.iter().find(|j| j.target == target).map(|j| j.job);
     for (icon, dir, frames, id, tip) in [
         (Icon::TrackMaskBack, "backward", None, "back", tl!("Track selected mask backward")),

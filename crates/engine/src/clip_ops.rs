@@ -826,6 +826,7 @@ fn close_project(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(EngineError::Other("the project has unsaved changes: save it first, or pass {\"force\": true} to discard them".into()));
     }
     s.project = std::sync::Arc::new(Project::new("Untitled"));
+    s.reset_project_identity_scope();
     s.history = Default::default();
     s.history.limit = 200;
     s.state = Session::default().state;
@@ -1051,15 +1052,18 @@ fn paste_attributes(s: &mut Session, p: &Value) -> Result<Value> {
             let before = dst.clone();
             for id in &sel.intrinsic {
                 let Some(e) = src.effect(id) else { continue };
-                let mut e = e.clone();
+                let mut e = e.fresh_copy();
                 retime_effect(&mut e, src, &before, scale);
                 match dst.effects.iter_mut().find(|x| x.effect == *id) {
-                    Some(slot) => *slot = e,
+                    Some(slot) => {
+                        e.instance_id = slot.instance_id;
+                        *slot = e;
+                    }
                     None => dst.effects.push(e),
                 }
             }
             for e in src.effects.iter().filter(|e| is_standard(e) && wants_effect(&sel, e)) {
-                let mut e = e.clone();
+                let mut e = e.fresh_copy();
                 retime_effect(&mut e, src, &before, scale);
                 dst.effects.push(e);
             }
