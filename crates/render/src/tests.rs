@@ -276,6 +276,48 @@ fn morph_cut_frames_render_on_the_cpu_with_the_morph() {
     assert_eq!(plan::execute_cpu(&plan).px, render_sequence(&p, seq, rate.tick_of(24), opts, &map).px);
 }
 
+/// The user's standard effect stack keeps its GPU plan alongside intrinsic keyframe animation.
+#[test]
+fn ocean_grade_blur_wave_sphere_stack_stays_gpu_planned_with_animation() {
+    let (mut p, _, ocean, seq, map) = setup();
+    let id = place(&mut p, seq, 0, ocean, 0, 96);
+    let rate = FrameRate::FPS_24;
+    let clip = p.sequence_mut(seq).unwrap().video_tracks[0].items.iter_mut().find(|c| c.id == id).unwrap();
+    clip.source_in = rate.tick_of(13);
+    for (name, param, value) in
+        [("lumetri", "temperature", 73.7), ("gaussian_blur", "blurriness", 17.75), ("wave_warp", "height", 10.0), ("spherize", "radius", 0.0)]
+    {
+        let mut e = filmcraft_project::find_effect(name).unwrap().instance();
+        e.params.get_mut(param).unwrap().value = ParamValue::Float(value);
+        clip.effects.push(e);
+    }
+    let mut motion = filmcraft_project::find_effect("motion").unwrap().instance();
+    let position = motion.params.get_mut("position").unwrap();
+    position.put_keyframe(rate.tick_of(13), ParamValue::Vec2(filmcraft_geom::Vec2::new(160.0, 90.0)));
+    position.put_keyframe(rate.tick_of(109), ParamValue::Vec2(filmcraft_geom::Vec2::new(190.0, 70.0)));
+    let mut opacity = filmcraft_project::find_effect("opacity").unwrap().instance();
+    let alpha = opacity.params.get_mut("opacity").unwrap();
+    alpha.put_keyframe(rate.tick_of(13), ParamValue::Float(100.0));
+    alpha.put_keyframe(rate.tick_of(109), ParamValue::Float(20.0));
+    clip.effects.retain(|e| !matches!(e.effect.as_str(), "motion" | "opacity"));
+    clip.effects.extend([motion, opacity]);
+    let before = p.clone();
+    for frame in [7, 30, 63] {
+        let t = rate.tick_of(frame);
+        let opts = RenderOptions { scale: 0.5, ..Default::default() };
+        let planned = plan::plan_frame(&p, seq, t, opts, &map);
+        let plan::FramePlan::Layers { layers, .. } = &planned else { panic!("whole frame fell back to CPU") };
+        let fx = layers.iter().find_map(|l| l.fx.as_ref()).expect("the full clip must keep its GPU effects");
+        assert_eq!(fx.ops.len(), 4, "no enabled effect may be dropped");
+        assert!(fx.ops.iter().all(gpufx::FxOp::gpu_ok));
+        let got = plan::execute_cpu(&planned);
+        let expected = render_sequence(&p, seq, t, opts, &map);
+        let max_error = got.px.iter().zip(&expected.px).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max);
+        assert!(max_error < 1e-5, "planned/reference mismatch at frame {frame}: {max_error}");
+    }
+    assert_eq!(serde_json::to_value(&p).unwrap(), serde_json::to_value(before).unwrap(), "rendering must not rewrite effects or keyframes");
+}
+
 /// A project with a 4 s bars-and-tone clip (1 kHz at −20 dBFS) on A1, with extra audio effects.
 fn tone_with(effects: &[(&str, &[(&str, f64)])]) -> (Project, ItemId, SourceMap) {
     let mut p = Project::new("fx");

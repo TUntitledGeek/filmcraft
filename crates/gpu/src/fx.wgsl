@@ -50,6 +50,8 @@ const OP_MIRROR: u32 = 28u;
 const OP_OFFSET: u32 = 29u;
 const OP_VIDEO_LIMITER: u32 = 30u;
 const OP_LUMETRI: u32 = 31u;
+const OP_WAVE_WARP: u32 = 32u;
+const OP_SPHERIZE: u32 = 33u;
 
 fn size() -> vec2<i32> {
     return vec2<i32>(i32(u.i0.y), i32(u.i0.z));
@@ -87,6 +89,23 @@ fn sample_bilinear(x: f32, y: f32) -> vec4<f32> {
 }
 
 // `Image::sample_bilinear_clamped`
+// Wave's displacement amplifies sine error into sampling error. GPU built-in sin
+// permits a looser error than our image parity tolerance. Range-folded degree-13
+// Taylor evaluation keeps this warp accurate with ordinary f32 GPU instructions.
+fn wave_sine(angle: f32) -> f32 {
+    var x = angle;
+    if x > 1.5707963267948966 { x = 3.141592653589793 - x; }
+    if x < -1.5707963267948966 { x = -3.141592653589793 - x; }
+    let xx = x * x;
+    var p = 1.0 / 6227020800.0;
+    p = fma(p, xx, -1.0 / 39916800.0);
+    p = fma(p, xx, 1.0 / 362880.0);
+    p = fma(p, xx, -1.0 / 5040.0);
+    p = fma(p, xx, 1.0 / 120.0);
+    p = fma(p, xx, -1.0 / 6.0);
+    return x * fma(p, xx, 1.0);
+}
+
 fn sample_clamped(x: f32, y: f32) -> vec4<f32> {
     let s = size();
     let fx = clamp(x - 0.5, 0.0, f32(s.x) - 1.0);
@@ -624,6 +643,31 @@ fn pixel(op: u32, p: vec2<i32>) -> vec4<f32> {
                 return vec4(0.0);
             }
             return sample_bilinear(uu, vv) * m1.z;
+        }
+        case OP_WAVE_WARP: {
+            let height = u.p0.x; let direction = u.p0.yz;
+            let ax = pc.x * u.p1.x; let ay = pc.y * u.p1.y;
+            let hi = ax + ay; let z = hi - ax;
+            let sum_error = (ax - (hi - z)) + (ay - z);
+            let lo = sum_error + fma(pc.x, u.p1.x, -ax) + fma(pc.y, u.p1.y, -ay)
+                + pc.x * u.p1.z + pc.y * u.p1.w;
+            let cycles = fract(hi) + lo - u.p0.w - u.p2.x;
+            let angle = (fract(cycles + 0.5) - 0.5) * 6.283185307179586;
+            let off = height * wave_sine(angle);
+            // Match the CPU's transparent-edge, premultiplied bilinear warp.
+            return sample_bilinear(fma(-direction.y, off, pc.x), fma(direction.x, off, pc.y));
+        }
+        case OP_SPHERIZE: {
+            let centre = u.p0.xy; let radius = u.p0.z;
+            let delta = pc - centre;
+            let d = length(delta);
+            if radius < 0.5 || d >= radius || d < 1e-9 {
+                return ld(p);
+            }
+            let n = d / radius;
+            let k = 1.0 - 0.5 * sqrt(max(0.0, 1.0 - n * n));
+            let source = centre + delta * k;
+            return sample_bilinear(source.x, source.y);
         }
         case OP_HFLIP: {
             return ld(vec2(s.x - 1 - p.x, p.y));

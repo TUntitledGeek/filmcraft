@@ -184,6 +184,14 @@ fn cases() -> Vec<(&'static str, Vec<(&'static str, ParamValue)>, bool)> {
         ),
         ("horizontal_flip", vec![], false),
         ("vertical_flip", vec![], false),
+        ("wave_warp", vec![], false),
+        ("wave_warp", vec![("height", fl(-12.0)), ("width", fl(13.0)), ("direction", fl(137.5))], false),
+        ("wave_warp", vec![("height", fl(0.0)), ("width", fl(0.0)), ("direction", fl(-45.0))], false),
+        ("spherize", vec![], false),
+        ("spherize", vec![("radius", fl(0.49))], false),
+        ("spherize", vec![("radius", fl(0.5)), ("center", pt(13.5, 10.5))], false),
+        ("spherize", vec![("radius", fl(24.0)), ("center", pt(13.5, 10.5))], false),
+        ("spherize", vec![("radius", fl(1000.0))], false),
         ("mirror", vec![("center", pt(20.0, 10.0)), ("angle", fl(30.0))], false),
         ("mirror", vec![("angle", fl(200.0))], false),
         ("offset", vec![("shift", pt(10.0, 30.0)), ("blend", fl(25.0))], false),
@@ -378,6 +386,19 @@ fn gpu_effect_chains_match_cpu() {
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
     let chains: Vec<Vec<EffectInstance>> = vec![
         vec![
+            effect("lumetri", &[("temperature", fl(73.7))]),
+            effect("gaussian_blur", &[("blurriness", fl(17.75))]),
+            effect("wave_warp", &[]),
+            effect("spherize", &[("radius", fl(0.0))]),
+        ],
+        vec![
+            effect("spherize", &[("radius", fl(23.0)), ("center", pt(20.0, 18.0))]),
+            effect("wave_warp", &[("height", fl(-7.0)), ("direction", fl(137.5))]),
+            effect("lumetri", &[("temperature", fl(73.7))]),
+            effect("gaussian_blur", &[("blurriness", fl(17.75))]),
+            effect("spherize", &[("radius", fl(40.0))]),
+        ],
+        vec![
             effect("lumetri", &[("exposure", fl(0.6)), ("contrast", fl(12.0)), ("saturation", fl(110.0))]),
             effect("gaussian_blur", &[("blurriness", fl(8.0))]),
             effect("wiggle", &[("amount", fl(5.0))]),
@@ -431,6 +452,13 @@ fn keyframed_effects_follow_time() {
     let frame = VideoFrame::rgba_f32(w, h, px.clone());
     let mut blur = effect("gaussian_blur", &[]);
     let mut bc = effect("brightness_contrast", &[]);
+    let mut wave = effect("wave_warp", &[]);
+    let mut sphere = effect("spherize", &[]);
+    for (e, param, end) in [(&mut wave, "height", 8.0), (&mut sphere, "radius", 20.0)] {
+        let p = e.params.get_mut(param).unwrap();
+        p.put_keyframe(Tick::ZERO, fl(0.0));
+        p.put_keyframe(Tick::from_seconds_f64(1.0), fl(end));
+    }
     let p = blur.params.get_mut("blurriness").expect("blurriness");
     p.put_keyframe(Tick::ZERO, fl(0.0));
     p.put_keyframe(Tick::from_seconds_f64(1.0), fl(30.0));
@@ -438,9 +466,10 @@ fn keyframed_effects_follow_time() {
     p.put_keyframe(Tick::ZERO, fl(-50.0));
     p.put_keyframe(Tick::from_seconds_f64(1.0), fl(60.0));
     let mut last: Option<Vec<f32>> = None;
-    for s in [0.0, 0.3, 0.75, 1.0] {
-        let cx = cx(Tick::from_seconds_f64(s), 1.0);
-        let ops: Vec<FxOp> = [&bc, &blur].iter().filter_map(|e| FxOp::eval(e, &cx, w as usize, h as usize)).collect();
+    for s in [0.0, 0.3, 0.75, 1.0, 3600.25] {
+        let mut cx = cx(Tick::from_seconds_f64(s), 1.0);
+        cx.seconds = s;
+        let ops: Vec<FxOp> = [&bc, &blur, &wave, &sphere].iter().filter_map(|e| FxOp::eval(e, &cx, w as usize, h as usize)).collect();
         let mut cpu = filmcraft_render::Image { w: w as usize, h: h as usize, px: px.clone() };
         for op in &ops {
             op.apply(&mut cpu);
@@ -462,6 +491,10 @@ fn hostile_parameters_are_bounded() {
         effect("brightness_contrast", &[("brightness", fl(f64::NAN))]),
         effect("gaussian_blur", &[("blurriness", fl(f64::INFINITY))]),
         effect("directional_blur", &[("length", fl(f64::NAN))]),
+        effect("wave_warp", &[("height", fl(f64::INFINITY))]),
+        effect("wave_warp", &[("direction", fl(f64::NAN))]),
+        effect("spherize", &[("radius", fl(f64::INFINITY))]),
+        effect("spherize", &[("center", pt(f64::INFINITY, 0.0))]),
         effect("transform", &[("rotation", fl(f64::NAN))]),
         effect("crop", &[("left", fl(f64::NAN))]),
         effect("offset", &[("shift", pt(f64::INFINITY, 0.0))]),

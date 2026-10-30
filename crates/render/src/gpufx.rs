@@ -122,6 +122,21 @@ pub enum FxOp {
         feather: f32,
     },
     Resample(Resample),
+    /// Sine displacement in working pixels. Keep f64 evaluation for the CPU reference;
+    /// the GPU receives a bounded, phase-reduced f32 representation.
+    WaveWarp {
+        height: f64,
+        wavelength: f64,
+        ux: f64,
+        uy: f64,
+        phase: f64,
+    },
+    /// Inverse sphere magnification, with an automatically positioned/animated centre.
+    Spherize {
+        cx: f64,
+        cy: f64,
+        radius: f64,
+    },
     HFlip,
     VFlip,
     Mirror {
@@ -225,6 +240,8 @@ pub const GPU_EFFECTS: &[&str] = &[
     "edge_feather",
     "transform",
     "wiggle",
+    "wave_warp",
+    "spherize",
     "horizontal_flip",
     "vertical_flip",
     "mirror",
@@ -422,6 +439,21 @@ impl FxOp {
                     return Some(FxOp::Resample(Resample { inv: Some(m), rect: [u32::MAX; 4], opacity: op }));
                 }
                 FxOp::Resample(resample(w, h, &m, op))
+            }
+            "wave_warp" => {
+                let angle = (f(e, "direction", cx) as f64).to_radians();
+                FxOp::WaveWarp {
+                    height: f(e, "height", cx) as f64 * cx.px_scale as f64,
+                    wavelength: (f(e, "width", cx) as f64 * cx.px_scale as f64).max(1.0),
+                    ux: angle.sin(),
+                    uy: -angle.cos(),
+                    phase: cx.seconds * f(e, "speed", cx) as f64 * std::f64::consts::TAU,
+                }
+            }
+            "spherize" => {
+                let img = Image { w, h, px: Vec::new() };
+                let c = crate::vfx::pv(e, "center", cx, &img);
+                FxOp::Spherize { cx: c.x, cy: c.y, radius: (crate::vfx::fv(e, "radius", cx) * cx.px_scale) as f64 }
             }
             "horizontal_flip" => FxOp::HFlip,
             "vertical_flip" => FxOp::VFlip,
@@ -622,6 +654,15 @@ impl FxOp {
                     && r.opacity.is_finite()
                     && r.inv.as_ref().is_none_or(|m| [m.a, m.b, m.c, m.d, m.e, m.f].iter().all(|v| v.is_finite() && v.abs() < 1e7))
             }
+            FxOp::WaveWarp { height, wavelength, ux, uy, phase } => {
+                [height, wavelength, ux, uy, phase].iter().all(|v| v.is_finite())
+                    && height.abs() <= 1e6
+                    && (1.0..=1e7).contains(wavelength)
+                    && ux.abs() <= 1.0
+                    && uy.abs() <= 1.0
+                    && phase.abs() <= 1e7
+            }
+            FxOp::Spherize { cx, cy, radius } => [cx, cy, radius].iter().all(|v| v.is_finite() && v.abs() <= 1e7),
             FxOp::Mirror { cx, cy, nx, ny } => fin(&[*cx, *cy, *nx, *ny]),
             FxOp::Offset { dx, dy, blend } => fin(&[*dx, *dy, *blend]),
             FxOp::AscCdl { slope, offset, power, sat } => fin(slope) && fin(offset) && fin(power) && sat.is_finite(),
@@ -798,6 +839,28 @@ impl FxOp {
                 };
                 *img = out;
                 img.scale_alpha(r.opacity);
+            }
+            FxOp::WaveWarp { height, wavelength, ux, uy, phase } => {
+                crate::effects::warp(img, |x, y| {
+                    let along = x * ux + y * uy;
+                    let off = height * (along / wavelength * std::f64::consts::TAU - phase).sin();
+                    (x - uy * off, y + ux * off)
+                });
+            }
+            FxOp::Spherize { cx, cy, radius } => {
+                if *radius < 0.5 {
+                    return;
+                }
+                crate::effects::warp(img, |x, y| {
+                    let (dx, dy) = (x - cx, y - cy);
+                    let d = dx.hypot(dy);
+                    if d >= *radius || d < 1e-9 {
+                        return (x, y);
+                    }
+                    let n = d / radius;
+                    let k = 1.0 - 0.5 * (1.0 - n * n).sqrt();
+                    (cx + dx * k, cy + dy * k)
+                });
             }
             FxOp::HFlip => {
                 let w = img.w;
@@ -1112,6 +1175,106 @@ fn resample_cpu(src: &Image, inv: &Affine, rect: [u32; 4]) -> Image {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wave_and_sphere_ops_preserve_the_original_cpu_warps() {
+        use filmcraft_project::{ParamValue, find_effect};
+        for scale in [0.25, 0.5, 1.0] {
+            let (w, h) = (37usize, 23usize);
+            let px: Vec<f32> = (0..w * h)
+                .flat_map(|i| {
+                    let a = (i % 5) as f32 / 4.0;
+                    [2.0 * a, (i % 13) as f32 / 13.0 * a, 0.3 * a, a]
+                })
+                .collect();
+            for seconds in [0.0, 0.37, -2.75, 3600.25] {
+                let cx = FxCtx {
+                    t: filmcraft_time::Tick::from_seconds_f64(seconds),
+                    px_scale: scale,
+                    seconds,
+                    timecode: "",
+                    clip_name: "",
+                    project: None,
+                    env: None,
+                    frame_rate: 24.0,
+                    working: filmcraft_color::WorkingSpace::Rec709,
+                };
+                for direction in [0.0, 90.0, 137.5, -45.0] {
+                    let mut e = find_effect("wave_warp").unwrap().instance();
+                    e.params.get_mut("direction").unwrap().value = ParamValue::Float(direction);
+                    e.params.get_mut("height").unwrap().value = ParamValue::Float(-7.5);
+                    e.params.get_mut("width").unwrap().value = ParamValue::Float(13.5);
+                    e.params.get_mut("speed").unwrap().value = ParamValue::Float(-0.75);
+                    let mut old = Image { w, h, px: px.clone() };
+                    // Independent expression of the original effects.rs Wave Warp kernel.
+                    let height = f(&e, "height", &cx) as f64 * scale as f64;
+                    let width = (f(&e, "width", &cx) as f64 * scale as f64).max(1.0);
+                    let angle = (f(&e, "direction", &cx) as f64).to_radians();
+                    let (ux, uy) = (angle.sin(), -angle.cos());
+                    let phase = seconds * f(&e, "speed", &cx) as f64 * std::f64::consts::TAU;
+                    crate::effects::warp(&mut old, |x, y| {
+                        let off = height * ((x * ux + y * uy) / width * std::f64::consts::TAU - phase).sin();
+                        (x - uy * off, y + ux * off)
+                    });
+                    let mut actual = Image { w, h, px: px.clone() };
+                    let op = FxOp::eval(&e, &cx, w, h).unwrap();
+                    assert!(op.gpu_ok());
+                    op.apply(&mut actual);
+                    assert_eq!(old.px, actual.px);
+                }
+                for radius in [-1.0, 0.0, 0.5, 1.0, 19.0, 1000.0] {
+                    let mut e = find_effect("spherize").unwrap().instance();
+                    e.params.get_mut("radius").unwrap().value = ParamValue::Float(radius);
+                    for centre in [filmcraft_geom::Vec2::new(f64::NAN, f64::NAN), filmcraft_geom::Vec2::new(17.5, 11.5)] {
+                        e.params.get_mut("center").unwrap().value = ParamValue::Vec2(centre);
+                        let mut old = Image { w, h, px: px.clone() };
+                        assert!(crate::vfx::apply(&mut old, &e, &cx));
+                        let mut actual = Image { w, h, px: px.clone() };
+                        let op = FxOp::eval(&e, &cx, w, h).unwrap();
+                        assert!(op.gpu_ok());
+                        op.apply(&mut actual);
+                        assert_eq!(old.px, actual.px);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wave_phase_and_sphere_radius_follow_canonical_keyframes() {
+        use filmcraft_project::{ParamValue, find_effect};
+        use filmcraft_time::Tick;
+        let mut wave = find_effect("wave_warp").unwrap().instance();
+        wave.params.get_mut("height").unwrap().put_keyframe(Tick::ZERO, ParamValue::Float(0.0));
+        wave.params.get_mut("height").unwrap().put_keyframe(Tick::from_seconds_f64(2.0), ParamValue::Float(20.0));
+        let mut sphere = find_effect("spherize").unwrap().instance();
+        sphere.params.get_mut("radius").unwrap().put_keyframe(Tick::ZERO, ParamValue::Float(0.0));
+        sphere.params.get_mut("radius").unwrap().put_keyframe(Tick::from_seconds_f64(2.0), ParamValue::Float(100.0));
+        let cx = FxCtx {
+            t: Tick::from_seconds_f64(1.0),
+            px_scale: 0.5,
+            seconds: 0.25,
+            timecode: "",
+            clip_name: "",
+            project: None,
+            env: None,
+            frame_rate: 24.0,
+            working: filmcraft_color::WorkingSpace::Rec709,
+        };
+        // Parameter time is source/clip-mapped t; procedural phase is elapsed sequence seconds.
+        let op = FxOp::eval(&wave, &cx, 96, 54).unwrap();
+        assert!(matches!(op, FxOp::WaveWarp { height, phase, .. } if height == 5.0 && (phase - std::f64::consts::FRAC_PI_2).abs() < 1e-10));
+        assert!(op.gpu_ok());
+        assert!(matches!(FxOp::eval(&sphere, &cx, 96, 54), Some(FxOp::Spherize { radius, .. }) if radius == 25.0));
+        for op in [
+            FxOp::WaveWarp { height: f64::NAN, wavelength: 1.0, ux: 0.0, uy: 1.0, phase: 0.0 },
+            FxOp::WaveWarp { height: 1.0, wavelength: 0.0, ux: 0.0, uy: 1.0, phase: 0.0 },
+            FxOp::Spherize { cx: f64::INFINITY, cy: 0.0, radius: 10.0 },
+            FxOp::Spherize { cx: 0.0, cy: 0.0, radius: f64::NAN },
+        ] {
+            assert!(!op.gpu_ok());
+        }
+    }
 
     #[test]
     fn wiggle_resampler_matches_the_original_cpu_effect_with_alpha_and_hdr_pixels() {

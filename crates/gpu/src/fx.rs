@@ -52,6 +52,8 @@ const OP_MIRROR: u32 = 28;
 const OP_OFFSET: u32 = 29;
 const OP_VIDEO_LIMITER: u32 = 30;
 const OP_LUMETRI: u32 = 31;
+const OP_WAVE_WARP: u32 = 32;
+const OP_SPHERIZE: u32 = 33;
 
 type Target = (wgpu::Texture, wgpu::TextureView);
 
@@ -159,6 +161,34 @@ fn steps(op: &FxOp) -> Vec<Step> {
             match &r.inv {
                 Some(m) => out.push(step(OP_RESAMPLE, r.rect, &[m.a as f32, m.b as f32, m.c as f32, m.d as f32, m.e as f32, m.f as f32, op, 1.0])),
                 None => out.push(step(OP_RESAMPLE, [0; 4], &[0.0; 8])),
+            }
+        }
+        FxOp::WaveWarp { height, wavelength, ux, uy, phase } => {
+            let (kx, ky) = (ux / wavelength, uy / wavelength);
+            let phase = (phase / std::f64::consts::TAU).rem_euclid(1.0);
+            // Split phase coefficients into high/low parts. Reduce cycles before sin
+            // to avoid GPU trig range error on short waves and long/large frames.
+            out.push(step(
+                OP_WAVE_WARP,
+                [0; 4],
+                &[
+                    *height as f32,
+                    *ux as f32,
+                    *uy as f32,
+                    phase as f32,
+                    kx as f32,
+                    ky as f32,
+                    (kx - kx as f32 as f64) as f32,
+                    (ky - ky as f32 as f64) as f32,
+                    (phase - phase as f32 as f64) as f32,
+                ],
+            ));
+        }
+        FxOp::Spherize { cx, cy, radius } => {
+            // Identity remains in the project/plan, but needs no texture pass. Its removal
+            // here cannot reorder the remaining effects or mutate keyframes/undo history.
+            if *radius >= 0.5 {
+                out.push(step(OP_SPHERIZE, [0; 4], &[*cx as f32, *cy as f32, *radius as f32]));
             }
         }
         FxOp::HFlip => out.push(step(OP_HFLIP, [0; 4], &[])),
