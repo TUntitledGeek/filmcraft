@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-30",
+  "base": "bfb47546",
+  "bug": "Canvas animation-hit early return skipped repainting the existing foreground context menu; open popups now render before canvas hover/gesture handling.",
+  "baseline": "Both initial native repro tests failed with The clip menu vanished.",
+  "native": {
+    "uiLibrary": 231,
+    "inline": 12,
+    "keyframes": 17,
+    "menus": 8,
+    "escapeDrag": 8,
+    "popup": 3,
+    "total": 279
+  },
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/155.0.8059.86",
+    "revision": "@804d6b05f089b27af8342622a36558c49401a1d4",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "jsVersion": "15.5.35.25"
+  },
+  "popup": {
+    "cases": [
+      {
+        "expanded": false,
+        "hoverZones": [
+          "clip edge",
+          "disclosure"
+        ],
+        "settings": true,
+        "escape": true,
+        "outside": true,
+        "editPointTarget": true,
+        "projectUnchanged": true
+      },
+      {
+        "expanded": true,
+        "hoverZones": [
+          "clip edge",
+          "disclosure",
+          "drawer"
+        ],
+        "settings": true,
+        "escape": true,
+        "outside": true,
+        "editPointTarget": true,
+        "projectUnchanged": true
+      }
+    ],
+    "complete": true
+  },
+  "inline": true,
+  "editing": {
+    "sourceAfterDoubleClick": {
+      "end": 4572288000000,
+      "fps": 23.976023976023978,
+      "item": 5,
+      "markIn": null,
+      "markOut": null,
+      "markers": [],
+      "media": 5,
+      "playhead": 0,
+      "start": 0,
+      "subclip": null
+    },
+    "expectedItem": 5,
+    "doubleClick": true,
+    "projectDrop": true,
+    "timelineDrop": {
+      "item": 5,
+      "playhead": 614485872000,
+      "unchanged": true
+    },
+    "trimChanged": true,
+    "trimUndo": true,
+    "trimRedo": true,
+    "splitChanged": true,
+    "splitUndo": true,
+    "moveChanged": true,
+    "moveUndo": true,
+    "trackControls": {
+      "target": {
+        "changed": true,
+        "restored": true
+      },
+      "sourcePatch": {
+        "changed": true,
+        "restored": true
+      }
+    },
+    "fusionHidden": true
+  },
+  "errors": [],
+  "captures": 27,
+  "pictures": [
+    {
+      "path": "docs/screenshots/v7-popup/popup-over-clip-edge.png",
+      "sha256": "c1da8b403a613c8b898b9c44adab5fc866874060f2dc31ef93cd13897cfd9967"
+    },
+    {
+      "path": "docs/screenshots/v7-popup/popup-over-animation.png",
+      "sha256": "c130d12cba351b67b95d8998294679ed397be79688d7d9a828a275be7bb2c29a"
+    }
+  ],
+  "wasm": {
+    "bytes": 43050999,
+    "sha256": "c0da672d43fba446699864ae19225d5cfd678c654fce9a6d7cb8528d0a29b17b"
+  },
+  "gates": {
+    "uiAllTargetClippy": "passed",
+    "productionStandardWasm": "passed",
+    "layers": "passed",
+    "assets": {
+      "passed": true,
+      "count": 201
+    },
+    "fullNativeWorkspace": "not rerun; core model/format/engine baseline currently running before next identity milestone"
+  },
+  "harnessNotes": [
+    "Keyboard dismissal uses actual CDP key events.",
+    "Outside dismissal is tested inside the editing canvas, away from the outermost browser/window border.",
+    "Widget-registry assertions after undo wait for the painted frame.",
+    "Popup fixtures explicitly restore their disclosures; repeating demo IDs currently retains view state until a project-scope lifecycle guard is added."
+  ],
+  "performance": "Functional verification only; no FPS improvement claimed."
+}

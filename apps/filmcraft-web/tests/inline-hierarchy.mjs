@@ -3,6 +3,8 @@ export async function runInlineHierarchyChecks({execute,call,send,capture:rawCap
   const capture=async name=>{await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:2,y:2,button:'none'});await rawCapture(name);};
   const assert=(value,message)=>{if(!value)throw new Error(message);};
   const element=async id=>(await call('ui.elements')).find(e=>e.id===id);
+  // The registry describes the previous painted frame; an engine undo can precede that paint.
+  const waitFor=async predicate=>{for(let i=0;i<20;i++){await call('ui.inspect');if(await predicate())return true;await sleep(50);}return false;};
   const geometry=()=>call('ui.timeline.animation');
   const inspect=()=>call('ui.inspect');
   let sequence=await execute('sequence.inspect');
@@ -99,8 +101,8 @@ export async function runInlineHierarchyChecks({execute,call,send,capture:rawCap
   const movedId=`${param(scene,'opacity','opacity')}.key.${targetSource}`;
   await menuOpen(firstKey.id);await menuClick(`${firstKey.id}.menu.moveToPlayhead`);
   assert(!(await element(firstKey.id))&&await element(movedId),'Move to playhead did not use the exact source tick');
-  await execute('edit.undo');assert(await element(firstKey.id)&&!(await element(movedId)),'Key move undo failed');
-  await execute('edit.redo');assert(await element(movedId)&&!(await element(firstKey.id)),'Key move redo failed');
+  await execute('edit.undo');assert(await waitFor(async()=>await element(firstKey.id)&&!(await element(movedId))),'Key move undo failed');
+  await execute('edit.redo');assert(await waitFor(async()=>await element(movedId)&&!(await element(firstKey.id))),'Key move redo failed');
   const secondKey=(await call('ui.elements')).filter(e=>e.id.startsWith(`${param(scene,'opacity','opacity')}.key.`)&&e.id!==movedId)[0];
   assert(secondKey,'Retiming removed the other key');
   await execute('playhead.set',{time:scene.start+Number(secondKey.id.split('.').at(-1))-scene.sourceIn});
@@ -112,7 +114,7 @@ export async function runInlineHierarchyChecks({execute,call,send,capture:rawCap
   await execute('edit.undo');assert((await value(scene,'opacity','opacity')).keyframes===2,'Context delete undo failed');
   await execute('edit.redo');assert((await value(scene,'opacity','opacity')).keyframes===1,'Context delete redo failed');
   await execute('edit.undo');await execute('edit.undo');
-  assert(await element(firstKey.id)&&firstSource!==targetSource,'The original two-key layout was not restored');
+  assert(await waitFor(async()=>await element(firstKey.id))&&firstSource!==targetSource,'The original two-key layout was not restored');
   report.hierarchy.keyContext={interpolationUndoRedo:true,exactMoveUndoRedo:true,occupiedAndOutsideGuards:true,deleteUndoRedo:true,from:firstSource,to:targetSource};
   await capture('hierarchy-opacity-keys-dark');await call('ui.set',{theme:'light'});await capture('hierarchy-opacity-keys-light');await call('ui.set',{theme:'dark'});
   const verifyRuler=async()=>{const g=await geometry(),u=(await inspect()).ui;const keys=(await call('ui.elements')).filter(e=>e.id.startsWith(`${param(scene,'opacity','opacity')}.key.`));assert(keys.length>0,'No visible Opacity keys');for(const key of keys){const source=Number(key.id.split('.').at(-1));const time=scene.start+source-scene.sourceIn;const expected=g.content[0]+(time/254016000000-u.timeline.scroll)*u.timeline.pps;assert(Math.abs(expected-(key.rect[0]+key.rect[2]/2))<1.25,'Inline key drifted from the main ruler');}return {keys:keys.length,pps:u.timeline.pps,scroll:u.timeline.scroll};};

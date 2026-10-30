@@ -2468,6 +2468,146 @@ fn scrub_playhead(app: &mut FilmcraftApp, seq: &Sequence, layout: &Layout, p: Po
     app.tl.pending_scrub_tick = None;
 }
 
+// Keep an open popup alive independently of the canvas hover/gesture path.
+fn show_context_menu(app: &mut FilmcraftApp, ctx: &egui::Context, seq: &Sequence, layout: &Layout, resp: &egui::Response, tool: Tool) {
+    // ---- context menu on clips (right-clicking an unselected clip selects it first); on a clip's
+    // edge, the edit point menu instead (right-clicking an unselected edit point selects it first)
+    let edit_point_menu_id = egui::Id::new("timeline.editPointMenu.target");
+    // the clip right-clicked, remembered while its menu is open: Unlink leaves only it selected
+    let menu_clip_id = egui::Id::new("timeline.clipMenu.clip");
+    // right-clicking empty time between clips selects the gap and opens its menu (#648, #668)
+    let gap_menu_id = egui::Id::new("timeline.gapMenu.open");
+    if resp.secondary_clicked()
+        && let Some(p) = resp.interact_pointer_pos()
+    {
+        let on_gap = match hit(seq, layout, p) {
+            Hit::Empty { track } => app.session.execute("timeline.selectGap", json!({"track": track.0, "time": layout.tick_at(p.x).0})).is_ok(),
+            _ => false,
+        };
+        ctx.data_mut(|d| d.insert_temp(gap_menu_id, on_gap));
+        if on_gap {
+            // not the edit point menu of a cut right-clicked before
+            ctx.data_mut(|d| d.insert_temp::<Option<EditPointTarget>>(edit_point_menu_id, None));
+        }
+    }
+    // on a marker of the ruler, the marker menu instead (right-clicking a marker selects it first)
+    let marker_menu_id = egui::Id::new("timeline.markerMenu.target");
+    if resp.secondary_clicked()
+        && let Some(p) = resp.interact_pointer_pos()
+    {
+        let marker = marker_under_pointer(seq, layout, p);
+        if let Some(m) = marker {
+            app.session.set_playhead(m.start.max(Tick::ZERO));
+        }
+        ctx.data_mut(|d| d.insert_temp(marker_menu_id, marker.map(|m| m.id)));
+    }
+    if resp.secondary_clicked()
+        && let Some(p) = resp.interact_pointer_pos()
+        && let Hit::Clip { clip, edge, track } = hit(seq, layout, p)
+    {
+        ctx.data_mut(|d| d.insert_temp(menu_clip_id, clip));
+        let target = edge.and_then(|e| EditPointTarget::at(seq, track, clip, e).map(|t| (t, e)));
+        ctx.data_mut(|d| d.insert_temp(edit_point_menu_id, target.map(|(t, _)| t)));
+        if let Some((t, e)) = target {
+            let on_it = app.session.state.edit_points.iter().any(|ep| (ep.out && Some(ep.clip) == t.left) || (!ep.out && Some(ep.clip) == t.right));
+            if !on_it {
+                let kind = match tool {
+                    Tool::Rolling => "roll",
+                    Tool::Ripple => "ripple",
+                    _ => {
+                        let (dist, neighbour) = edge_geometry(seq, layout, track, clip, e, p.x);
+                        selection_trim_kind(app.session.prefs.trim.selection_tool_roll_ripple, false, false, dist, neighbour)
+                    }
+                };
+                let edge = if e == filmcraft_edit::Edge::In { "in" } else { "out" };
+                let _ = app.session.execute("trim.selectEditPoint", json!({"clip": clip.0, "edge": edge, "kind": kind}));
+            }
+        } else if !app.session.state.selection.contains(&clip) {
+            let _ = app.session.execute("timeline.select", json!({"clips": [clip.0]}));
+        }
+    }
+    resp.context_menu(|ui| {
+        ui.set_min_width(220.0);
+        if let Some(marker) = ctx.data(|d| d.get_temp::<Option<MarkerId>>(marker_menu_id)).flatten() {
+            marker_menu(app, ctx, ui, marker);
+            return;
+        }
+        if let Some(target) = ctx.data(|d| d.get_temp::<Option<EditPointTarget>>(edit_point_menu_id)).flatten() {
+            edit_point_menu(app, ctx, ui, seq, target);
+            return;
+        }
+        if ctx.data(|d| d.get_temp::<bool>(gap_menu_id)).unwrap_or(false) {
+            gap_menu(app, ctx, ui);
+            return;
+        }
+        let sel = app.session.state.selection.clone();
+        let picked: Vec<&filmcraft_project::TrackItem> = sel.iter().filter_map(|c| seq.find_item(*c).map(|(_, it)| it)).collect();
+        let animation = ui.add_enabled(!picked.is_empty(), egui::Button::new("Show/Hide Clip Animation"));
+        app.auto.add_response("timeline.animation.toggle", &animation, "Show/Hide Clip Animation");
+        if animation.clicked() {
+            if let Err(error) = crate::menus::invoke(app, ctx, "timeline.animation.toggle", json!({})) {
+                app.ui.status = error;
+            }
+            ui.close();
+        }
+        let all_enabled = !picked.is_empty() && picked.iter().all(|it| it.enabled);
+        let linked = picked.iter().any(|it| it.link.is_some());
+        let mut first = true;
+        for group in CLIP_MENU {
+            if !std::mem::take(&mut first) {
+                ui.separator();
+            }
+            for &(label, cmd) in *group {
+                if cmd == "edit.label" {
+                    ui.add_enabled_ui(!picked.is_empty(), |ui| {
+                        let menu = ui.menu_button(crate::i18n::t(label), |ui| {
+                            // the user's label names and colours, as in Edit ▸ Label (#786)
+                            let labels = app.session.prefs.labels.clone();
+                            for l in filmcraft_project::Label::ALL {
+                                if crate::menus::label_choice(ui, &mut app.auto, &labels, l, "timeline.clipMenu.label").clicked() {
+                                    if let Err(error) = app.session.execute("edit.label", json!({"label":l.name()})) {
+                                        app.ui.status = error.to_string();
+                                    }
+                                    ui.close();
+                                }
+                            }
+                        });
+                        app.auto.add_response("timeline.clipMenu.edit.label", &menu.response, crate::i18n::t(label));
+                    });
+                    continue;
+                }
+                if cmd == "clip.multicam" {
+                    multicam_menu(app, ui, &picked);
+                    continue;
+                }
+                let label = match cmd {
+                    "clip.enable" if all_enabled => tl!("✓ Enable"),
+                    "clip.link" if linked => tl!("Unlink"),
+                    _ => crate::i18n::t(label),
+                };
+                let r = ui.add_enabled(!sel.is_empty() && app.session.is_enabled(cmd), egui::Button::new(label));
+                app.auto.add(&format!("timeline.clipMenu.{cmd}"), r.rect, label);
+                if r.clicked() {
+                    match crate::menus::invoke(app, ctx, cmd, json!({})) {
+                        // Unlink (#220): the clips were selected together because they were linked;
+                        // keep only the one right-clicked, so it can be dragged away from the others
+                        Ok(v) if cmd == "clip.link" && v["linked"] == json!(false) => {
+                            if let Some(clip) = ctx.data(|d| d.get_temp::<ClipId>(menu_clip_id))
+                                && app.session.state.selection.contains(&clip)
+                            {
+                                let _ = app.session.execute("timeline.select", json!({"clips": [clip.0]}));
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => app.ui.status = e,
+                    }
+                    ui.close();
+                }
+            }
+        }
+    });
+}
+
 fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &Layout, rect: Rect) {
     let animation_pointer = ui.input(|i| {
         i.pointer.hover_pos().is_some_and(|p| layout.animation_control_at(p)) || i.pointer.press_origin().is_some_and(|p| layout.animation_control_at(p))
@@ -2481,6 +2621,14 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
     let tool = app.ui.tool;
     let rate = seq.settings.frame_rate;
     let roll_ripple = app.session.prefs.trim.selection_tool_roll_ripple;
+
+    // A popup owns pointer interaction until it closes. Rebuilding it must not depend on
+    // the drawer/chevron/trim zone geometrically beneath it (or on hover outside the menu).
+    if app.tl.drag.is_none() && egui::Popup::is_id_open(&ctx, egui::Popup::default_response_id(&resp)) {
+        app.tl.pressed = None;
+        show_context_menu(app, &ctx, seq, layout, &resp, tool);
+        return;
+    }
 
     // ---- what the button went down on (#259): kept from the press frame until it comes up
     if ctx.input(|i| !i.pointer.any_down() && !i.pointer.any_released()) {
@@ -3130,142 +3278,7 @@ fn interact(app: &mut FilmcraftApp, ui: &mut egui::Ui, seq: &Sequence, layout: &
         app.ui.status = e.to_string();
     }
 
-    // ---- context menu on clips (right-clicking an unselected clip selects it first); on a clip's
-    // edge, the edit point menu instead (right-clicking an unselected edit point selects it first)
-    let edit_point_menu_id = egui::Id::new("timeline.editPointMenu.target");
-    // the clip right-clicked, remembered while its menu is open: Unlink leaves only it selected
-    let menu_clip_id = egui::Id::new("timeline.clipMenu.clip");
-    // right-clicking empty time between clips selects the gap and opens its menu (#648, #668)
-    let gap_menu_id = egui::Id::new("timeline.gapMenu.open");
-    if resp.secondary_clicked()
-        && let Some(p) = resp.interact_pointer_pos()
-    {
-        let on_gap = match hit(seq, layout, p) {
-            Hit::Empty { track } => app.session.execute("timeline.selectGap", json!({"track": track.0, "time": layout.tick_at(p.x).0})).is_ok(),
-            _ => false,
-        };
-        ctx.data_mut(|d| d.insert_temp(gap_menu_id, on_gap));
-        if on_gap {
-            // not the edit point menu of a cut right-clicked before
-            ctx.data_mut(|d| d.insert_temp::<Option<EditPointTarget>>(edit_point_menu_id, None));
-        }
-    }
-    // on a marker of the ruler, the marker menu instead (right-clicking a marker selects it first)
-    let marker_menu_id = egui::Id::new("timeline.markerMenu.target");
-    if resp.secondary_clicked()
-        && let Some(p) = resp.interact_pointer_pos()
-    {
-        let marker = marker_under_pointer(seq, layout, p);
-        if let Some(m) = marker {
-            app.session.set_playhead(m.start.max(Tick::ZERO));
-        }
-        ctx.data_mut(|d| d.insert_temp(marker_menu_id, marker.map(|m| m.id)));
-    }
-    if resp.secondary_clicked()
-        && let Some(p) = resp.interact_pointer_pos()
-        && let Hit::Clip { clip, edge, track } = hit(seq, layout, p)
-    {
-        ctx.data_mut(|d| d.insert_temp(menu_clip_id, clip));
-        let target = edge.and_then(|e| EditPointTarget::at(seq, track, clip, e).map(|t| (t, e)));
-        ctx.data_mut(|d| d.insert_temp(edit_point_menu_id, target.map(|(t, _)| t)));
-        if let Some((t, e)) = target {
-            let on_it = app.session.state.edit_points.iter().any(|ep| (ep.out && Some(ep.clip) == t.left) || (!ep.out && Some(ep.clip) == t.right));
-            if !on_it {
-                let kind = match tool {
-                    Tool::Rolling => "roll",
-                    Tool::Ripple => "ripple",
-                    _ => {
-                        let (dist, neighbour) = edge_geometry(seq, layout, track, clip, e, p.x);
-                        selection_trim_kind(app.session.prefs.trim.selection_tool_roll_ripple, false, false, dist, neighbour)
-                    }
-                };
-                let edge = if e == filmcraft_edit::Edge::In { "in" } else { "out" };
-                let _ = app.session.execute("trim.selectEditPoint", json!({"clip": clip.0, "edge": edge, "kind": kind}));
-            }
-        } else if !app.session.state.selection.contains(&clip) {
-            let _ = app.session.execute("timeline.select", json!({"clips": [clip.0]}));
-        }
-    }
-    resp.context_menu(|ui| {
-        ui.set_min_width(220.0);
-        if let Some(marker) = ctx.data(|d| d.get_temp::<Option<MarkerId>>(marker_menu_id)).flatten() {
-            marker_menu(app, &ctx, ui, marker);
-            return;
-        }
-        if let Some(target) = ctx.data(|d| d.get_temp::<Option<EditPointTarget>>(edit_point_menu_id)).flatten() {
-            edit_point_menu(app, &ctx, ui, seq, target);
-            return;
-        }
-        if ctx.data(|d| d.get_temp::<bool>(gap_menu_id)).unwrap_or(false) {
-            gap_menu(app, &ctx, ui);
-            return;
-        }
-        let sel = app.session.state.selection.clone();
-        let picked: Vec<&filmcraft_project::TrackItem> = sel.iter().filter_map(|c| seq.find_item(*c).map(|(_, it)| it)).collect();
-        let animation = ui.add_enabled(!picked.is_empty(), egui::Button::new("Show/Hide Clip Animation"));
-        app.auto.add_response("timeline.animation.toggle", &animation, "Show/Hide Clip Animation");
-        if animation.clicked() {
-            if let Err(error) = crate::menus::invoke(app, &ctx, "timeline.animation.toggle", json!({})) {
-                app.ui.status = error;
-            }
-            ui.close();
-        }
-        let all_enabled = !picked.is_empty() && picked.iter().all(|it| it.enabled);
-        let linked = picked.iter().any(|it| it.link.is_some());
-        let mut first = true;
-        for group in CLIP_MENU {
-            if !std::mem::take(&mut first) {
-                ui.separator();
-            }
-            for &(label, cmd) in *group {
-                if cmd == "edit.label" {
-                    ui.add_enabled_ui(!picked.is_empty(), |ui| {
-                        let menu = ui.menu_button(crate::i18n::t(label), |ui| {
-                            // the user's label names and colours, as in Edit ▸ Label (#786)
-                            let labels = app.session.prefs.labels.clone();
-                            for l in filmcraft_project::Label::ALL {
-                                if crate::menus::label_choice(ui, &mut app.auto, &labels, l, "timeline.clipMenu.label").clicked() {
-                                    if let Err(error) = app.session.execute("edit.label", json!({"label":l.name()})) {
-                                        app.ui.status = error.to_string();
-                                    }
-                                    ui.close();
-                                }
-                            }
-                        });
-                        app.auto.add_response("timeline.clipMenu.edit.label", &menu.response, crate::i18n::t(label));
-                    });
-                    continue;
-                }
-                if cmd == "clip.multicam" {
-                    multicam_menu(app, ui, &picked);
-                    continue;
-                }
-                let label = match cmd {
-                    "clip.enable" if all_enabled => tl!("✓ Enable"),
-                    "clip.link" if linked => tl!("Unlink"),
-                    _ => crate::i18n::t(label),
-                };
-                let r = ui.add_enabled(!sel.is_empty() && app.session.is_enabled(cmd), egui::Button::new(label));
-                app.auto.add(&format!("timeline.clipMenu.{cmd}"), r.rect, label);
-                if r.clicked() {
-                    match crate::menus::invoke(app, &ctx, cmd, json!({})) {
-                        // Unlink (#220): the clips were selected together because they were linked;
-                        // keep only the one right-clicked, so it can be dragged away from the others
-                        Ok(v) if cmd == "clip.link" && v["linked"] == json!(false) => {
-                            if let Some(clip) = ctx.data(|d| d.get_temp::<ClipId>(menu_clip_id))
-                                && app.session.state.selection.contains(&clip)
-                            {
-                                let _ = app.session.execute("timeline.select", json!({"clips": [clip.0]}));
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(e) => app.ui.status = e,
-                    }
-                    ui.close();
-                }
-            }
-        }
-    });
+    show_context_menu(app, &ctx, seq, layout, &resp, tool);
 
     // ---- drops: project items and effects
     if let Some(item) = crate::panels::dragged_project_item(ui)

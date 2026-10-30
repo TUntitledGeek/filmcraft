@@ -1,5 +1,31 @@
 # FilmCraft V7 implementation status
 
+## V7.7 — foreground clip-menu ownership repair
+
+The reported popup disappearance was reproduced on `bfb47546`: both new native tests failed
+when the pointer crossed an underlying animation/disclosure hit zone. The canvas returned
+before rebuilding its open menu. Menu rendering now runs before canvas hover/gesture handling
+while that stable popup ID is open. Covered drawers and trim zones no longer hide the menu,
+change the trim cursor or begin a clip gesture behind it. Clip/edge settings retain their
+original target; Escape and clicks outside on the canvas still dismiss normally.
+
+Verified: 279 focused native UI tests (231 library, 12 inline, 17 existing keyframe, 8 menu,
+8 Escape/drag, 3 popup), UI all-target Clippy, production optimized standard WASM, layers and
+201 attributed assets. The combined actual Chrome popup/hierarchy/editing run passed with
+27 captures and no recorded browser errors. [Evidence](verification/v7-popup-ownership.json),
+[menu over clip/edge](screenshots/v7-popup/popup-over-clip-edge.png),
+[menu over animation](screenshots/v7-popup/popup-over-animation.png).
+These are functional checks, not performance measurements. No merge/deployment.
+
+The [next shared-animation milestone](requirements/v7/shared-animation-milestone.md) is now
+the active priority: stable instance IDs and compatibility first, then shared selection,
+interactive key dragging, synchronization and safe filters/toolbar. Core project/format/engine
+baseline tests are running before that model change. Reopening the demo with reused clip IDs
+also exposed transient disclosure surviving project replacement; the identity milestone must
+include an explicit project-scope reset. Existing popup fixtures restore their own view state.
+All original V7 requirements below remain binding. Long menu overflow/access to the lowest
+commands remains part of the broader context-menu UX audit; this checkpoint fixes interruption.
+
 ## V7.6 verified follow-up: canonical key context actions
 
 Verified product source is pushed as `8833df92`, following the safely pushed V7.5 hierarchy

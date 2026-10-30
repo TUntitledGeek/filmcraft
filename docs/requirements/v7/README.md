@@ -6,6 +6,7 @@ so pending work is recoverable. They specify the intended product, not features 
 - [Complete V7 master implementation prompt](master-implementation-prompt.md)
 - [Complete animation workspace implementation plan](animation-workspace-plan.md)
 - [Later correction request](../../v7-inline-correction-request.md)
+- [Current shared-animation milestone priorities](shared-animation-milestone.md)
 - [Current completion ledger and actual verification](../../v7-implementation-status.md)
 
 The later correction and current user instructions take precedence over older starting-branch
