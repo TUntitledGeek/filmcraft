@@ -1,8 +1,15 @@
 {
   "sourceBranch": "filmcraft-v7-animation-and-ux",
-  "sourceCommit": "5fff5b0135d8846b9d7619ef5bffb9e900d4f46a",
-  "checkpoint": "V7.8 stable effect identity and shared inline animation",
-  "wasmSha256": "cbbf381ffbedf50be07e1a84ca7bafcf5311c68de445764d9b6c6ee28a50ced8",
-  "publishedAt": "2026-10-30T21:20:27.759Z",
-  "gpuWaveSphereFix": false
+  "sourceCommit": "6fdb2b69eb462518e048fa0e8304961912b3a871",
+  "checkpoint": "V7.9 complete Ocean GPU effect stack, preserving V7.8 animation and UX",
+  "buildVersion": "3508794d2c0bc4a9",
+  "wasmSha256": "1bcae9ffcd7a7f9f9280660c646f3b97a0163c80e2c76c3e0e04d00fbc461dff",
+  "publishedAt": "2026-10-30T21:45:56.751Z",
+  "gpuWaveSphereFix": true,
+  "verification": {
+    "renderGpuTestsPassed": 245,
+    "existingIgnored": 3,
+    "chromeFullStackRuns": 2,
+    "parameterUndoRedo": true
+  }
 }
