@@ -41,6 +41,11 @@ impl Image {
     /// Bilinear sample at continuous pixel coords (pixel centres at +0.5), transparent outside.
     #[inline]
     pub fn sample_bilinear(&self, x: f32, y: f32) -> [f32; 4] {
+        // Malformed warps can produce infinity/NaN or coordinates outside isize.
+        // Reject before conversion/addition; all taps outside are transparent.
+        if !x.is_finite() || !y.is_finite() || x <= -0.5 || y <= -0.5 || x >= self.w as f32 + 0.5 || y >= self.h as f32 + 0.5 {
+            return [0.0; 4];
+        }
         let fx = x - 0.5;
         let fy = y - 0.5;
         let x0 = fx.floor();
@@ -49,9 +54,9 @@ impl Image {
         let ty = fy - y0;
         let (x0, y0) = (x0 as isize, y0 as isize);
         let a = self.get_or_clear(x0, y0);
-        let b = self.get_or_clear(x0 + 1, y0);
-        let c = self.get_or_clear(x0, y0 + 1);
-        let d = self.get_or_clear(x0 + 1, y0 + 1);
+        let b = self.get_or_clear(x0.saturating_add(1), y0);
+        let c = self.get_or_clear(x0, y0.saturating_add(1));
+        let d = self.get_or_clear(x0.saturating_add(1), y0.saturating_add(1));
         let mut o = [0.0; 4];
         for k in 0..4 {
             let top = a[k] + (b[k] - a[k]) * tx;
@@ -196,5 +201,25 @@ impl Image {
             }
         });
         out
+    }
+}
+
+#[cfg(test)]
+mod sampling_tests {
+    use super::*;
+
+    #[test]
+    fn hostile_warp_coordinates_are_transparent_without_integer_overflow() {
+        let img = Image::filled(2, 2, [0.25, 0.5, 0.75, 1.0]);
+        for bad in [f32::INFINITY, f32::NEG_INFINITY, f32::NAN, f32::MAX, -f32::MAX, 1e20, -1e20] {
+            for (x, y) in [(bad, 0.5), (0.5, bad)] {
+                let result = std::panic::catch_unwind(|| img.sample_bilinear(x, y));
+                assert_eq!(result.unwrap(), [0.0; 4]);
+            }
+        }
+        assert_eq!(img.sample_bilinear(0.5, 0.5), [0.25, 0.5, 0.75, 1.0]);
+        assert_eq!(img.sample_bilinear(0.0, 0.5), [0.125, 0.25, 0.375, 0.5]);
+        assert_eq!(img.sample_bilinear(-0.5, 0.5), [0.0; 4]);
+        assert_eq!(img.sample_bilinear(2.5, 0.5), [0.0; 4]);
     }
 }
