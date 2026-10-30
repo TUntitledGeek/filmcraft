@@ -1,0 +1,8 @@
+asset:        hierarchy-collapsed-dark.png
+title:        FilmCraft V7.5 measured inline hierarchy verification
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-29 by FilmCraft contributors
+notes:        Actual Chrome capture of original Rust/egui UI and procedural multi-track demo; hierarchy-collapsed-dark. No reference artwork copied.

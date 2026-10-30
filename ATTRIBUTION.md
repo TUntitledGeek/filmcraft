@@ -286,3 +286,21 @@ The Tabler integration is adapted from Fallzola/filmcraft PR #2308, head d3f0ba4
 | `docs/screenshots/v7-phase1/after-fullscreen.png` | FilmCraft contributors | Original FilmCraft UI capture with generated media | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-inline/inline-animation-dark.png` | FilmCraft contributors | Original FilmCraft UI with generated media | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-inline/inline-animation-light.png` | FilmCraft contributors | Original FilmCraft UI with generated media | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-collapsed-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-collapsed-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-effect-headers-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-effect-headers-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-motion-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-motion-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-opacity-keys-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-opacity-keys-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-selective-effects-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-selective-effects-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-another-clip-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-another-clip-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-narrow-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-narrow-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-short-dark.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-short-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-same-track.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-audio.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |

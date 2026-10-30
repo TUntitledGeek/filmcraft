@@ -1,0 +1,1428 @@
+{
+  "date": "2026-10-29",
+  "verifiedSource": "7ad34e1b",
+  "branch": "filmcraft-v7-animation-and-ux",
+  "preview": "http://127.0.0.1:8771/",
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/155.0.8059.86",
+    "revision": "@804d6b05f089b27af8342622a36558c49401a1d4",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "jsVersion": "15.5.35.25"
+  },
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+    "logicalCpus": 22,
+    "memoryGB": 31.367168426513672
+  },
+  "adapter": {
+    "vendor": "intel",
+    "architecture": "xe-lpg",
+    "device": "",
+    "description": ""
+  },
+  "backend": "BrowserWebGpu",
+  "threads": false,
+  "viewport": [
+    1656,
+    894
+  ],
+  "errors": [],
+  "hierarchy": {
+    "addedEffects": [
+      "gaussian_blur"
+    ],
+    "snapshots": {
+      "factoryCollapsed": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          644.8800048828125,
+          1358,
+          206.1199951171875
+        ],
+        "drawers": [],
+        "revision": 4,
+        "split": 735.384033203125,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              695.384033203125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              655.384033203125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              615.384033203125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              740.384033203125,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              776.384033203125,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              812.384033203125,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 0,
+        "view": {
+          "clips": []
+        }
+      },
+      "largerDockCollapsed": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          474.8799743652344,
+          1358,
+          376.1200256347656
+        ],
+        "drawers": [],
+        "revision": 4,
+        "split": 641.8839721679688,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              601.8839721679688,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              561.8839721679688,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              521.8839721679688,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              646.8839721679688,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              682.8839721679688,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              718.8839721679688,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 0,
+        "view": {
+          "clips": []
+        }
+      },
+      "headers": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          474.8799743652344,
+          1358,
+          376.1200256347656
+        ],
+        "drawers": [
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              515.8800048828125,
+              1562,
+              132
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              515.8800048828125,
+              1562,
+              126.00396728515625
+            ]
+          }
+        ],
+        "revision": 4,
+        "split": 641.8839721679688,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              475.8800048828125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              435.8800048828125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              395.8800048828125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              646.8839721679688,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              682.8839721679688,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              718.8839721679688,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 5.996002197265625,
+        "view": {
+          "clips": [
+            {
+              "clip": 38,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "motion": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          474.8799743652344,
+          1358,
+          376.1200256347656
+        ],
+        "drawers": [
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              515.8800048828125,
+              1562,
+              286
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              515.8800048828125,
+              1562,
+              126.00396728515625
+            ]
+          }
+        ],
+        "revision": 4,
+        "split": 641.8839721679688,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              475.8800048828125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              435.8800048828125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              395.8800048828125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              646.8839721679688,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              682.8839721679688,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              718.8839721679688,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 159.99600219726562,
+        "view": {
+          "clips": [
+            {
+              "clip": 38,
+              "effects": [
+                "motion"
+              ],
+              "properties": [],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "selective": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          474.8799743652344,
+          1358,
+          376.1200256347656
+        ],
+        "drawers": [
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              319.87994384765625,
+              1562,
+              396
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              474.8799743652344,
+              1562,
+              167.00399780273438
+            ]
+          }
+        ],
+        "revision": 41,
+        "split": 641.8839721679688,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              279.87994384765625,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              239.87994384765625,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              199.87994384765625,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              646.8839721679688,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              682.8839721679688,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              718.8839721679688,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 73.9959716796875,
+        "view": {
+          "clips": [
+            {
+              "clip": 38,
+              "effects": [
+                "gaussian_blur",
+                "lumetri",
+                "opacity"
+              ],
+              "properties": [
+                [
+                  "opacity",
+                  "opacity"
+                ]
+              ],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "anotherTrack": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          474.8799743652344,
+          1358,
+          376.1200256347656
+        ],
+        "drawers": [
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              665.8798828125,
+              1562,
+              396
+            ],
+            "track": 15,
+            "visible": null
+          },
+          {
+            "clip": 46,
+            "rect": [
+              1,
+              515.8798828125,
+              1562,
+              110
+            ],
+            "track": 16,
+            "visible": [
+              1,
+              515.8798828125,
+              1562,
+              110
+            ]
+          }
+        ],
+        "revision": 45,
+        "split": 641.8839721679688,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              625.8798828125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              475.8798828125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              435.8798828125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              646.8839721679688,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              682.8839721679688,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              718.8839721679688,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 419.9959716796875,
+        "view": {
+          "clips": [
+            {
+              "clip": 38,
+              "effects": [
+                "gaussian_blur",
+                "lumetri",
+                "opacity"
+              ],
+              "properties": [
+                [
+                  "opacity",
+                  "opacity"
+                ]
+              ],
+              "sections": []
+            },
+            {
+              "clip": 46,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "sameTrack": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          474.8799743652344,
+          1358,
+          376.1200256347656
+        ],
+        "drawers": [
+          {
+            "clip": 29,
+            "rect": [
+              1,
+              515.8800659179688,
+              1562,
+              88
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              515.8800659179688,
+              1562,
+              88
+            ]
+          },
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              603.8800659179688,
+              1562,
+              396
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              603.8800659179688,
+              1562,
+              38.00390625
+            ]
+          },
+          {
+            "clip": 46,
+            "rect": [
+              1,
+              365.88006591796875,
+              1562,
+              110
+            ],
+            "track": 16,
+            "visible": [
+              1,
+              474.8799743652344,
+              1562,
+              1.000091552734375
+            ]
+          }
+        ],
+        "revision": 45,
+        "split": 641.8839721679688,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              475.88006591796875,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              325.88006591796875,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              285.88006591796875,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              646.8839721679688,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              682.8839721679688,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              718.8839721679688,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 357.99609375,
+        "view": {
+          "clips": [
+            {
+              "clip": 29,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            },
+            {
+              "clip": 38,
+              "effects": [
+                "gaussian_blur",
+                "lumetri",
+                "opacity"
+              ],
+              "properties": [
+                [
+                  "opacity",
+                  "opacity"
+                ]
+              ],
+              "sections": []
+            },
+            {
+              "clip": 46,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "shortTimeline": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          644.8800048828125,
+          1358,
+          206.1199951171875
+        ],
+        "drawers": [
+          {
+            "clip": 29,
+            "rect": [
+              1,
+              685.8800048828125,
+              1562,
+              88
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              685.8800048828125,
+              1562,
+              49.5040283203125
+            ]
+          },
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              773.8800048828125,
+              1562,
+              396
+            ],
+            "track": 15,
+            "visible": null
+          },
+          {
+            "clip": 46,
+            "rect": [
+              1,
+              535.8800048828125,
+              1562,
+              110
+            ],
+            "track": 16,
+            "visible": [
+              1,
+              644.8800048828125,
+              1562,
+              1
+            ]
+          }
+        ],
+        "revision": 45,
+        "split": 735.384033203125,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              645.8800048828125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              495.8800048828125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              455.8800048828125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              740.384033203125,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              776.384033203125,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              812.384033203125,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 434.4959716796875,
+        "view": {
+          "clips": [
+            {
+              "clip": 29,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            },
+            {
+              "clip": 38,
+              "effects": [
+                "gaussian_blur",
+                "lumetri",
+                "opacity"
+              ],
+              "properties": [
+                [
+                  "opacity",
+                  "opacity"
+                ]
+              ],
+              "sections": []
+            },
+            {
+              "clip": 46,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "audio": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          644.8800048828125,
+          1358,
+          206.1199951171875
+        ],
+        "drawers": [
+          {
+            "clip": 29,
+            "rect": [
+              1,
+              685.8800048828125,
+              1562,
+              88
+            ],
+            "track": 15,
+            "visible": [
+              1,
+              685.8800048828125,
+              1562,
+              49.5040283203125
+            ]
+          },
+          {
+            "clip": 38,
+            "rect": [
+              1,
+              773.8800048828125,
+              1562,
+              396
+            ],
+            "track": 15,
+            "visible": null
+          },
+          {
+            "clip": 46,
+            "rect": [
+              1,
+              535.8800048828125,
+              1562,
+              110
+            ],
+            "track": 16,
+            "visible": [
+              1,
+              644.8800048828125,
+              1562,
+              1
+            ]
+          },
+          {
+            "clip": 30,
+            "rect": [
+              1,
+              776.384033203125,
+              1562,
+              88
+            ],
+            "track": 18,
+            "visible": [
+              1,
+              776.384033203125,
+              1562,
+              40.615966796875
+            ]
+          }
+        ],
+        "revision": 45,
+        "split": 735.384033203125,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              645.8800048828125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              495.8800048828125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              455.8800048828125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              740.384033203125,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              864.384033203125,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              900.384033203125,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 434.4959716796875,
+        "view": {
+          "clips": [
+            {
+              "clip": 29,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            },
+            {
+              "clip": 30,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            },
+            {
+              "clip": 38,
+              "effects": [
+                "gaussian_blur",
+                "lumetri",
+                "opacity"
+              ],
+              "properties": [
+                [
+                  "opacity",
+                  "opacity"
+                ]
+              ],
+              "sections": []
+            },
+            {
+              "clip": 46,
+              "effects": [],
+              "properties": [],
+              "sections": []
+            }
+          ]
+        }
+      },
+      "collapsedAgain": {
+        "audioScroll": 0,
+        "content": [
+          205,
+          644.8800048828125,
+          1358,
+          206.1199951171875
+        ],
+        "drawers": [],
+        "revision": 45,
+        "split": 735.384033203125,
+        "tracks": [
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              695.384033203125,
+              1358,
+              40
+            ],
+            "track": 15
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              655.384033203125,
+              1358,
+              40
+            ],
+            "track": 16
+          },
+          {
+            "kind": "Video",
+            "rect": [
+              205,
+              615.384033203125,
+              1358,
+              40
+            ],
+            "track": 17
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              740.384033203125,
+              1358,
+              36
+            ],
+            "track": 18
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              776.384033203125,
+              1358,
+              36
+            ],
+            "track": 19
+          },
+          {
+            "kind": "Audio",
+            "rect": [
+              205,
+              812.384033203125,
+              1358,
+              36
+            ],
+            "track": 20
+          }
+        ],
+        "videoScroll": 0,
+        "view": {
+          "clips": []
+        }
+      }
+    },
+    "position": {
+      "before": {
+        "keyframes": 0,
+        "value": "Vec2(Vec2 { x: 960.0, y: 540.0 })"
+      },
+      "after": {
+        "keyframes": 0,
+        "value": "Vec2(Vec2 { x: 980.0, y: 540.0 })"
+      },
+      "undoRedo": true
+    },
+    "animatedEditAndDeleteUndoRedo": true,
+    "opacityKeys": {
+      "keyframes": 2,
+      "value": "Float(95.0)"
+    },
+    "rulerBefore": {
+      "keys": 2,
+      "pps": 47.67270113064505,
+      "scroll": 0
+    },
+    "rulerAfter": {
+      "keys": 2,
+      "pps": 90,
+      "scroll": 12.388375
+    },
+    "groupedEditor": true,
+    "editingWhileExpanded": {
+      "trimUndo": true,
+      "moveUndo": true,
+      "trackControls": true
+    },
+    "complete": true
+  },
+  "editing": {
+    "sourceAfterDoubleClick": {
+      "end": 4572288000000,
+      "fps": 23.976023976023978,
+      "item": 5,
+      "markIn": null,
+      "markOut": null,
+      "markers": [],
+      "media": 5,
+      "playhead": 0,
+      "start": 0,
+      "subclip": null
+    },
+    "expectedItem": 5,
+    "doubleClick": true,
+    "projectDrop": true,
+    "timelineDrop": {
+      "item": 5,
+      "playhead": 614485872000,
+      "unchanged": true
+    },
+    "trimChanged": true,
+    "trimUndo": true,
+    "trimRedo": true,
+    "splitChanged": true,
+    "splitUndo": true,
+    "moveChanged": true,
+    "moveUndo": true,
+    "trackControls": {
+      "target": {
+        "changed": true,
+        "restored": true
+      },
+      "sourcePatch": {
+        "changed": true,
+        "restored": true
+      }
+    },
+    "fusionHidden": true
+  },
+  "screenshots": [
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-collapsed-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "31c149ba7deac4a7d82e17d5f3b2c1056187fc0047565959dcf622f0c68f9bd8"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-collapsed-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "3837af84667748b9d2b2e7976aea7b68bc940e0abecd8a315516bc16cf21d084"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-effect-headers-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "c03054e2d28c6bf6abe5a4d6622d6dadd31b6271f01e291bde11e4109d8e23de"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-effect-headers-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "21494efa55401cdece2367d58aaad4acb917e85362908bf34779452a604bc7c6"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-motion-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "ab843e42d4d6f46bcc5c11d714ec7adc725ecc27359df84c1fb328a3b188d516"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-motion-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "36e2b410a8f6be63476c0e324a5cf99197f185cbc45b9024afa92db50c482bea"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-opacity-keys-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "0ede52842a1d70f8f8595794125e198dfbd5fc1d3eca04783da652af5d9850bd"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-opacity-keys-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "fe56132b1c506dbe8bce0ffe369ff5166444127a97d475a98eca97760d0a2910"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-selective-effects-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "44867cfb41328005c99a66d803733ec31c15b55da5722afd45719e59f067e40c"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-selective-effects-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "aa97d55c37ed3c6495bb123a4371972ce32dee28dce7bb713e43da74d467f58f"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-another-clip-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "6a500b2f3e6175d565c115eb1c6f7c2ab1caae142885d09d6d314dda310ed470"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-another-clip-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "c9bff393a166266d53c20e841cd36403475e50439ffd329b85caebc94bd89415"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-narrow-dark.png",
+      "width": 1280,
+      "height": 894,
+      "sha256": "b222a89b8a95e14be17023ba4f5b378347145acc08cae9177dd787293ff3c89b"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-narrow-light.png",
+      "width": 1280,
+      "height": 894,
+      "sha256": "58dd1bd0f283e6ae1761ca770992c175e6d1c8398feca0c664209317488ccd52"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-short-dark.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "cf750a719c9dce34074aaa35d8d90d848998d253a83837f1f6607a8cad6d505b"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-short-light.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "b21ad5beea8c2ca11348ff63ce0939f427ee8ee40e9e93e99b7b6ef9eae2ad86"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-same-track.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "869cc34c0cb4e6781a58f7d4c1209e06fbdfa8eba2ff4e54433e8f03a1a50770"
+    },
+    {
+      "path": "docs/screenshots/v7-hierarchy/hierarchy-audio.png",
+      "width": 1656,
+      "height": 894,
+      "sha256": "31634a21c84b0ddd5bc2c23f8bae258d0d2664d7ce48a7e391c3b0bf47187577"
+    }
+  ],
+  "captureCount": 24,
+  "native": {
+    "uiLibrary": 231,
+    "inlineAnimation": 11,
+    "cleanEditing": 10,
+    "escapeDrag": 8,
+    "keyframes": 17,
+    "menus": 8,
+    "sharedDocking": 12,
+    "studioProRefinements": 25,
+    "timelineTrackHeight": 2,
+    "fullscreenHost": 2
+  },
+  "totalNativeTests": 326,
+  "gates": {
+    "optimizedStandardWasm": "passed",
+    "wasmCompatibility": {
+      "passed": true,
+      "crates": 49
+    },
+    "uiAllTargetClippy": "passed with -D warnings",
+    "formatting": "passed",
+    "layers": "passed",
+    "assets": {
+      "passed": true,
+      "attributedAssets": 198,
+      "newCaptures": 18
+    },
+    "fullNativeWorkspace": "not completed; no full-suite pass claimed",
+    "fullWorkspaceClippy": "passed at earlier V7 checkpoint; current correction reran all UI targets"
+  },
+  "wasm": {
+    "bytes": 43041231,
+    "sha256": "c7383262d46e02befe71b8fb7070a420be3b6476d9ae370ec35fc7f246cf71c1"
+  },
+  "testHarnessRepairs": [
+    "Existing Effect Controls tests explicitly use Classic Editing so both inspector groups are visible; missing-ruler failure reproduced at unchanged 140e9b8c.",
+    "Mask test collapses Motion through its actual twirl rather than selecting its title.",
+    "Preserved legacy import.recent IDs alongside hub.recent IDs.",
+    "Chrome wheel tests move the pointer over the timeline; targeting fixture materializes implicit defaults before comparing explicit state.",
+    "Separate double-click gestures avoid egui triple-click classification; press/release are frame acknowledged."
+  ],
+  "performance": "Functional acceptance only. The one-second playback observations are not benchmark evidence. Previous GPU Wiggle measurements remain in v7-phase1.json; no Wave/Glow or frame-pacing work in this correction.",
+  "limitations": [
+    "Duplicate effects remain closed pending stable model instance UIDs; disclosure is transient.",
+    "Inline edits/key positioning limited to forward speed 1, no frame hold; Time Remapping read-only.",
+    "Text, curve and mask/path property summaries are read-only inline.",
+    "Inline key selection, drag retiming, interpolation, filters, animation toolbar, Focus Clip and Graph Editor remain pending.",
+    "Planning still walks expanded effects per frame; no large-project benchmark performed.",
+    "Full native workspace suite, desktop interaction and other platforms/browsers remain unverified in this correction."
+  ]
+}

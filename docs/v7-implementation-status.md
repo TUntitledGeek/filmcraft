@@ -1,6 +1,66 @@
 # FilmCraft V7 implementation status
 
-## V7.4 follow-up: first working inline slice
+## V7.5 verified correction: progressive inline hierarchy
+
+The user's [correction request](v7-inline-correction-request.md) supersedes V7.4's fixed-height layout.
+V7.4 remains a recoverable verified code checkpoint, not an accepted final animation design.
+Verified source is pushed as `7ad34e1b`; regression/API compatibility repairs are `be1e88d9`.
+The correction replaces the embedded inspector with measured clip/effect/property/keyframe rows,
+direct clip chevrons, shared track scrolling and explicit owner anchoring. No merge or deployment.
+
+**Completed:** newly opened clips show compact effect headers, each group/property folds
+independently, Lumetri uses actual schema subgroups, and multiple clips on the same/different
+tracks allocate disjoint measured rows. The existing video/audio divider stays fixed. Opening
+anchors the owning ordinary clip; resizing preserves a previously visible owner. Intentional
+track scrolling reaches lower rows naturally. There is no internal scrollbar. Closing all
+disclosures restores compact geometry and saved scroll positions without editing the project.
+
+Reusable typed editors replace the special Opacity row. Actual Motion Position, static Opacity,
+animated edits, add/remove keys, undo/redo and grouped Lumetri Exposure were exercised in Chrome.
+Key positions retain the main ruler's zoom/scroll transform. Previous/next, stopwatch and key
+click-to-seek use existing commands. No alternate animation values/history/interpolator exist.
+Real animated parameter data survives save/new/open through canonical project serialization.
+
+**Verification:** 231 UI library tests and 95 focused integration tests passed (326 total):
+11 inline hierarchy, 10 Clean Editing, 8 Escape/drag, 17 keyframe, 8 menu, 12 docking,
+25 Studio Pro, 2 track-height and 2 fullscreen-host tests. Optimized standard WASM packaging,
+49-crate WASM compatibility, UI all-target Clippy with `-D warnings`, formatting and layers passed.
+Attribution passed for 198 assets, including the 18 new original verification captures.
+The full native workspace suite remains incomplete; the correction does not claim a fresh full
+workspace Clippy pass. Earlier checkpoint results remain archived below.
+
+Real Chrome 155 / WebGPU / ordinary single-thread build passed the multi-track acceptance run
+with zero recorded browser errors and 24 captures. Required collapsed/header/Motion/Opacity-key/
+selective-effect/another-clip/short/narrow states were captured in both themes. Viewports were
+1656×894 and 1280×894. Expanded clip trim/move undo and targeting/patch controls passed; the
+existing Source double-click/drop, timeline trim/split/move and undo/redo checks also passed.
+Screenshot review confirms progressive hierarchy rather than an embedded scrolling inspector.
+Some lower Motion/effect rows require the shared track scroll at this split, as intended.
+
+Evidence: [machine-readable results](verification/v7-inline-hierarchy.json),
+[18 attributed screenshots and comparison notes](screenshots/v7-hierarchy/README.md),
+[implemented architecture](v7-animation-architecture.md). Production WASM is 43,041,231 bytes,
+SHA-256 `c7383262d46e02befe71b8fb7070a420be3b6476d9ae370ec35fc7f246cf71c1`.
+These are functional checks; their one-second playback samples are not performance benchmarks.
+
+Existing regression setup issues were corrected rather than hidden: missing Effect Controls
+was reproduced on unchanged V7.4, and those tests now request Classic Editing explicitly;
+the mask test uses Motion's twirl. Legacy Hub automation IDs remain aliases. Chrome's test
+gestures now move before wheeling, materialize implicit targeting defaults and separate
+double-click pairs to avoid accidental triple-click classification.
+
+**Still required:** stable model IDs and persistent duplicate-effect disclosure, broader time
+domains, inline key selection/retiming/interpolation, filters, toolbar, Graph/Focus and all
+original UX work. Duplicate instances are visibly closed; unique effect types are re-resolved
+for each action, not identified by filename or stored index. Disclosure is transient.
+Inline edits/key positioning are limited to speed 1, forward, non-held clips. Time Remapping
+and text/curve/path summaries are read-only inline; specialized existing editors remain.
+Reverse/speed/hold safety is covered by a disabled-control regression. Large-project planning
+and other browser/OS interaction remain unmeasured. GPU Wiggle/render code is unchanged;
+Wave Warp + Lumetri + Blur remains a severe unresolved issue. The full master and references
+remain binding, with every unfinished requirement retained in the ledger below.
+
+## V7.4 archived checkpoint: first functional, structurally rejected slice
 
 This section supersedes the earlier checkpoint's statement that no inline UI exists.
 The entire master prompt and both references remain required; all untouched ledger entries remain pending.
@@ -129,12 +189,12 @@ Pending/deferred here means **still required**, not removed from scope.
 | --- | --- | --- |
 | 1 | Preserve engineering / branch | Completed for checkpoint; original branches untouched |
 | 2 | Subtle Unified visual refinement | Pending; baseline design retained, no broad redesign claimed |
-| 3 | Collision-safe inline hierarchy, Focus, Graph | Pending; resolve effect identity, then implement progressively |
+| 3 | Collision-safe inline hierarchy, Focus, Graph | Partial: measured multi-clip hierarchy verified; persistent duplicate identity, Focus and Graph pending |
 | 4 | Animated/Modified/All/Selected, search, shortcuts | Pending; command/shortcut conflict audit first |
-| 5 | Numeric/keyframe editing and undo | Pending new inline controls; reuse canonical commands |
+| 5 | Numeric/keyframe editing and undo | Partial: typed edits, add/remove/nav/seek and undo verified; inline selection/retiming/interpolation pending |
 | 6 | Value/velocity curves and influence | Pending shared Graph Editor; retain canonical interpolation |
 | 7 | Exact trim/split/slip/reverse/speed/nested domains | Pending full animation mapping matrix |
-| 8 | Geometry, focus, virtualization, view persistence | Pending; collapsed timeline must remain unchanged |
+| 8 | Geometry, focus, virtualization, view persistence | Partial: shared measured geometry, clipping, scroll and compact restore verified; persistent disclosure, broader focus/scaling matrix pending |
 | 9 | Compact Effect Controls, optional lane, no Fusion CTA | Pending; do not remove existing professional operations |
 | 10 | Wave/Wiggle/Glow performance | Partial: Wiggle measured/fixed; Wave and Glow investigation still required |
 | 11 | One header hierarchy, all menus | Pending consolidation; only host utilities changed |
@@ -147,7 +207,7 @@ Pending/deferred here means **still required**, not removed from scope.
 | 18 | Browser fullscreen / native compatibility | Partial: host API and native fallback verified; physical Escape/denial/other hosts pending |
 | 19 | Editing/usability reliability | Partial focused browser regressions; remaining integration scenarios pending |
 | 20 | Future AE authoring | Deferred by design: expressions, parenting, spatial tangents, rich templates |
-| 21 | Phases, usage and checkpoints | Current verified slices preserved separately; no new large architecture started |
+| 21 | Phases, usage and checkpoints | Verified slices preserved separately; V7.4 rejected layout corrected before additional architecture |
 | 22 | Tests, builds, performance | Partial: above gates pass; full native suite, remaining effects and platforms pending |
 | 23 | Full deliverables / handoff | Partial checkpoint delivered; animation, complete UX, full evidence still required |
 
@@ -156,17 +216,34 @@ Pending/deferred here means **still required**, not removed from scope.
 1. Verify this branch/remote and read this ledger, the complete master prompt and both references.
    Retain the current standard browser build and all previous engineering work.
 2. Run the deferred full native regression suite with bounded parallelism before substantial new work.
-3. For the next V7 animation slice, first settle stable per-effect identity/lifecycle without reusing
+3. Settle stable per-effect identity/lifecycle before persistent duplicate disclosure or detached graphs, without reusing
    filenames or array indexes. Clip IDs and parameter IDs already exist. General EffectInstance UIDs
    do not; existing EffectSel type/occurrence and inspector index strings are insufficient for all
    same-type duplicate/reorder/remove/undo cases. Do not silently change clip IDs or project semantics.
-4. Implement one small end-to-end disclosure/animation slice using canonical Params, Tick time,
-   commands and undo. Reserve drawer geometry in track extents and hit testing. Keep ordinary
-   collapsed editing unchanged. Then cover the master acceptance matrix before widening scope.
+4. Extend the verified hierarchy with shared key selection, canonical preview/commit/cancel
+   retiming and supported interpolation. Keep exact-time/unsupported-domain guards; add
+   trim/split/slip/reverse/speed/hold/nested mapping cases before widening domain support.
+   Add filters/toolbar and then Focus/Graph using the same canonical selected property.
 5. Continue compact Effect Controls, shared selection/Graph/Focus, header/browser/layout/Hub/storage
    work and measured Wave/Glow investigation as tracked above. No merge or deployment without review.
 
 ## Reproduction
+
+Corrected hierarchy acceptance (ordinary build, real procedural multi-track demo):
+
+```text
+node apps/filmcraft-web/tests/studio-review.mjs --url http://127.0.0.1:8771/ --out target/v7/hierarchy-browser-final --inline-tests true --media none --workspace "Clean Editing" --seconds 1 --benchmark-only true --seeks false --editing-tests true
+```
+
+The inherited `--benchmark-only` flag skips the broad workspace tour; this invocation is a
+functional acceptance run, not an accepted performance measurement. Capture metadata includes
+disclosure geometry, project revisions, actual edited values/keys and ruler transforms.
+Current focused native suites:
+
+```text
+cargo test -p filmcraft-ui-egui --no-fail-fast --lib --test inline_animation_ui --test clean_editing_ui --test keyframes_ui --test timeline_track_height_ui --test escape_drag_ui --test shared_docking_ui --test menus_ui --test studio_pro_refinements_ui --test fullscreen_host_ui --jobs 2 --config profile.dev.package.filmcraft-ui-egui.opt-level=0 --config profile.dev.package.filmcraft-ui-egui.debug=0 -- --test-threads=2
+cargo clippy -p filmcraft-ui-egui --all-targets --target-dir target/gates --jobs 2 -- -D warnings
+```
 
 Use installed Rust **1.99.0-x86_64-pc-windows-msvc**, setting RUSTC/RUSTDOC and PATH to that
 specific toolchain, not the mutable stable alias. Standard packaging: `cargo xtask web`.
