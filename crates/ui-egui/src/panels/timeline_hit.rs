@@ -97,6 +97,9 @@ pub fn marker_at(seq: &Sequence, layout: &Layout, pos: Pos2) -> Option<Tick> {
 }
 
 pub fn hit(seq: &Sequence, layout: &Layout, pos: Pos2) -> Hit {
+    if layout.animation_control_at(pos) {
+        return Hit::None;
+    }
     if layout.ruler.contains(pos) {
         return Hit::Ruler;
     }
@@ -349,7 +352,8 @@ mod tests {
         seq.video_tracks[0].items = items;
         let row = Rect::from_min_max(pos2(0.0, TOP), pos2(2000.0, TOP + 60.0));
         let layout = Layout {
-            animation: None,
+            animations: Vec::new(),
+            disclosures: Vec::new(),
             content: row,
             ruler: Rect::from_min_max(pos2(0.0, 0.0), pos2(2000.0, 40.0)),
             rows: vec![Row { track, kind: TrackKind::Video, index: 0, rect: row, lane: false }],

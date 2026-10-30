@@ -182,7 +182,7 @@ pub fn targets_source(app: &FilmcraftApp, params: &Value) -> bool {
 /// Execute a UI or engine command by id.
 pub fn invoke(app: &mut FilmcraftApp, ctx: &egui::Context, id: &str, mut params: Value) -> Result<Value, String> {
     if id == "timeline.animation.toggle" {
-        let result = crate::panels::inline_animation::toggle(app);
+        let result = crate::panels::inline_animation::toggle(app, &params);
         ctx.request_repaint();
         return result;
     }

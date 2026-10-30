@@ -1,64 +1,86 @@
-Implemented follow-up: one transient clip drawer with canonical read-only hierarchy and a unique intrinsic Opacity editor. See the V7.4 section in v7-implementation-status.md. The remaining architecture below is still future work.
+# V7 inline animation architecture
 
-# V7 animation integration: source audit and implementation boundaries
+V7.5 replaces V7.4's fixed 112-point inspector and nested scrollbar with a measured
+**clip → effect group → property → keyframes** hierarchy in the real Rust/egui timeline.
+Read [the implementation ledger](v7-implementation-status.md) for verification and the entire
+unfinished V7 scope. The HTML and plan remain workflow references. Their mock JavaScript
+store, filename identity, percentage time and separate undo history are not production code.
 
-Status: integration plan, **not an implemented animation workspace**. The first V7 runtime
-slice changes browser host controls and Wiggle eligibility; no animation schema or timeline
-geometry has changed. Read `v7-implementation-status.md` for the complete scope ledger.
+## Canonical data and bounded identity
 
-## What can be recovered from the HTML
+The frame's canonical Sequence supplies TrackItem.effects, EffectInstance.params and typed
+ParamDef definitions. The view stores disclosure only: actual ClipId, unique effect type,
+schema section and parameter ID. It never stores animation values or keyframes. Project/media
+replacement resets the view; changing sequence/workspace resets its scope; missing clips and
+ambiguous effects are pruned before layout.
 
-The supplied HTML contains the layout, visual tokens, state transitions and event handlers.
-Its four scripts define a toy animation store, inline disclosure/filters, Focus Clip,
-value/speed graph controls, inspector synchronization and demonstration shortcuts. Inspecting
-these sources is enough to recover that interaction specification without clicking the page.
-It does not establish that the production application's corresponding features work.
+Effects still lack persistent instance UIDs. Unique types are resolved afresh against the
+current clip before commands. Duplicate instances remain visibly closed with an explanation.
+This is an interim safety boundary, not persistent effect identity. Frame-local row offsets
+address an immutable snapshot; they are never disclosure keys. Filenames, tracks, offsets,
+occurrence numbers and content hashes must not become persistent identity. Before saving
+per-effect disclosure, implement compatibility-safe UIDs and duplicate/reorder/remove/undo,
+serialization/import and legacy-project tests.
 
-| Reference behavior | Production owner / constraint |
+## Measured layout and shared scrolling
+
+inline_animation::prepare builds a plan per disclosed clip: height is exactly row count ×22
+points. Newly opened clips show effect headers only. Fixed attributes precede added effects,
+matching Effect Controls; added effects retain their order and processing order is untouched.
+Lumetri sections come from schema groups. Opening a property's key lane adds one measured row.
+Closing groups removes descendant geometry without removing any project animation.
+
+The existing video/audio divider is unchanged. Track extents include main rows plus all their
+clip plans. Multiple clips on one track stack in sequence order, and different track groups
+remain disjoint. Existing bottom-up video and top-down audio scrolling are retained. The main
+track bars and wheel gestures scroll the whole group. There is no nested ScrollArea or second
+vertical scrollbar. Opening anchors the owning main row at the top of its existing half;
+subsequent group disclosure preserves that row's position. Resizing reveals an active owner
+that was previously visible. Intentional scrolling can move it offscreen naturally.
+
+At short heights, paint and interaction are clipped to the video/audio half; both halves
+remain available. Closing the final clip restores compact scroll positions. Main row rectangles
+remain separate from animation rectangles. Disclosures and visible animation rows exclude
+clip trim/move/marquee/new-track gestures, while wheel/zoom still use the timeline. Actual keys
+use the same Layout::x_of(Tick), zoom and horizontal scroll as clips and the main ruler.
+
+## Editing and time
+
+A reusable property row supports scalar bounds/units/precision, angle, point, wheel, boolean,
+choice and color controls. Text/curve/path values have readable summaries and are read-only
+inline; specialized Effect Controls remain available. Opacity uses this same component.
+Mutations dispatch existing effects.setParam, effects.toggleAnimation, effects.addKeyframe and
+effects.toggleEnabled commands. Numeric drags use engine history merging. Static edits remain
+static; animated edits write canonical playhead keys. The inspector follows the edited real
+clip/effect. Undo/redo, serialization and interpolation remain engine/project responsibilities.
+
+This milestone permits inline editing/key positioning only on positive-duration, normal-speed,
+forward, non-held clips. Time remains exact Tick; the supported inverse is
+clip.start + key.time - clip.source_in. Trimmed-out keys remain stored but are not drawn outside
+the clip. Values use canonical effect-time evaluation. Reverse, speed changes, frame holds and
+Time Remapping are explicitly read-only inline with an explanation; existing clip/Effect
+Controls workflows remain available. No speculative inverse is used.
+
+Key lanes support animation toggling, add/remove, previous/next and clicking a key to seek.
+Inline key selection, group retiming and interpolation editing are pending. Diamonds are click
+targets, not drag handles. Existing Effect Controls key editing remains intact.
+
+## Required follow-up
+
+| Requirement | Integration boundary |
 | --- | --- |
-| Clip/effect/property hierarchy | Existing sequence `TrackItem.effects`, `EffectInstance.params`, parameter definitions |
-| Current numeric value | Canonical `Param` evaluation at the effect's source-time domain |
-| Static/animated edit and key insertion | Existing `effects.setParam`, `effects.toggleAnimation`, keyframe commands |
-| Key selection and group retiming | Shared `KeyframeRef` selection and Effect Controls interaction machinery |
-| Inline time positions | Main Timeline `Layout::x_of` and ruler transform; never a second 0–100% ruler |
-| Focus Clip | A view of one real clip instance; other sequence tracks remain available |
-| Value/speed graphs | Existing canonical interpolation/value graph; derivative display must describe its units and limits |
-| Dock/floating graph | Existing dock and floating-panel persistence, with a shared selected property |
-| Animated/Modified/All/Selected/search | UI-only filtering; no effect/key deletion and no project dirty state |
-| Undo/redo | Engine history; never the prototype's separate JavaScript history |
-| Mock Hub, save, cloud controls | Audit real host capabilities before exposing an action or claiming a status |
+| Persistent duplicate-effect disclosure | Stable model UIDs and backward-compatible round-trip/reorder tests |
+| Selection / group retiming | Shared KeyframeRef selection and existing preview/commit/cancel commands |
+| Reverse / speed / holds / split / slip | Canonical domains, invertibility and cut-boundary regression matrix |
+| Interpolation / Bezier influence | Existing canonical commands and graph machinery |
+| Animated / Modified / All / Selected / search | UI-only filters; never delete data or dirty the project |
+| Animation toolbar / shortcuts | Registered commands; preserve editing and text-input bindings |
+| Focus Clip | View one real clip with the ordinary timeline recoverable |
+| Dockable / floating Graph Editor | Existing docking persistence plus safe property identity |
+| Value / Speed graphs | Canonical interpolation, correct derivative units/discontinuities |
+| Saved disclosure preferences | Workspace/UI state after identity is safe; no alternative animation store |
+| Remaining original UX | Full master-prompt ledger and specialized workflows |
 
-No JavaScript store, illustrative graph interpolation, artwork or icon geometry was copied.
-The reference's filename keys, floating 30 fps positions and sample keyframe data are unsuitable
-for production identity, frame mapping or persistence.
-
-## Identity is the first unresolved animation dependency
-
-Clips already have `ClipId`; property definitions have parameter IDs. General effects do not
-yet have a stable instance UID. `EffectSel` uses effect type plus occurrence, and existing
-inspector disclosure strings use clip ID plus array index. Neither alone proves identity across
-same-type duplicate/reorder/remove/undo operations. Graphic-layer UIDs cover only graphic layers.
-
-Choose and test a compatibility-safe identity strategy before persisting effect disclosure or
-binding a detached graph to an effect. A filename, current track, array offset or content hash
-must not silently become the identity. Validate selection against the current project after
-edits and clear stale references on project replacement. Do not change existing clip IDs or
-render semantics merely to allocate view state.
-
-## Geometry and time requirements for the next slice
-
-Reserve each expanded clip's drawer height in the containing track's vertical group. Multiple
-expanded clips on one track stack; they do not occupy the same Y coordinates. Keep main clip
-row rectangles separate from drawer rectangles, and exclude drawers from clip trim, marquee,
-drop-to-new-track and track resize hit zones. Include them in video/audio scroll extents and
-clip painting. With all drawers closed, retain the current geometry and editing interactions.
-
-Read actual `Tick` key times and use existing source/effect-time mappings. Audit frame holds
-and Hold Filters separately; do not assume an inverse linear speed formula is correct for all
-future retiming paths. A non-unique or unsupported mapping needs an explicit unavailable edit
-state instead of moving a key to an invented time. Trim/split/slip/reverse/speed/nesting and
-transition-domain tests are still required before animation acceptance can pass.
-
-Persist view preferences with UI/workspace state, not in an alternative project animation
-store. Scope clip disclosure to the project, sequence and workspace. Add shortcuts through
-the command registry only after auditing existing editing shortcuts and text-input focus.
+Visible rows are culled; planning still walks expanded canonical effects each frame. No
+large-project or frame-pacing performance claim follows from layout tests. GPU Wiggle and the
+renderer are unchanged. Severe Wave Warp + Lumetri + Blur remains a separate pending task.

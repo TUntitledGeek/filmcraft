@@ -399,6 +399,14 @@ pub fn handle(app: &mut FilmcraftApp, ctx: &egui::Context, req: &ControlRequest)
             app.synthetic.push(egui::Event::Key { key: egui::Key::F35, physical_key: None, pressed: false, repeat: false, modifiers: Default::default() });
             Outcome::AfterInput
         }
+        "ui.timeline.animation" => {
+            let rect = |r: egui::Rect| [r.min.x, r.min.y, r.width(), r.height()];
+            ok(json!({"view":app.tl.animation.inspect(),"split":app.tl.layout.as_ref().map(|l|l.split_y),
+                "content":app.tl.layout.as_ref().map(|l|rect(l.content)),
+                "tracks":app.tl.layout.as_ref().map(|l|l.rows.iter().map(|r|json!({"track":r.track.0,"kind":format!("{:?}",r.kind),"rect":rect(r.rect)})).collect::<Vec<_>>()),
+                "drawers":app.tl.layout.as_ref().map(|l|l.animations.iter().map(|a|json!({"clip":a.clip.0,"track":a.track.0,"rect":rect(a.rect),"visible":a.visible.is_positive().then(||rect(a.visible))})).collect::<Vec<_>>()),
+                "videoScroll":app.ui.timeline.v_scroll,"audioScroll":app.ui.timeline.a_scroll,"revision":app.session.revision}))
+        }
         "ui.timeline.hit" => {
             let pos = match point(app, p) {
                 Ok(p) => p,

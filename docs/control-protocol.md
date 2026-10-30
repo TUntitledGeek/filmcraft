@@ -36,6 +36,7 @@ Methods (handlers in `crates/ui-egui/src/control.rs`):
 | `ui.scroll` | `{id|x,y, dx, dy, modifiers}` | wheel / trackpad |
 | `ui.key` / `ui.type` | `{key}` (`Cmd+K`, `Space`…; off macOS `Ctrl+K` is the same key) / `{text}` | keyboard |
 | `ui.timeline.hit` / `ui.timeline.locate` | `{x,y,modifiers?}` / `{clip, edge?}` | timeline hit-testing. `hit` reports a clip's `edge` (`In`/`Out`) within 7 px of it (a third of a narrow clip); just left of a cut that is the left clip's Out, from the cut rightwards the right clip's In. `kind` is the trim a press of the current tool with `modifiers` starts there (`trim`, `ripple`, `roll`, `rateStretch`, `remix`), `volume` on an audio clip's Volume line (Selection and Pen tools), or null |
+| `ui.timeline.animation` | `{}` | Read-only inline hierarchy diagnostics: transient disclosure, video/audio split, content rectangle, track rectangles, raw and clipped drawer rectangles, shared scroll positions and project revision. Rectangles are `[x,y,width,height]`; offscreen drawer visibility is null. This view state is not project animation data. |
 | `ui.playback` | `{action: play|stop|toggle, speed?}` | |
 | `ui.screenshot` | `{path?, panel?}` | PNG of the window or one panel; fails after 10 s when no frame is presented (window hidden, display asleep) |
 | `ui.resize`, `app.quit` | `{width,height}` / `{}` | resize or close the native window; `app.quit` quits without the save prompt (unsaved changes stay in the recovery journal), while the command `app.quit` asks first |
@@ -44,6 +45,14 @@ Methods (handlers in `crates/ui-egui/src/control.rs`):
 
 **Timeline thumbnails.** `ui.set {timeline: {thumbnails}}` sets the Timeline wrench menu's Show Video
 Thumbnails: `off`, `head`, `headAndTail` or `continuous`.
+
+**Inline animation.** The UI command `timeline.animation.toggle` accepts `{clip?}` to toggle
+a real clip (default: first selected), `{clip,effect}` to toggle a unique effect group,
+`{clip,effect,section}` for a schema section, or `{clip,effect,param}` for its property's key lane.
+Disclosure is transient and scoped to the current sequence/workspace. Duplicate effect types
+cannot be expanded independently until stable model instance identity is implemented. The
+command changes view state only. Parameter/key edits use the existing `effects.*` engine
+commands; see [the architecture and supported domains](v7-animation-architecture.md).
 
 **Selection or explicit targets.** A command that acts on the selection is "not available right now" when
 nothing is selected. When `params` name the targets under a key the command documents (`clips` /
