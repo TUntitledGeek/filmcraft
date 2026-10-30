@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import { runInlineHierarchyChecks } from './inline-hierarchy.mjs';
 import { runTimelinePopupChecks } from './timeline-popup.mjs';
+import { runSharedAnimationChecks } from './shared-animation.mjs';
 import { mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, cpus, totalmem } from 'node:os';
@@ -144,6 +145,7 @@ try {
   await execute('edit.deselectAll');
   if(arg('popup-tests','false')==='true')await runTimelinePopupChecks({execute,call,send,capture,sleep,report});
   if(arg('inline-tests','false')==='true')await runInlineHierarchyChecks({execute,call,send,capture,sleep,report});
+  if(arg('shared-animation-tests','false')==='true')await runSharedAnimationChecks({execute,call,send,capture,sleep,report});
   const addedEffects=arg('effects','none').split(',').filter(e=>e!=='none');
   if(addedEffects.length) {
     const sequence=await execute('sequence.inspect');

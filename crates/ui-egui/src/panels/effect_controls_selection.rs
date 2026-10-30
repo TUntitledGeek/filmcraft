@@ -49,13 +49,17 @@ struct State {
     clip: u64,
     points: Vec<Point>,
     gesture: Option<Gesture>,
+    revision: u64,
+    generation: u64,
 }
 
 pub(crate) struct Interaction {
     state: State,
     points: Vec<Point>,
     area: Rect,
-    background: Response,
+    storage: Id,
+    inline: bool,
+    marquee_ended: bool,
     cancelled: bool,
 }
 
@@ -102,27 +106,79 @@ fn update(group: &mut Group, points: &[Point], pos: Pos2, shift: bool, playhead:
     }
 }
 
-impl Interaction {
-    pub(crate) fn begin(app: &mut FilmcraftApp, ui: &mut egui::Ui, area: Rect, clip: u64) -> Self {
-        let mut state = ui.data(|d| d.get_temp::<State>(state_id())).unwrap_or_default();
-        if state.clip != clip {
-            state = State { clip, ..Default::default() };
+/// Normalize index hints by stable identity; a deleted effect/key is dropped, never rebound.
+/// The scope includes document generation because demo/open can reuse numeric IDs.
+pub(crate) fn refresh(app: &mut FilmcraftApp, ui: &egui::Ui) {
+    let scope = (app.session.project_generation(), app.session.state.active_sequence);
+    let id = Id::new("shared-animation-selection-scope");
+    if ui.data(|d| d.get_temp::<(u64, Option<filmcraft_project::ItemId>)>(id)).is_some_and(|old| old != scope) {
+        app.ui.keyframe_selection.clear();
+        app.ui.mask_pen = None;
+        app.ui.eyedropper = None;
+        app.ui.save_preset = None;
+        app.ui.audio_fx_editors.clear();
+    }
+    ui.data_mut(|d| d.insert_temp(id, scope));
+    let Some(q) = app.session.active_sequence() else {
+        app.ui.keyframe_selection.clear();
+        return;
+    };
+    let resolve = |clip: u64, index: usize, id: Option<u64>| {
+        let effects = &q.find_item(filmcraft_project::ClipId(clip))?.1.effects;
+        let index = match id {
+            Some(id) => filmcraft_project::EffectInstance::instance_index(effects, id)?,
+            None => {
+                effects.get(index)?;
+                index
+            }
+        };
+        Some((index, effects[index].instance_id))
+    };
+    app.ui.mask_pen = app.ui.mask_pen.take().and_then(|mut target| {
+        let (index, id) = resolve(target.clip, target.effect, target.effect_id)?;
+        target.effect = index;
+        target.effect_id = Some(id);
+        Some(target)
+    });
+    app.ui.eyedropper = app.ui.eyedropper.take().and_then(|mut target| {
+        let (index, id) = resolve(target.clip, target.effect, target.effect_id)?;
+        target.effect = index;
+        target.effect_id = Some(id);
+        Some(target)
+    });
+    app.ui.save_preset = app.ui.save_preset.take().and_then(|mut target| {
+        if target.effect_ids.is_empty() {
+            target.effect_ids = target.effects.iter().map(|index| resolve(target.clip, *index, None).map(|(_, id)| id)).collect::<Option<Vec<_>>>()?;
         }
-        let cancelled = ui.input(|i| i.key_pressed(egui::Key::Escape));
+        target.effects = target.effect_ids.iter().map(|id| resolve(target.clip, 0, Some(*id)).map(|(index, _)| index)).collect::<Option<Vec<_>>>()?;
+        Some(target)
+    });
+    app.ui.keyframe_selection.retain_mut(|key| {
+        let Some((_, it)) = q.find_item(filmcraft_project::ClipId(key.clip)) else {
+            return false;
+        };
+        let Some(index) = key.effect_index(it) else {
+            return false;
+        };
+        key.effect = index;
+        key.effect_id = Some(it.effects[index].instance_id).filter(|id| *id != 0);
+        super::keyframe_exists(it, key)
+    });
+}
+
+impl Interaction {
+    fn start(app: &mut FilmcraftApp, ui: &mut egui::Ui, area: Rect, clip: u64, inline: bool) -> Self {
+        refresh(app, ui);
+        let storage = if inline { Id::new("inline-animation-keyframe-selection") } else { state_id() };
+        let mut state = ui.data(|d| d.get_temp::<State>(storage)).unwrap_or_default();
+        if state.clip != clip || state.generation != app.session.project_generation() {
+            state = State { clip, generation: app.session.project_generation(), ..Default::default() };
+        }
+        let cancelled = ui.input(|i| i.key_pressed(egui::Key::Escape)) || state.revision != app.session.revision;
         if cancelled {
             state.gesture = None;
         }
-        let background = ui.interact(area, Id::new(("ec-select", clip)), Sense::click_and_drag());
-        if background.clicked_by(egui::PointerButton::Primary) && !ui.input(|i| i.modifiers.shift) {
-            app.ui.keyframe_selection.clear();
-        }
-        if !cancelled
-            && background.drag_started_by(egui::PointerButton::Primary)
-            && let Some(origin) = ui.input(|i| i.pointer.press_origin())
-        {
-            let base = if ui.input(|i| i.modifiers.shift) { app.ui.keyframe_selection.clone() } else { Vec::new() };
-            state.gesture = Some(Gesture::Marquee { origin, end: origin, base });
-        }
+        state.revision = app.session.revision;
         if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
             match &mut state.gesture {
                 Some(Gesture::Marquee { end, .. }) => *end = pos,
@@ -132,7 +188,35 @@ impl Interaction {
                 None => {}
             }
         }
-        Self { state, points: Vec::new(), area, background, cancelled }
+        Self { state, points: Vec::new(), area, storage, inline, marquee_ended: false, cancelled }
+    }
+
+    pub(crate) fn begin(app: &mut FilmcraftApp, ui: &mut egui::Ui, area: Rect, clip: u64) -> Self {
+        let mut interaction = Self::start(app, ui, area, clip, false);
+        interaction.background(app, ui, area);
+        interaction
+    }
+
+    pub(crate) fn inline(app: &mut FilmcraftApp, ui: &mut egui::Ui, area: Rect) -> Self {
+        Self::start(app, ui, area, 0, true)
+    }
+
+    // Only actual key lanes register a background. Clip bodies, trim edges, property fields
+    // and the gaps between drawers keep their normal timeline hit testing.
+    pub(crate) fn background(&mut self, app: &mut FilmcraftApp, ui: &egui::Ui, area: Rect) {
+        let response = ui.interact(area, self.storage.with((area.min.y.to_bits(), area.max.y.to_bits())), Sense::click_and_drag());
+        let additive = ui.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
+        if response.clicked_by(egui::PointerButton::Primary) && !additive {
+            app.ui.keyframe_selection.clear();
+        }
+        if !self.cancelled
+            && response.drag_started_by(egui::PointerButton::Primary)
+            && let Some(origin) = ui.input(|i| i.pointer.press_origin())
+        {
+            let base = if additive { app.ui.keyframe_selection.clone() } else { Vec::new() };
+            self.state.gesture = Some(Gesture::Marquee { origin, end: origin, base });
+        }
+        self.marquee_ended |= response.drag_stopped_by(egui::PointerButton::Primary);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -148,8 +232,19 @@ impl Interaction {
         interp: Interpolation,
     ) -> Rect {
         let shift = ui.input(|i| i.modifiers.shift);
+        let additive = ui.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
+        if self.inline && (response.clicked_by(egui::PointerButton::Primary) || response.drag_started_by(egui::PointerButton::Primary)) {
+            if !app.session.state.selection.iter().any(|clip| clip.0 == key.clip)
+                && let Err(error) = app.session.execute("timeline.select", json!({"clips":[key.clip],"linked":false}))
+            {
+                app.ui.status = error.to_string();
+            }
+            if let Err(error) = app.session.execute("effects.select", json!({"clip":key.clip,"effect":key.selector()})) {
+                app.ui.status = error.to_string();
+            }
+        }
         if response.clicked_by(egui::PointerButton::Primary) {
-            if shift {
+            if additive {
                 if let Some(index) = app.ui.keyframe_selection.iter().position(|k| *k == key) {
                     app.ui.keyframe_selection.remove(index);
                 } else {
@@ -166,13 +261,26 @@ impl Interaction {
         }
         if !self.cancelled && response.drag_started_by(egui::PointerButton::Primary) {
             if !app.ui.keyframe_selection.contains(&key) {
-                if !shift {
+                if !additive {
                     app.ui.keyframe_selection.clear();
                 }
                 app.ui.keyframe_selection.push(key.clone());
             }
             let keys = app.ui.keyframe_selection.clone();
-            if let Some((low, high)) = limits(app, &keys) {
+            let supported = !self.inline
+                || keys.iter().all(|key| {
+                    app.session.active_sequence().and_then(|q| q.find_item(filmcraft_project::ClipId(key.clip))).is_some_and(|(_, it)| {
+                        it.speed == 1.0
+                            && !it.reverse
+                            && it.frame_hold.is_none()
+                            && key.mask.is_none()
+                            && key.effect_index(it).is_some_and(|i| it.effects[i].effect != "time_remap")
+                    })
+                });
+            if !supported {
+                app.ui.status = "Inline key dragging requires forward, unretimed effect properties".into();
+            }
+            if let Some((low, high)) = supported.then(|| limits(app, &keys)).flatten() {
                 let press = ui.input(|i| i.pointer.press_origin()).unwrap_or(rect.center());
                 let mut group = Group {
                     anchor: key.clone(),
@@ -221,7 +329,7 @@ impl Interaction {
                 let color = if app.ui.keyframe_selection.contains(&point.key) { app.tokens.hot_text } else { Color32::from_rgb(0xb0, 0xb0, 0xb0) };
                 paint(&painter, point.rect, point.interp, color);
             }
-            if self.background.drag_stopped_by(egui::PointerButton::Primary) {
+            if self.marquee_ended || ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary)) {
                 self.state.gesture = None;
             }
         }
@@ -231,9 +339,12 @@ impl Interaction {
                 ui.painter().with_clip_rect(self.area).line_segment([rect.center_top(), rect.center_bottom()], Stroke::new(1.0, app.tokens.accent));
                 app.auto.add("effectControls.snapTarget", rect, &time.0.to_string());
             }
-            if group.ended {
+            if group.ended || ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary)) {
                 if group.delta != Tick::ZERO {
-                    match app.session.execute("effects.moveKeyframes", json!({"keyframes":group.keys,"delta":group.delta.0})) {
+                    match app.session.execute(
+                        "effects.moveKeyframes",
+                        json!({"keyframes":group.keys,"delta":group.delta.0,"collision":"reject","strictForward":self.inline}),
+                    ) {
                         Ok(result) => {
                             if let Ok(keys) = serde_json::from_value(result["keyframes"].clone()) {
                                 app.ui.keyframe_selection = keys;
@@ -246,7 +357,7 @@ impl Interaction {
             }
         }
         self.state.points = self.points;
-        ui.data_mut(|d| d.insert_temp(state_id(), self.state));
+        ui.data_mut(|d| d.insert_temp(self.storage, self.state));
     }
 }
 
@@ -286,7 +397,7 @@ mod tests {
 
     #[test]
     fn clip_clamping_does_not_extend_the_screen_space_snap_threshold() {
-        let key = KeyframeRef { clip: 1, effect: 0, param: "scale".into(), mask: None, time: Tick::ZERO };
+        let key = KeyframeRef { clip: 1, effect: 0, effect_id: None, param: "scale".into(), mask: None, time: Tick::ZERO };
         let other = KeyframeRef { param: "rotation".into(), time: Tick::from_seconds_f64(0.95), ..key.clone() };
         let points = [
             Point {

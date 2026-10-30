@@ -6,21 +6,35 @@ Read [the implementation ledger](v7-implementation-status.md) for verification a
 unfinished V7 scope. The HTML and plan remain workflow references. Their mock JavaScript
 store, filename identity, percentage time and separate undo history are not production code.
 
-## Canonical data and bounded identity
+## Canonical data and persistent instance identity
 
-The frame's canonical Sequence supplies TrackItem.effects, EffectInstance.params and typed
-ParamDef definitions. The view stores disclosure only: actual ClipId, unique effect type,
-schema section and parameter ID. It never stores animation values or keyframes. Project/media
-replacement resets the view; changing sequence/workspace resets its scope; missing clips and
-ambiguous effects are pruned before layout.
+The canonical Sequence supplies TrackItem.effects, EffectInstance.params and ParamDef schemas.
+Schema v16 adds owner-local EffectInstance.instance_id and Project.next_effect_instance_id.
+Zero denotes an unattached definition/preset. The checked allocator assigns IDs at load/edit
+boundaries; legacy missing/duplicate metadata is repaired without changing values, keys, masks,
+processing order or existing graphic LayerExtra.uid. New edits reject ambiguous duplicate IDs.
+The identity is (ClipId, instance_id), so snapshots and copied/split clips can retain internal
+IDs under different clip owners. New copies within one stack use fresh_copy; intrinsic value
+replacement preserves the destination ID. A non-undoable session allocation floor prevents
+abandoned redo branches from recycling retired IDs. Save/recovery snapshots retain that floor.
+Older readers refuse v16 rather than silently dropping identity. Existing string/index command
+selectors remain compatible; effect:{instanceId:id} is authoritative and never falls back.
 
-Effects still lack persistent instance UIDs. Unique types are resolved afresh against the
-current clip before commands. Duplicate instances remain visibly closed with an explanation.
-This is an interim safety boundary, not persistent effect identity. Frame-local row offsets
-address an immutable snapshot; they are never disclosure keys. Filenames, tracks, offsets,
-occurrence numbers and content hashes must not become persistent identity. Before saving
-per-effect disclosure, implement compatibility-safe UIDs and duplicate/reorder/remove/undo,
-serialization/import and legacy-project tests.
+Disclosure stores ClipId, instance ID, section and property ID. Duplicate effects open and edit
+independently. Frame-local row offsets address only the immutable paint snapshot. Document
+replacement has a generation distinct from revision/sequence IDs: reused demo IDs cannot inherit
+old disclosure/selection. Missing owners/effects/properties are pruned before layout. None of
+these references own key values or create a second animation store.
+
+EffectSel, MaskSel, asynchronous mask tracking and KeyframeRef prefer stable IDs; UI index hints
+are rebased and deleted references cleared. New Clip Fx Editors use a ClipInstance target.
+Effect Controls queued actions resolve offsets before executing stack mutations. Inline instance
+menus duplicate, move up/down, reset and remove added effects; fixed/graphic ordering stays under
+its specialized commands. Legacy unique-type automation names remain aliases, never identity.
+
+Identity metadata is excluded from preview content hashes, including nested mixes/transition
+instances; allocation, legacy reopen and undo must not invalidate rendered picture/audio caches.
+Multicam processing equality ignores owner identity; appended outer effects get fresh identities.
 
 ## Measured layout and shared scrolling
 
@@ -67,22 +81,45 @@ All seven existing temporal interpolation modes are available; glyphs reuse Effe
 linear/hold/curved painting. Move to playhead uses the exact current source/effect Tick and is
 disabled outside the owning clip or when another key occupies the destination. A move retains
 the key's value, interpolation and influence, with one ordinary engine undo step. Menu actions
-re-resolve the unique effect at dispatch and do not store an index or independent animation data.
+resolve the persisted instance at dispatch and do not own independent animation data.
 
-Shared inline key selection and group drag retiming remain pending. The existing group gesture
-stores index-based KeyframeRef values across frames; its identity must be hardened before
-reusing it in independently disclosed clips. Current inline glyphs are click/context targets,
-not drag handles. Existing Effect Controls key editing remains intact.
+Inline and Effect Controls now share the existing UiState.keyframe_selection. References carry
+clip, authoritative effectId, parameter, optional mask and exact source Tick; effect is only a
+legacy/index hint. Individual/Shift/Ctrl selection and marquee selection use one common gesture
+implementation. Inline registers marquee backgrounds only in actual key lanes, preserving clip
+bodies, trim edges, drawer labels, scrolling and ordinary clip marquee. The inspector follows
+the real selected clip/effect. Selection can span independently disclosed clips/tracks.
+
+Group drags preview a common timeline delta in UI state; project values remain unchanged until
+release. The anchor snaps to sequence frames; Shift additionally magnets to visible keys and
+the playhead. Movement is bounded by the intersection of selected clips' visible ranges.
+Escape, document replacement or concurrent project revision cancels a preview. Commit uses the
+existing atomic effects.moveKeyframes command once, retaining values/interpolation/influence
+and relative timing. The UI requests collision rejection; occupied unselected destinations
+refuse the entire edit. Legacy command overwrite behavior remains available to older clients.
+strictForward validates the supported inline domain again at the engine boundary. Unsupported
+reversed, speed/held, Time Remapping and mixed mask selections are not enabled inline.
+
+Key identity still includes source time, rather than a persistent per-key UUID. When undo or an
+external edit removes a referenced time, selection is safely pruned; moved-key highlighting is
+not promised to survive undo/redo. Canonical animation/history does survive. Graph Editor work
+must preserve this boundary or add deliberate selection-history mapping, never infer another key.
+
+Each clip drawer has compact All/Animated/Modified/Selected filters. Modified compares schema
+defaults resolved to actual sequence/source sizes; Selected shows parameters containing selected
+keys. Filters change measured view geometry only. Existing per-property stopwatch, previous,
+add/remove and next controls remain the functional animation toolbar. Global toolbar commands,
+property-only selection and search remain pending.
 
 ## Required follow-up
 
 | Requirement | Integration boundary |
 | --- | --- |
-| Persistent duplicate-effect disclosure | Stable model UIDs and backward-compatible round-trip/reorder tests |
-| Selection / group drag retiming | Harden KeyframeRef identity, then reuse existing preview/commit/cancel commands |
+| Saved duplicate-effect disclosure | Runtime UID disclosure implemented; persistent workspace preferences remain |
+| Selection continuity through time undo | Canonical shared selection/drag implemented; safe pruning instead of inferred per-key identity |
 | Reverse / speed / holds / split / slip | Canonical domains, invertibility and cut-boundary regression matrix |
 | Bezier influence / graph editing | Existing canonical commands and graph machinery; inline temporal menu is implemented |
-| Animated / Modified / All / Selected / search | UI-only filters; never delete data or dirty the project |
+| Property-only selection / search | Four view-only filters implemented; property focus/search remain |
 | Animation toolbar / shortcuts | Registered commands; preserve editing and text-input bindings |
 | Focus Clip | View one real clip with the ordinary timeline recoverable |
 | Dockable / floating Graph Editor | Existing docking persistence plus safe property identity |

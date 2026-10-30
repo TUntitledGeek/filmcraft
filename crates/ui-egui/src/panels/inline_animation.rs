@@ -1,6 +1,5 @@
 //! Progressive inline animation rows owned by clips and measured with the track layout.
-//! Only transient disclosure is stored. A unique effect type is resolved afresh for each action;
-//! duplicate instances stay closed until the model provides persistent instance identities.
+//! Transient disclosure/selection references persisted effect IDs; key values stay canonical.
 use std::collections::{BTreeMap, BTreeSet};
 
 use egui::{Align2, Rect, Sense, Stroke, pos2, vec2};
@@ -20,7 +19,7 @@ pub const ROW_H: f32 = 22.0;
 
 #[derive(Default)]
 pub struct State {
-    scope: Option<(ItemId, String)>,
+    scope: Option<(u64, ItemId, String)>,
     pub clips: BTreeMap<u64, Disclosure>,
     pub anchor: Option<Anchor>,
     pub active: Option<ClipId>,
@@ -29,9 +28,29 @@ pub struct State {
 
 #[derive(Default)]
 pub struct Disclosure {
-    effects: BTreeSet<String>,
-    sections: BTreeSet<(String, String)>,
-    properties: BTreeSet<(String, String)>,
+    effects: BTreeSet<u64>,
+    sections: BTreeSet<(u64, String)>,
+    properties: BTreeSet<(u64, String)>,
+    filter: Filter,
+}
+
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+enum Filter {
+    #[default]
+    All,
+    Animated,
+    Modified,
+    Selected,
+}
+impl Filter {
+    fn label(self) -> &'static str {
+        match self {
+            Self::All => "All",
+            Self::Animated => "Animated",
+            Self::Modified => "Modified",
+            Self::Selected => "Selected",
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -64,7 +83,7 @@ impl Plan {
 
 impl State {
     pub fn inspect(&self) -> Value {
-        json!({"clips":self.clips.iter().map(|(id,v)|json!({"clip":id,"effects":v.effects,"sections":v.sections,"properties":v.properties})).collect::<Vec<_>>()})
+        json!({"clips":self.clips.iter().map(|(id,v)|json!({"clip":id,"effects":v.effects,"sections":v.sections,"properties":v.properties,"filter":v.filter.label()})).collect::<Vec<_>>()})
     }
     pub fn is_empty(&self) -> bool {
         self.clips.is_empty()
@@ -72,9 +91,9 @@ impl State {
     pub fn contains(&self, clip: ClipId) -> bool {
         self.clips.contains_key(&clip.0)
     }
-    fn scope(&mut self, sequence: ItemId, workspace: &str) {
-        if self.scope.as_ref().is_none_or(|(q, w)| *q != sequence || w != workspace) {
-            *self = Self { scope: Some((sequence, workspace.to_string())), ..Self::default() };
+    fn scope(&mut self, generation: u64, sequence: ItemId, workspace: &str) {
+        if self.scope.as_ref().is_none_or(|(g, q, w)| *g != generation || *q != sequence || w != workspace) {
+            *self = Self { scope: Some((generation, sequence, workspace.to_string())), ..Self::default() };
         }
     }
 }
@@ -100,20 +119,27 @@ pub fn toggle(app: &mut FilmcraftApp, params: &Value) -> Result<Value, String> {
         .ok_or("Select a clip to show animation")?;
     let seq = app.session.active_sequence().ok_or("Open a sequence first")?;
     let (_, it) = seq.find_item(clip).ok_or("The animation clip no longer exists")?;
-    let effect = params.get("effect").and_then(Value::as_str);
-    if let Some(effect) = effect {
-        let mut matching = it.effects.iter().filter(|e| e.effect == effect);
-        let e = matching.next().ok_or("The animation effect no longer exists")?;
-        if matching.next().is_some() {
-            return Err("Duplicate effect instances require stable model IDs before independent inline disclosure is available".into());
+    let effect = if let Some(value) = params.get("effectId") {
+        let id = value.as_u64().ok_or("Animation effectId must be an instance ID")?;
+        let slot = filmcraft_project::EffectInstance::instance_index(&it.effects, id).ok_or("The animation effect no longer exists or is ambiguous")?;
+        Some(&it.effects[slot])
+    } else if let Some(name) = params.get("effect").and_then(Value::as_str) {
+        let mut matches = it.effects.iter().filter(|e| e.effect == name);
+        let e = matches.next().ok_or("The animation effect no longer exists")?;
+        if matches.next().is_some() {
+            return Err("Specify effectId to disclose one of several effect instances".into());
         }
-        if let Some(param) = params.get("param").and_then(Value::as_str)
-            && e.param(param).is_none()
-        {
-            return Err("The animation property no longer exists".into());
-        }
+        Some(e)
+    } else {
+        None
+    };
+    if let Some(e) = effect
+        && params.get("param").and_then(Value::as_str).is_some_and(|p| e.param(p).is_none())
+    {
+        return Err("The animation property no longer exists".into());
     }
-    app.tl.animation.scope(sequence, &app.ui.workspace);
+    let effect = effect.map(|e| e.instance_id);
+    app.tl.animation.scope(app.session.project_generation(), sequence, &app.ui.workspace);
     let state = &mut app.tl.animation;
     let opening = !state.contains(clip);
     if opening && state.is_empty() {
@@ -122,13 +148,13 @@ pub fn toggle(app: &mut FilmcraftApp, params: &Value) -> Result<Value, String> {
     if let Some(effect) = effect {
         let view = state.clips.entry(clip.0).or_default();
         if let Some(param) = params.get("param").and_then(Value::as_str) {
-            view.effects.insert(effect.into());
-            toggle_set(&mut view.properties, (effect.to_string(), param.to_string()));
+            view.effects.insert(effect);
+            toggle_set(&mut view.properties, (effect, param.to_string()));
         } else if let Some(section) = params.get("section").and_then(Value::as_str) {
-            view.effects.insert(effect.into());
-            toggle_set(&mut view.sections, (effect.to_string(), section.to_string()));
+            view.effects.insert(effect);
+            toggle_set(&mut view.sections, (effect, section.to_string()));
         } else {
-            toggle_set(&mut view.effects, effect.to_string());
+            toggle_set(&mut view.effects, effect);
         }
     } else if state.clips.remove(&clip.0).is_none() {
         state.clips.insert(clip.0, Disclosure::default());
@@ -156,7 +182,7 @@ fn toggle_set<T: Ord>(set: &mut BTreeSet<T>, key: T) {
 }
 
 pub fn prepare(app: &mut FilmcraftApp, sequence: ItemId, seq: &Sequence) -> Vec<Plan> {
-    app.tl.animation.scope(sequence, &app.ui.workspace);
+    app.tl.animation.scope(app.session.project_generation(), sequence, &app.ui.workspace);
     app.tl.animation.clips.retain(|id, _| seq.find_item(ClipId(*id)).is_some());
     let mut plans = Vec::new();
     if app.tl.animation.is_empty() {
@@ -164,30 +190,54 @@ pub fn prepare(app: &mut FilmcraftApp, sequence: ItemId, seq: &Sequence) -> Vec<
     }
     for track in seq.all_tracks() {
         for it in &track.items {
+            let source_size = filmcraft_render::source_size(&app.session.project, it.item).unwrap_or((seq.settings.width, seq.settings.height));
+            let selected = &app.ui.keyframe_selection;
             let Some(view) = app.tl.animation.clips.get_mut(&it.id.0) else { continue };
-            let unique = |id: &str| it.effects.iter().filter(|e| e.effect == id).count() == 1;
-            view.effects.retain(|id| unique(id));
-            view.sections.retain(|(id, _)| unique(id));
-            view.properties.retain(|(id, param)| unique(id) && it.effect(id).is_some_and(|e| e.params.contains_key(param)));
+            let exists = |id: &u64| filmcraft_project::EffectInstance::instance_index(&it.effects, *id);
+            view.effects.retain(|id| exists(id).is_some());
+            view.sections.retain(|(id, _)| exists(id).is_some());
+            view.properties.retain(|(id, param)| exists(id).is_some_and(|i| it.effects[i].params.contains_key(param)));
             let mut rows = vec![Entry::Clip];
             // Match Effect Controls: fixed clip attributes precede the ordered added-effects
             // stack. This is presentation only; the project and processing order never change.
             let mut order: Vec<_> = it.effects.iter().enumerate().collect();
             order.sort_by_key(|(_, e)| !e.def().is_some_and(|d| d.intrinsic));
             for (slot, e) in order {
-                let single = unique(&e.effect);
+                let single = e.instance_id != 0;
                 rows.push(Entry::Effect { slot, unique: single });
-                if !single || !view.effects.contains(&e.effect) {
+                if !single || !view.effects.contains(&e.instance_id) {
                     continue;
                 }
+                let mut default = e.def().map(|d| d.instance());
+                if view.filter == Filter::Modified
+                    && let Some(default) = &mut default
+                {
+                    filmcraft_project::resolve_auto_points(default, (seq.settings.width, seq.settings.height), source_size);
+                }
+                let matches = |id: &str| {
+                    let Some(param) = e.param(id) else {
+                        return false;
+                    };
+                    match view.filter {
+                        Filter::All => true,
+                        Filter::Animated => param.is_animated(),
+                        Filter::Modified => param.is_animated() || default.as_ref().and_then(|d| d.param(id)).is_none_or(|p| p.value != param.value),
+                        Filter::Selected => {
+                            selected.iter().any(|key| key.clip == it.id.0 && key.effect_id == Some(e.instance_id) && key.mask.is_none() && key.param == id)
+                        }
+                    }
+                };
                 if let Some(def) = e.def() {
                     let mut sections = BTreeSet::new();
                     for pd in &def.params {
+                        if !matches(pd.id) {
+                            continue;
+                        }
                         if let Some(group) = pd.group {
                             if sections.insert(group) {
                                 rows.push(Entry::Section { slot, name: group.into() });
                             }
-                            if !view.sections.contains(&(e.effect.clone(), group.into())) {
+                            if !view.sections.contains(&(e.instance_id, group.into())) {
                                 continue;
                             }
                         }
@@ -195,12 +245,12 @@ pub fn prepare(app: &mut FilmcraftApp, sequence: ItemId, seq: &Sequence) -> Vec<
                             continue;
                         }
                         rows.push(Entry::Property { slot, param: pd.id.into() });
-                        if pd.animatable && view.properties.contains(&(e.effect.clone(), pd.id.into())) {
+                        if pd.animatable && view.properties.contains(&(e.instance_id, pd.id.into())) {
                             rows.push(Entry::Keys { slot, param: pd.id.into() });
                         }
                     }
                 } else {
-                    for param in e.params.keys() {
+                    for param in e.params.keys().filter(|p| matches(p)) {
                         rows.push(Entry::Property { slot, param: param.clone() });
                     }
                 }
@@ -255,7 +305,17 @@ fn fold(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, open: bool, enabl
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &Plan, area: Rect, visible: Rect, it: &TrackItem) {
+pub(crate) fn show(
+    app: &mut FilmcraftApp,
+    ui: &mut egui::Ui,
+    layout: &Layout,
+    plan: &Plan,
+    area: Rect,
+    visible: Rect,
+    it: &TrackItem,
+    keys: &mut super::effect_controls::Interaction,
+) {
+    let alias_start = app.auto.elements.len();
     let t = app.tokens;
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(area).id_salt(("clip-animation", plan.clip.0)));
     child.set_clip_rect(visible.intersect(ui.clip_rect()));
@@ -293,14 +353,56 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
                 if response.clicked() {
                     command(app, &child, json!({"clip":plan.clip.0}));
                 }
-                let text = format!("{} effect groups · clip animation", it.effects.len());
-                p.text(pos2(label_right + 8.0, row.center().y), Align2::LEFT_CENTER, text, Tokens::ui(10.0), t.text_faint);
+                let current = app.tl.animation.clips.get(&plan.clip.0).map_or(Filter::All, |v| v.filter);
+                let mut x = label_right + 8.0;
+                for filter in [Filter::All, Filter::Animated, Filter::Modified, Filter::Selected] {
+                    let width = match filter {
+                        Filter::All => 32.0,
+                        Filter::Animated => 64.0,
+                        Filter::Modified => 62.0,
+                        Filter::Selected => 58.0,
+                    };
+                    let r = Rect::from_min_size(pos2(x, row.min.y + 2.0), vec2(width, 18.0));
+                    let response = child
+                        .interact(r, egui::Id::new(("inline-filter", plan.clip.0, filter.label())), Sense::click())
+                        .on_hover_text(format!("Show {} properties", filter.label()));
+                    if current == filter || response.hovered() {
+                        p.rect_filled(r, 3.0, if current == filter { t.row_selected } else { t.hover });
+                    }
+                    p.text(r.center(), Align2::CENTER_CENTER, filter.label(), Tokens::ui(10.0), if current == filter { t.text } else { t.text_dim });
+                    app.auto.add_response(&format!("timeline.animation.clip.{}.filter.{}", plan.clip.0, filter.label()), &response, filter.label());
+                    if response.clicked()
+                        && let Some(view) = app.tl.animation.clips.get_mut(&plan.clip.0)
+                    {
+                        view.filter = filter;
+                        child.ctx().request_repaint();
+                    }
+                    x += width + 2.0;
+                }
+                if row.max.x - x > 100.0 {
+                    p.text(
+                        pos2(x + 8.0, row.center().y),
+                        Align2::LEFT_CENTER,
+                        format!("{} selected keys", app.ui.keyframe_selection.len()),
+                        Tokens::ui(10.0),
+                        t.text_faint,
+                    );
+                }
             }
             Entry::Effect { slot, unique } => {
                 let Some(e) = it.effects.get(*slot) else { continue };
                 let name = e.def().map_or(e.effect.as_str(), |d| d.name);
-                let open = app.tl.animation.clips.get(&plan.clip.0).is_some_and(|v| v.effects.contains(&e.effect));
-                let id = format!("timeline.animation.clip.{}.effect.{}.toggle", plan.clip.0, e.effect);
+                let header = Rect::from_min_max(pos2(row.min.x + 30.0, row.min.y), pos2(label_right - 26.0, row.max.y));
+                let response = child.interact(header, egui::Id::new(("inline-effect-header", plan.clip.0, e.instance_id)), Sense::click());
+                app.auto.add_response(&format!("timeline.animation.clip.{}.effect.{}.header", plan.clip.0, e.instance_id), &response, name);
+                if response.clicked() {
+                    property::execute(app, plan.clip, e.instance_id, "effects.select", json!({}));
+                }
+                let mut actions = Vec::new();
+                response.context_menu(|ui| super::effect_controls::instance_menu(app, ui, plan.clip, it, e, &mut actions));
+                super::effect_controls::run(app, child.ctx(), actions);
+                let open = app.tl.animation.clips.get(&plan.clip.0).is_some_and(|v| v.effects.contains(&e.instance_id));
+                let id = format!("timeline.animation.clip.{}.effect.{}.toggle", plan.clip.0, e.instance_id);
                 fold(
                     app,
                     &mut child,
@@ -308,7 +410,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
                     open,
                     *unique,
                     &id,
-                    json!({"clip":plan.clip.0,"effect":e.effect}),
+                    json!({"clip":plan.clip.0,"effectId":e.instance_id}),
                     name,
                 );
                 super::effect_controls::row_label(
@@ -321,7 +423,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
                 );
                 let count = e.params.values().filter(|p| p.is_animated()).count();
                 let summary = if !unique {
-                    "Duplicate instances: independent disclosure awaits stable IDs".into()
+                    "Effect identity unavailable".into()
                 } else if count > 0 {
                     format!("{count} animated properties")
                 } else {
@@ -337,25 +439,29 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
                 if *unique {
                     let r = Rect::from_min_size(pos2(label_right - 24.0, row.min.y + 2.0), vec2(20.0, 18.0));
                     let response =
-                        child.interact(r, egui::Id::new(("inline-bypass", plan.clip.0, &e.effect)), Sense::click()).on_hover_text("Enable/bypass effect");
+                        child.interact(r, egui::Id::new(("inline-bypass", plan.clip.0, e.instance_id)), Sense::click()).on_hover_text("Enable/bypass effect");
                     p.text(r.center(), Align2::CENTER_CENTER, "fx", Tokens::semibold(10.0), if e.enabled { t.text_dim } else { t.text_faint });
-                    app.auto.add_response(&format!("timeline.animation.clip.{}.effect.{}.enabled", plan.clip.0, e.effect), &response, "Enable/bypass effect");
+                    app.auto.add_response(
+                        &format!("timeline.animation.clip.{}.effect.{}.enabled", plan.clip.0, e.instance_id),
+                        &response,
+                        "Enable/bypass effect",
+                    );
                     if response.clicked() {
-                        property::execute(app, plan.clip, &e.effect, "effects.toggleEnabled", json!({}));
+                        property::execute(app, plan.clip, e.instance_id, "effects.toggleEnabled", json!({}));
                     }
                 }
             }
             Entry::Section { slot, name } => {
                 let Some(e) = it.effects.get(*slot) else { continue };
-                let open = app.tl.animation.clips.get(&plan.clip.0).is_some_and(|v| v.sections.contains(&(e.effect.clone(), name.clone())));
+                let open = app.tl.animation.clips.get(&plan.clip.0).is_some_and(|v| v.sections.contains(&(e.instance_id, name.clone())));
                 fold(
                     app,
                     &mut child,
                     Rect::from_min_size(row.min + vec2(22.0, 2.0), vec2(18.0, 18.0)),
                     open,
                     true,
-                    &format!("timeline.animation.clip.{}.effect.{}.section.{}", plan.clip.0, e.effect, name),
-                    json!({"clip":plan.clip.0,"effect":e.effect,"section":name}),
+                    &format!("timeline.animation.clip.{}.effect.{}.section.{}", plan.clip.0, e.instance_id, name),
+                    json!({"clip":plan.clip.0,"effectId":e.instance_id,"section":name}),
                     name,
                 );
                 super::effect_controls::row_label(
@@ -369,7 +475,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
             }
             Entry::Property { slot, param } => {
                 let Some(e) = it.effects.get(*slot) else { continue };
-                let open = app.tl.animation.clips.get(&plan.clip.0).is_some_and(|v| v.properties.contains(&(e.effect.clone(), param.clone())));
+                let open = app.tl.animation.clips.get(&plan.clip.0).is_some_and(|v| v.properties.contains(&(e.instance_id, param.clone())));
                 let def = e.def().and_then(|d| d.param(param));
                 if def.is_some_and(|d| d.animatable) {
                     fold(
@@ -378,8 +484,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
                         Rect::from_min_size(row.min + vec2(24.0, 2.0), vec2(16.0, 18.0)),
                         open,
                         true,
-                        &format!("timeline.animation.clip.{}.effect.{}.param.{}.toggle", plan.clip.0, e.effect, param),
-                        json!({"clip":plan.clip.0,"effect":e.effect,"param":param}),
+                        &format!("timeline.animation.clip.{}.effect.{}.param.{}.toggle", plan.clip.0, e.instance_id, param),
+                        json!({"clip":plan.clip.0,"effectId":e.instance_id,"param":param}),
                         "Show/hide property keyframes",
                     );
                 }
@@ -387,10 +493,26 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, plan: &P
             }
             Entry::Keys { slot, param } => {
                 let Some(e) = it.effects.get(*slot) else { continue };
-                property::keys(app, &mut child, layout, row, plan.clip, it, e, param);
+                property::keys(app, &mut child, layout, row, plan.clip, it, e, param, keys);
             }
         }
         p.line_segment([pos2(row.min.x, row.max.y - 0.5), pos2(row.max.x, row.max.y - 0.5)], Stroke::new(0.5, t.separator.gamma_multiply(0.4)));
     }
     p.line_segment([pos2(layout.content.min.x, area.min.y), pos2(layout.content.min.x, area.max.y)], Stroke::new(1.0, t.separator));
+    let mut aliases = Vec::new();
+    for e in &it.effects {
+        if it.effects.iter().filter(|other| other.effect == e.effect).count() != 1 {
+            continue;
+        }
+        let prefix = format!("timeline.animation.clip.{}.effect.{}.", plan.clip.0, e.instance_id);
+        let legacy = format!("timeline.animation.clip.{}.effect.{}.", plan.clip.0, e.effect);
+        for element in &app.auto.elements[alias_start..] {
+            if let Some(suffix) = element.id.strip_prefix(&prefix) {
+                let mut alias = element.clone();
+                alias.id = format!("{legacy}{suffix}");
+                aliases.push(alias);
+            }
+        }
+    }
+    app.auto.elements.extend(aliases);
 }

@@ -28,6 +28,8 @@ use crate::theme::Tokens;
 pub enum FxTarget {
     /// Clip effect `index` of clip `clip` (Clip Fx Editor).
     Clip { clip: u64, index: usize },
+    /// Persisted owner-local identity; new clip editors always use this variant.
+    ClipInstance { clip: u64, instance: u64 },
     /// Insert `slot` of mixer strip `strip` (track id; Track Fx Editor).
     Insert { strip: u64, slot: usize },
 }
@@ -39,6 +41,17 @@ pub fn has_editor(effect: &str) -> bool {
 
 /// Open (or raise) the editor for a target.
 pub fn open(app: &mut FilmcraftApp, target: FxTarget) {
+    let target = match target {
+        FxTarget::Clip { clip, index } => {
+            let Some(instance) =
+                app.session.active_sequence().and_then(|q| q.find_item(ClipId(clip))).and_then(|(_, it)| it.effects.get(index)).map(|e| e.instance_id)
+            else {
+                return;
+            };
+            FxTarget::ClipInstance { clip, instance }
+        }
+        target => target,
+    };
     if !app.ui.audio_fx_editors.contains(&target) {
         app.ui.audio_fx_editors.push(target);
     }
@@ -50,6 +63,13 @@ fn resolve(app: &FilmcraftApp, target: &FxTarget) -> Option<(EffectInstance, Tic
     let seq = app.session.active_sequence()?;
     let ph = app.session.playhead();
     match target {
+        FxTarget::ClipInstance { clip, instance } => {
+            let (tid, it) = seq.find_item(ClipId(*clip))?;
+            let index = EffectInstance::instance_index(&it.effects, *instance)?;
+            let track = seq.track(tid).map(|t| t.name.clone()).unwrap_or_default();
+            let mt = it.source_time_at(ph.clamp(it.start, it.end() - Tick(1)));
+            Some((it.effects[index].clone(), mt, format!("{track}, {}", it.name)))
+        }
         FxTarget::Clip { clip, index } => {
             let (tid, it) = seq.find_item(ClipId(*clip))?;
             let e = it.effects.get(*index)?.clone();
@@ -67,6 +87,7 @@ fn resolve(app: &FilmcraftApp, target: &FxTarget) -> Option<(EffectInstance, Tic
 
 fn key(target: &FxTarget) -> String {
     match target {
+        FxTarget::ClipInstance { clip, instance } => format!("clip-{clip}-instance-{instance}"),
         FxTarget::Clip { clip, index } => format!("clip-{clip}-{index}"),
         FxTarget::Insert { strip, slot } => format!("insert-{strip}-{slot}"),
     }
@@ -75,6 +96,7 @@ fn key(target: &FxTarget) -> String {
 /// Command that sets one parameter on the target.
 fn set_cmd(target: &FxTarget, pid: &str, v: Value) -> (String, Value) {
     match target {
+        FxTarget::ClipInstance { clip, instance } => ("effects.setParam".into(), json!({"clip":clip,"effect":{"instanceId":instance},"param":pid,"value":v})),
         FxTarget::Clip { clip, index } => ("effects.setParam".into(), json!({"clip": clip, "effect": index, "param": pid, "value": v})),
         FxTarget::Insert { strip, slot } => ("mixer.setInsert".into(), json!({"strip": strip, "slot": slot, "params": {pid: v}})),
     }
@@ -176,6 +198,10 @@ impl Ed<'_> {
 
 /// Show every open editor window.
 pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
+    // Upgrade saved legacy offset targets once, before any stack mutation can retarget them.
+    for target in std::mem::take(&mut app.ui.audio_fx_editors) {
+        open(app, target);
+    }
     let targets = app.ui.audio_fx_editors.clone();
     let mut close = Vec::new();
     for target in targets {
@@ -188,7 +214,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
             continue;
         }
         let name = inst.def().map_or(tl!("Effect"), |d| crate::i18n::t(d.name));
-        let kind = if matches!(target, FxTarget::Clip { .. }) { tl!("Clip Fx Editor") } else { tl!("Track Fx Editor") };
+        let kind = if matches!(target, FxTarget::Clip { .. } | FxTarget::ClipInstance { .. }) { tl!("Clip Fx Editor") } else { tl!("Track Fx Editor") };
         let title = format!("{kind} - {name}: {place}");
         let k = key(&target);
         let drafts_id = egui::Id::new(("fx-editor-drafts", &k));
@@ -247,6 +273,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
 // ------------------------------------------------------------------------------- plotting
 
 const F_MIN: f64 = 20.0;
+
 const F_MAX: f64 = 20000.0;
 
 fn fx_of(x: f32, r: Rect) -> f64 {
@@ -553,4 +580,33 @@ fn dynamics(ui: &mut egui::Ui, ed: &mut Ed) {
             ed.slider(ui, "output", tl!("Output Gain"), false);
         });
     });
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+    #[test]
+    fn clip_editor_keeps_its_instance_after_duplicate_reorder_and_remove() {
+        let mut session = filmcraft_engine::Session::default();
+        session.execute("file.openDemoProject", json!({})).unwrap();
+        let clip = session.active_sequence().unwrap().audio_tracks[0].items[0].id;
+        session.execute("effects.apply", json!({"clips":[clip.0],"effect":"parametric_eq"})).unwrap();
+        let it = session.active_sequence().unwrap().find_item(clip).unwrap().1;
+        let index = it.effects.iter().position(|e| e.effect == "parametric_eq").unwrap();
+        let instance = it.effects[index].instance_id;
+        let mut app = FilmcraftApp::new(session);
+        open(&mut app, FxTarget::Clip { clip: clip.0, index });
+        let target = app.ui.audio_fx_editors[0].clone();
+        assert!(matches!(target, FxTarget::ClipInstance { .. }));
+        app.session.execute("effects.duplicate", json!({"clip":clip.0,"effect":{"instanceId":instance}})).unwrap();
+        app.session.execute("effects.reorder", json!({"clip":clip.0,"effect":{"instanceId":instance},"to":1})).unwrap();
+        assert_eq!(resolve(&app, &target).unwrap().0.instance_id, instance);
+        let inst = resolve(&app, &target).unwrap().0;
+        let param = inst.params.iter().find(|(_, p)| matches!(p.value, ParamValue::Float(_))).unwrap().0;
+        let (command, args) = set_cmd(&target, param, json!(42.0));
+        app.session.execute(&command, args).unwrap();
+        assert_eq!(resolve(&app, &target).unwrap().0.params[param].value.as_f64(), Some(42.0));
+        app.session.execute("effects.remove", json!({"clip":clip.0,"effect":{"instanceId":instance}})).unwrap();
+        assert!(resolve(&app, &target).is_none());
+    }
 }

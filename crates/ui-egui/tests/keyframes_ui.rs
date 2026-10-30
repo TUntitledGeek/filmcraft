@@ -292,22 +292,27 @@ fn clicking_a_lane_keyframe_selects_only_that_keyframe() {
         d.exec("effects.addKeyframe", json!({"clip": clip.id, "effect": "motion", "param": param}));
     }
     let time = d.scale(&clip).0[0];
-    let motion = {
+    let (motion, instance) = {
         let s = &d.harness.state().session;
         let it = s.active_sequence().unwrap().find_item(ClipId(clip.id)).unwrap().1;
-        it.effects.iter().position(|e| e.effect == "motion").unwrap()
+        let index = it.effects.iter().position(|e| e.effect == "motion").unwrap();
+        (index, it.effects[index].instance_id)
     };
     let selection = |d: &mut Driver| d.ok("ui.inspect", json!({}))["ui"]["keyframe_selection"].clone();
     d.seek(2.0);
     assert_eq!(selection(&mut d), json!([]), "nothing selected yet");
 
     d.click(&format!("effectControls.motion.scale.keyframe.{time}"));
-    assert_eq!(selection(&mut d), json!([{"clip": clip.id, "effect": motion, "param": "scale", "time": time}]), "only Scale's keyframe");
+    assert_eq!(selection(&mut d), json!([{"clip": clip.id, "effect": motion, "effectId": instance, "param": "scale", "time": time}]), "only Scale's keyframe");
     assert_eq!(d.playhead(), t0, "the click still moves the playhead to the keyframe");
     d.shot("keyframes-select-one");
 
     d.click(&format!("effectControls.motion.position.keyframe.{time}"));
-    assert_eq!(selection(&mut d), json!([{"clip": clip.id, "effect": motion, "param": "position", "time": time}]), "a click replaces the selection");
+    assert_eq!(
+        selection(&mut d),
+        json!([{"clip": clip.id, "effect": motion, "effectId": instance, "param": "position", "time": time}]),
+        "a click replaces the selection"
+    );
 
     // the diamond removes the keyframe at the playhead, the selected one: the selection empties
     d.click("effectControls.motion.position.addKeyframe");
@@ -441,6 +446,7 @@ fn lane_keys(d: &mut Driver, clip: &Clip, specs: &[(&str, f64)]) -> Vec<filmcraf
             filmcraft_ui_egui::state::KeyframeRef {
                 clip: clip.id,
                 effect: it.effects.iter().position(|e| e.effect == "motion").unwrap(),
+                effect_id: it.effect("motion").map(|e| e.instance_id),
                 param: (*param).into(),
                 mask: None,
                 time: it.source_time_at(Tick(time)),
@@ -592,6 +598,7 @@ fn effect_and_mask_keyframes_move_together_without_crossing_parameters() {
         keys.push(filmcraft_ui_egui::state::KeyframeRef {
             clip: clip.id,
             effect: it.effects.iter().position(|e| e.effect == "opacity").unwrap(),
+            effect_id: it.effect("opacity").map(|e| e.instance_id),
             param: "opacity".into(),
             mask,
             time: it.source_time_at(time),

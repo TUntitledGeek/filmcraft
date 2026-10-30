@@ -57,7 +57,7 @@ pub(crate) fn effect_rows(
     .enumerate()
     {
         let br = Rect::from_center_size(pos2(r.min.x + 40.0 + i as f32 * 24.0, r.center().y), vec2(20.0, 18.0));
-        let resp = ui.interact(br, egui::Id::new(("mask-new", clip.0, idx, kind)), Sense::click()).on_hover_text(tip);
+        let resp = ui.interact(br, egui::Id::new(("mask-new", clip.0, e.instance_id, kind)), Sense::click()).on_hover_text(tip);
         if resp.hovered() {
             ui.painter().rect_filled(br, 3.0, t.hover);
         }
@@ -66,7 +66,8 @@ pub(crate) fn effect_rows(
         app.auto.add(&format!("effectControls.{}.mask.{kind}", e.effect), br, tip);
         if resp.clicked() {
             if kind == "pen" {
-                app.ui.mask_pen = if on { None } else { Some(crate::state::MaskPenDraft { clip: clip.0, effect: idx, points: vec![] }) };
+                app.ui.mask_pen =
+                    if on { None } else { Some(crate::state::MaskPenDraft { clip: clip.0, effect: idx, effect_id: Some(e.instance_id), points: vec![] }) };
                 if !on {
                     app.ui.status =
                         tl!("Click in the Program monitor to place mask points (drag for curves); click the first point or press Enter to close").into();
@@ -78,7 +79,7 @@ pub(crate) fn effect_rows(
     }
     let defs = filmcraft_project::mask::mask_param_defs();
     for (k, m) in e.masks.iter().enumerate() {
-        let key = format!("mask:{}:{}:{}", clip.0, idx, k);
+        let key = format!("mask:{}:instance:{}:{}", clip.0, e.instance_id, k);
         let open = !app.ui.collapsed_fx.contains(&key);
         let selected = app.session.state.selected_mask
             == Some(filmcraft_engine::masks::MaskSel { clip, effect: idx, effect_id: Some(e.instance_id).filter(|id| *id != 0), mask: k });
@@ -91,7 +92,7 @@ pub(crate) fn effect_rows(
         crate::panels::effect_controls::row_line(ui, r, lane, &t);
         let tw = Rect::from_center_size(pos2(r.min.x + 26.0, r.center().y), vec2(10.0, 10.0));
         icons::paint(ui.painter(), tw, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.text_dim);
-        let twresp = ui.interact(tw.expand(3.0), egui::Id::new(("mask-twirl", clip.0, idx, k)), Sense::click());
+        let twresp = ui.interact(tw.expand(3.0), egui::Id::new(("mask-twirl", clip.0, e.instance_id, k)), Sense::click());
         // shape glyph: ellipse for smooth paths, square for polygons
         let path = m.path_at(mt);
         let glyph = Rect::from_center_size(pos2(r.min.x + 42.0, r.center().y), vec2(12.0, 12.0));
@@ -119,7 +120,7 @@ pub(crate) fn effect_rows(
         let mut mui = ui.new_child(egui::UiBuilder::new().max_rect(mr).layout(egui::Layout::left_to_right(egui::Align::Center)));
         let mut mode = m.mode;
         crate::panels::effect_controls::fit_to_row(&mut mui);
-        egui::ComboBox::from_id_salt(("mask-mode", clip.0, idx, k)).selected_text(crate::i18n::t(mode.label())).width(88.0).show_ui(&mut mui, |ui| {
+        egui::ComboBox::from_id_salt(("mask-mode", clip.0, e.instance_id, k)).selected_text(crate::i18n::t(mode.label())).width(88.0).show_ui(&mut mui, |ui| {
             for md in MaskMode::ALL {
                 if ui.selectable_value(&mut mode, md, crate::i18n::t(md.label())).changed() {
                     actions.push(("masks.set".into(), json!({"clip": clip.0, "effect": idx, "mask": k, "mode": md.label()})));
@@ -152,7 +153,7 @@ pub(crate) fn effect_rows(
         for pd in defs {
             crate::panels::effect_controls::param_row(app, ui, body, clip, idx, e, Some(k), pd, mt, actions, lane, lx, it, keys);
             if pd.id != "path"
-                && app.ui.expanded_fx.contains(&crate::panels::effect_controls::graph_key(clip, idx, &format!("mask{k}.{}", pd.id)))
+                && app.ui.expanded_fx.contains(&crate::panels::effect_controls::graph_key(clip, e.instance_id, &format!("mask{k}.{}", pd.id)))
                 && let Some(param) = m.param(pd.id)
                 && param.is_animated()
             {

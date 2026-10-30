@@ -886,6 +886,7 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
     if cap_n > 0 {
         super::timeline_captions::interact(app, ui, seq, caption_area, &layout);
     }
+    let mut animation_keys = super::effect_controls::Interaction::inline(app, ui, layout.content);
     for animation in &layout.animations {
         if !animation.visible.is_positive() {
             continue;
@@ -893,9 +894,10 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         if let Some(plan) = plans.iter().find(|p| p.clip == animation.clip)
             && let Some((_, it)) = seq.find_item(animation.clip)
         {
-            super::inline_animation::show(app, ui, &layout, plan, animation.rect, animation.visible, it);
+            super::inline_animation::show(app, ui, &layout, plan, animation.rect, animation.visible, it, &mut animation_keys);
         }
     }
+    animation_keys.finish(app, ui);
     for (clip, toggle) in &layout.disclosures {
         super::inline_animation::chevron(app, ui, *toggle, *clip);
     }

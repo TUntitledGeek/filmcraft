@@ -146,7 +146,7 @@ fn animation_uses_shared_timeline_wheel_and_no_inner_scroll_area() {
 }
 
 #[test]
-fn duplicate_effects_never_get_index_based_disclosure_state() {
+fn duplicate_effects_have_independent_identity_based_disclosure_state() {
     let mut h = demo(894.0);
     let c = clip(&h);
     h.state_mut().session.execute("effects.apply", json!({"clips":[c.0],"effect":"gaussian_blur"})).unwrap();
@@ -154,11 +154,39 @@ fn duplicate_effects_never_get_index_based_disclosure_state() {
     h.state_mut().session.execute("effects.apply", json!({"clips":[c.0],"effect":"gaussian_blur"})).unwrap();
     step(&mut h);
     let ctx = h.ctx.clone();
-    let before = h.state().session.project.clone();
-    assert!(menus::invoke(h.state_mut(), &ctx, "timeline.animation.toggle", json!({"clip":c.0,"effect":"gaussian_blur"})).unwrap_err().contains("Duplicate"));
-    assert!(Arc::ptr_eq(&before, &h.state().session.project));
-    let p = plan(&mut h, c);
-    assert!(!p.rows.iter().any(|r| matches!(r, Entry::Property { .. })));
+    assert!(menus::invoke(h.state_mut(), &ctx, "timeline.animation.toggle", json!({"clip":c.0,"effect":"gaussian_blur"})).is_err());
+    let before = plan(&mut h, c);
+    let effects: Vec<_> = h
+        .state()
+        .session
+        .active_sequence()
+        .unwrap()
+        .find_item(c)
+        .unwrap()
+        .1
+        .effects
+        .iter()
+        .filter(|e| e.effect == "gaussian_blur")
+        .map(|e| e.instance_id)
+        .collect();
+    toggle(&mut h, json!({"clip":c.0,"effectId":effects[1]}));
+    let after = plan(&mut h, c);
+    assert!(after.height() > before.height());
+    h.state_mut().session.execute("effects.reorder", json!({"clip":c.0,"effect":{"instanceId":effects[1]},"to":0})).unwrap();
+    assert_eq!(plan(&mut h, c).height(), after.height());
+    toggle(&mut h, json!({"clip":c.0,"effectId":effects[0]}));
+    assert_eq!(plan(&mut h, c).height(), before.height());
+}
+
+#[test]
+fn document_replacement_clears_disclosure_even_with_reused_clip_ids() {
+    let mut h = demo(894.0);
+    let c = clip(&h);
+    toggle(&mut h, json!({"clip":c.0,"effect":"motion"}));
+    assert!(!h.state().tl.animation.is_empty());
+    h.state_mut().session.execute("file.openDemoProject", json!({})).unwrap();
+    step(&mut h);
+    assert!(h.state().tl.animation.is_empty());
 }
 
 #[test]
@@ -286,6 +314,128 @@ fn click_widget(h: &mut App, id: &str, button: egui::PointerButton) {
     step(h);
     h.input_mut().events.push(egui::Event::PointerButton { pos, button, pressed: false, modifiers: Default::default() });
     step(h);
+}
+
+fn key_fixture() -> (App, ClipId, Vec<filmcraft_time::Tick>) {
+    let mut h = demo(1100.0);
+    let c = clip(&h);
+    h.state_mut().ui.timeline.split = 0.8;
+    for frame in [15, 45, 75] {
+        h.state_mut().session.execute("playhead.set", json!({"frame":frame})).unwrap();
+        h.state_mut().session.execute("effects.addKeyframe", json!({"clip":c.0,"effect":"opacity","param":"opacity"})).unwrap();
+    }
+    toggle(&mut h, json!({"clip":c.0,"effect":"opacity","param":"opacity"}));
+    let times = h
+        .state()
+        .session
+        .active_sequence()
+        .unwrap()
+        .find_item(c)
+        .unwrap()
+        .1
+        .effect("opacity")
+        .unwrap()
+        .param("opacity")
+        .unwrap()
+        .keyframes
+        .iter()
+        .map(|k| k.time)
+        .collect();
+    (h, c, times)
+}
+
+fn key_point(h: &App, c: ClipId, time: filmcraft_time::Tick) -> egui::Pos2 {
+    let id = format!("timeline.animation.clip.{}.effect.opacity.param.opacity.key.{}", c.0, time.0);
+    let [x, y, w, height] = h.state().auto.find(&id).unwrap_or_else(|| panic!("Missing {id}")).rect;
+    egui::pos2(x + w / 2.0, y + height / 2.0)
+}
+
+fn pointer(h: &mut App, pos: egui::Pos2, down: bool, modifiers: egui::Modifiers) {
+    h.input_mut().events.push(egui::Event::ModifiersChanged(modifiers));
+    h.input_mut().events.push(egui::Event::PointerMoved(pos));
+    h.input_mut().events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: down, modifiers });
+    step(h);
+}
+
+fn preview(h: &mut App, from: egui::Pos2, to: egui::Pos2) {
+    pointer(h, from, true, Default::default());
+    for n in 1..=8 {
+        h.input_mut().events.push(egui::Event::PointerMoved(from + (to - from) * (n as f32 / 8.0)));
+        step(h);
+    }
+}
+
+#[test]
+fn inline_shift_ctrl_selection_group_drag_preview_cancel_and_history_use_canonical_keys() {
+    let (mut h, c, times) = key_fixture();
+    for (n, modifiers) in [(0, egui::Modifiers::NONE), (1, egui::Modifiers::SHIFT), (2, egui::Modifiers::CTRL)] {
+        let at = key_point(&h, c, times[n]);
+        pointer(&mut h, at, true, modifiers);
+        pointer(&mut h, at, false, modifiers);
+    }
+    assert_eq!(h.state().ui.keyframe_selection.len(), 3);
+    let project = h.state().session.project.clone();
+    let undo = h.state().session.history.undo.len();
+    let start = key_point(&h, c, times[0]);
+    let delta = h.state().session.sequence_rate().tick_of(15);
+    let end = start + egui::vec2(h.state().tl.layout.as_ref().unwrap().pps as f32 * delta.seconds() as f32, 0.0);
+    preview(&mut h, start, end);
+    assert!(Arc::ptr_eq(&project, &h.state().session.project), "preview edited the project");
+    pointer(&mut h, end, false, Default::default());
+    assert_eq!(h.state().session.history.undo.len(), undo + 1);
+    let moved: Vec<_> = h.state().ui.keyframe_selection.iter().map(|k| k.time).collect();
+    assert_eq!(moved, times.iter().map(|t| *t + delta).collect::<Vec<_>>());
+    let after = h.state().session.project.clone();
+    h.state_mut().session.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(*h.state().session.project, *project);
+    h.state_mut().session.execute("edit.redo", json!({})).unwrap();
+    assert_eq!(*h.state().session.project, *after);
+    step(&mut h);
+    let start = key_point(&h, c, moved[0]);
+    preview(&mut h, start, start + egui::vec2(22.0, 0.0));
+    h.input_mut().events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
+    step(&mut h);
+    pointer(&mut h, start + egui::vec2(22.0, 0.0), false, Default::default());
+    assert_eq!(*h.state().session.project, *after, "Escape committed a preview");
+}
+
+#[test]
+fn inline_marquee_and_collision_rejection_preserve_unselected_keys() {
+    let (mut h, c, times) = key_fixture();
+    let a = key_point(&h, c, times[0]);
+    let b = key_point(&h, c, times[1]);
+    let from = a - egui::vec2(14.0, 8.0);
+    let to = b + egui::vec2(8.0, 8.0);
+    preview(&mut h, from, to);
+    pointer(&mut h, to, false, Default::default());
+    assert_eq!(h.state().ui.keyframe_selection.len(), 2);
+    pointer(&mut h, a, true, Default::default());
+    pointer(&mut h, a, false, Default::default());
+    assert_eq!(h.state().ui.keyframe_selection.len(), 1);
+    let before = h.state().session.project.clone();
+    preview(&mut h, a, b);
+    pointer(&mut h, b, false, Default::default());
+    assert_eq!(*h.state().session.project, *before);
+    assert!(h.state().ui.status.contains("occupies"), "{}", h.state().ui.status);
+}
+
+#[test]
+fn inline_filters_only_change_view_and_shared_selection_survives_inspector_open() {
+    let (mut h, c, times) = key_fixture();
+    let at = key_point(&h, c, times[0]);
+    pointer(&mut h, at, true, Default::default());
+    pointer(&mut h, at, false, Default::default());
+    let selected = h.state().ui.keyframe_selection.clone();
+    let before = h.state().session.project.clone();
+    for filter in ["Animated", "Modified", "Selected", "All"] {
+        click_widget(&mut h, &format!("timeline.animation.clip.{}.filter.{filter}", c.0), egui::PointerButton::Primary);
+        assert_eq!(h.state().ui.keyframe_selection, selected);
+        assert!(Arc::ptr_eq(&before, &h.state().session.project));
+    }
+    h.state_mut().show_panel(filmcraft_ui_egui::dock::PanelKind::EffectControls);
+    step(&mut h);
+    assert_eq!(h.state().ui.keyframe_selection, selected);
+    assert_eq!(h.state().session.state.selected_effect.as_ref().unwrap().instance_id, selected[0].effect_id);
 }
 
 #[test]

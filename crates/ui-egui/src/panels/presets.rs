@@ -95,7 +95,13 @@ pub fn run(app: &mut FilmcraftApp, cmd: &str, name: &str) {
 
 /// Open the Save Preset dialog for effects of a clip.
 pub fn open_save(app: &mut FilmcraftApp, clip: u64, effects: Vec<usize>, name: &str) {
-    app.ui.save_preset = Some(SavePresetDraft { clip, effects, name: name.to_string(), description: String::new(), keyframes: "scale".into() });
+    let effect_ids = app
+        .session
+        .active_sequence()
+        .and_then(|q| q.find_item(filmcraft_project::ClipId(clip)))
+        .map(|(_, it)| effects.iter().filter_map(|i| it.effects.get(*i).map(|e| e.instance_id)).collect())
+        .unwrap_or_default();
+    app.ui.save_preset = Some(SavePresetDraft { clip, effects, effect_ids, name: name.to_string(), description: String::new(), keyframes: "scale".into() });
 }
 
 pub fn save_dialog(app: &mut FilmcraftApp, ctx: &egui::Context) {

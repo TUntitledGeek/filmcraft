@@ -1,5 +1,58 @@
 # FilmCraft V7 implementation status
 
+## V7.8 — stable instances and shared inline animation
+
+Core identity is committed/pushed as `281114d7`. The UI source now uses persisted effect
+instance IDs for independent duplicate-effect disclosure and edits. Inline and Effect Controls
+share the existing keyframe selection: individual, Shift/Ctrl multiselection and marquee.
+Frame-snapped group drags preview without changing the project, commit through canonical engine
+commands once, reject occupied unselected destinations, support Escape cancellation and ordinary
+undo/redo, and preserve relative source timing. Inline remains restricted to forward, normal-speed,
+non-held effect properties. No second keyframe store was introduced.
+
+Instance menus provide duplicate, move up/down, reset and remove. Effect/mask selections and
+asynchronous mask tracking retain the actual effect through stack changes; Clip Fx Editors and
+pending eyedropper/pen/preset references use identity as well. A document generation clears
+stale disclosure/selection even when reopening the demo reuses numeric clip IDs. Schema v16
+upgrades legacy missing/duplicate metadata without changing animation. Allocation never reuses
+retired IDs after undo branching, and save/recovery retains the allocator floor. Identity is
+excluded from preview content hashes so cached previews survive load/undo.
+
+Each drawer now offers compact All/Animated/Modified/Selected view filters. Selected shows
+properties containing selected keys. Existing per-property stopwatch, previous/add-remove/next
+controls remain functional. See the [architecture and exact boundaries](v7-animation-architecture.md).
+V7.5/V7.6 hierarchy, layout allocation, scrolling and canonical key menus are retained.
+
+**Verified so far:** 664 engine tests (three existing ignores), 73 project, 16 format, three
+identity migration, 69 editing, 232 UI library, 16 inline, 17 existing keyframe, eight menu,
+eight Escape/drag, three popup and ten preview tests (one existing ignore): **1,119 passed**.
+Affected-target Clippy and formatting passed. The standard production WASM build succeeded;
+preview is **http://127.0.0.1:8771/**. No merge or deployment. Current artifact SHA-256:
+`cbbf381ffbedf50be07e1a84ca7bafcf5311c68de445764d9b6c6ee28a50ced8`.
+
+**Chrome acceptance is still in progress for this checkpoint.** On the new production artifact,
+foreground popup cases and the existing complete hierarchy checks passed. The new harness's
+scroll fixture was corrected to move the real pointer before wheel events. A subsequent run
+hit a CDP screenshot timeout before the shared gestures; a fresh focused run is active.
+Final interaction captures/results will be recorded in the next evidence checkpoint.
+The one-second harness playback observations are functional observations, not benchmarks.
+
+Remaining boundaries: key references include source time, so moved-key selection is safely
+pruned when undo/external edits remove that time; highlighting across time undo is not promised.
+Modified compares schema defaults resolved to the source/sequence size; unresolved legacy Auto
+coordinates may still appear Modified. Property-only selection, search, global animation toolbar
+commands/keyboard routing and saved disclosure preferences remain pending. Track insert windows
+retain their existing slot semantics; persistent mask/key identity is a separate follow-up.
+
+Next: finish actual Chrome gestures/captures and push the evidence checkpoint; then implement
+Focus Clip as a reversible view of a real ClipId, followed by the dockable/floating Value/Speed
+Graph Editor using the same canonical parameters and shared selection. Verify derivatives,
+Hold discontinuities and time domains before enabling broader operations. Preserve every
+unfinished requirement in [the complete V7 scope](requirements/v7/README.md). Severe Wave Warp +
+Lumetri + Blur remains unresolved and was not investigated in this milestone. No fresh playback
+performance improvement or smooth-60-FPS claim is made.
+
+
 ## V7.7 — foreground clip-menu ownership repair
 
 The reported popup disappearance was reproduced on `bfb47546`: both new native tests failed

@@ -2882,6 +2882,7 @@ impl FilmcraftApp {
         }
         let ctx = ui.ctx().clone();
         self.auto.begin_frame();
+        panels::effect_controls::refresh_keyframes(self, ui);
         panels::metadata::follow_selection(self);
         self.frames.set_context(&ctx);
         self.session.poll_persistence();

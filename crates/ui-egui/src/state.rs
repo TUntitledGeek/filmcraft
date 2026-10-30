@@ -409,6 +409,7 @@ pub enum GuideDialog {
 pub struct Eyedropper {
     pub clip: u64,
     pub effect: usize,
+    pub effect_id: Option<u64>,
     pub param: String,
     pub mask: Option<usize>,
 }
@@ -420,10 +421,24 @@ pub struct Eyedropper {
 pub struct KeyframeRef {
     pub clip: u64,
     pub effect: usize,
+    #[serde(default, rename = "effectId", skip_serializing_if = "Option::is_none")]
+    pub effect_id: Option<u64>,
     pub param: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mask: Option<usize>,
     pub time: filmcraft_time::Tick,
+}
+
+impl KeyframeRef {
+    pub fn effect_index(&self, it: &filmcraft_project::TrackItem) -> Option<usize> {
+        match self.effect_id {
+            Some(id) => filmcraft_project::EffectInstance::instance_index(&it.effects, id),
+            None => it.effects.get(self.effect).map(|_| self.effect),
+        }
+    }
+    pub fn selector(&self) -> serde_json::Value {
+        self.effect_id.map_or_else(|| serde_json::json!(self.effect), |id| serde_json::json!({"instanceId":id}))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -643,6 +658,8 @@ pub struct ClipDialogDraft {
 pub struct MaskPenDraft {
     pub clip: u64,
     pub effect: usize,
+    #[serde(default)]
+    pub effect_id: Option<u64>,
     pub points: Vec<[f64; 4]>,
 }
 
@@ -651,6 +668,8 @@ pub struct MaskPenDraft {
 pub struct SavePresetDraft {
     pub clip: u64,
     pub effects: Vec<usize>,
+    #[serde(default)]
+    pub effect_ids: Vec<u64>,
     pub name: String,
     pub description: String,
     /// "scale" | "anchorIn" | "anchorOut" | "none"

@@ -11,18 +11,13 @@ use filmcraft_project::{ClipId, EffectInstance, Interpolation, Keyframe, Param, 
 use filmcraft_time::Tick;
 use serde_json::{Value, json};
 
-pub(super) fn execute(app: &mut FilmcraftApp, clip: ClipId, effect: &str, command: &str, mut args: Value) {
-    let slot = app.session.active_sequence().and_then(|q| q.find_item(clip)).and_then(|(_, it)| {
-        let mut matches = it.effects.iter().enumerate().filter(|(_, e)| e.effect == effect);
-        let (slot, _) = matches.next()?;
-        matches.next().is_none().then_some(slot)
-    });
-    let Some(slot) = slot else {
-        app.ui.status = "Inline editing requires one unambiguous effect instance".into();
+pub(super) fn execute(app: &mut FilmcraftApp, clip: ClipId, effect: u64, command: &str, mut args: Value) {
+    let exists =
+        app.session.active_sequence().and_then(|q| q.find_item(clip)).and_then(|(_, it)| EffectInstance::instance_index(&it.effects, effect)).is_some();
+    if !exists {
+        app.ui.status = "The inline effect instance no longer exists".into();
         return;
-    };
-    // Editing a disclosed clip also makes the existing inspector follow that real clip/effect.
-    // Selection is engine UI state; it does not create a project edit or a second value store.
+    }
     if !app.session.state.selection.contains(&clip)
         && let Err(error) = app.session.execute("timeline.select", json!({"clips":[clip.0],"linked":false}))
     {
@@ -30,17 +25,13 @@ pub(super) fn execute(app: &mut FilmcraftApp, clip: ClipId, effect: &str, comman
         return;
     }
     if command != "effects.select"
-        && let Err(error) = app.session.execute("effects.select", json!({"clip":clip.0,"effect":slot}))
+        && let Err(error) = app.session.execute("effects.select", json!({"clip":clip.0,"effect":{"instanceId":effect}}))
     {
         app.ui.status = error.to_string();
         return;
     }
     args["clip"] = json!(clip.0);
-    if command == "effects.toggleEnabled" {
-        args["index"] = json!(slot);
-    } else {
-        args["effect"] = if command == "effects.select" { json!(slot) } else { json!(effect) };
-    }
+    args["effect"] = json!({"instanceId":effect});
     if let Err(error) = app.session.execute(command, args) {
         app.ui.status = error.to_string();
     }
@@ -99,8 +90,8 @@ pub(super) fn row(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, ro
     let value_x = row.min.x + (column * 0.54).max(86.0);
     let text = display(&value, def.map(|d| &d.kind));
     super::super::effect_controls::row_label(ui, pos2(row.min.x + 43.0, row.center().y), label, value_x - row.min.x - 48.0, Tokens::ui(10.5), t.text_dim);
-    let id = egui::Id::new(("inline-value", clip.0, &e.effect, param_id));
-    let auto = format!("timeline.animation.clip.{}.effect.{}.param.{}", clip.0, e.effect, param_id);
+    let id = egui::Id::new(("inline-value", clip.0, e.instance_id, param_id));
+    let auto = format!("timeline.animation.clip.{}.effect.{}.param.{}", clip.0, e.instance_id, param_id);
     let mut child = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(Rect::from_min_max(pos2(value_x, row.min.y + 1.0), pos2(layout.content.min.x - 6.0, row.max.y - 1.0)))
@@ -203,16 +194,26 @@ pub(super) fn row(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, ro
                 .into()
         });
     if let Some(value) = changed {
-        execute(app, clip, &e.effect, "effects.setParam", json!({"param":param_id,"value":value,"merge":true,"begin":begin}));
+        execute(app, clip, e.instance_id, "effects.setParam", json!({"param":param_id,"value":value,"merge":true,"begin":begin}));
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn keys(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, row: Rect, clip: ClipId, it: &TrackItem, e: &EffectInstance, param_id: &str) {
+pub(super) fn keys(
+    app: &mut FilmcraftApp,
+    ui: &mut egui::Ui,
+    layout: &Layout,
+    row: Rect,
+    clip: ClipId,
+    it: &TrackItem,
+    e: &EffectInstance,
+    param_id: &str,
+    keys: &mut super::super::effect_controls::Interaction,
+) {
     let Some(param) = e.param(param_id) else { return };
     let t = app.tokens;
     let mt = at(app, it);
-    let auto = format!("timeline.animation.clip.{}.effect.{}.param.{}", clip.0, e.effect, param_id);
+    let auto = format!("timeline.animation.clip.{}.effect.{}.param.{}", clip.0, e.instance_id, param_id);
     let supported = editable(it) && e.effect != "time_remap";
     let nav = [
         (Icon::Stopwatch, "animation", "Toggle property animation"),
@@ -254,8 +255,8 @@ pub(super) fn keys(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, r
         }
         if response.clicked() && enabled {
             match *suffix {
-                "animation" => execute(app, clip, &e.effect, "effects.toggleAnimation", json!({"param":param_id})),
-                "addKey" => execute(app, clip, &e.effect, "effects.addKeyframe", json!({"param":param_id})),
+                "animation" => execute(app, clip, e.instance_id, "effects.toggleAnimation", json!({"param":param_id})),
+                "addKey" => execute(app, clip, e.instance_id, "effects.addKeyframe", json!({"param":param_id})),
                 _ => {
                     if let Some(time) = target.and_then(|k| timeline_time(it, k)) {
                         app.stop();
@@ -280,6 +281,8 @@ pub(super) fn keys(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, r
         );
         return;
     }
+    keys.background(app, ui, lane);
+    let span = Rect::from_min_max(pos2(layout.x_of(it.start), row.min.y), pos2(layout.x_of(it.end()), row.max.y));
     for key in &param.keyframes {
         let Some(time) = timeline_time(it, key.time) else { continue };
         let rect = Rect::from_center_size(pos2(layout.x_of(time), row.center().y), vec2(13.0, 16.0));
@@ -289,11 +292,28 @@ pub(super) fn keys(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, r
         let rate = app.session.sequence_rate();
         let drop_frame = app.session.active_sequence().is_some_and(|q| q.settings.drop_frame);
         let label = filmcraft_time::format_time(time, rate, drop_frame, filmcraft_time::TimeDisplay::Timecode, 48000);
-        let response = ui.interact(rect, egui::Id::new((&auto, key.time.0)), Sense::click()).on_hover_text(format!("{label} · {}", key.interp.label()));
-        let col = if key.time == mt { t.accent } else { t.text_dim };
+        let response =
+            ui.interact(rect, egui::Id::new((&auto, key.time.0)), Sense::click_and_drag()).on_hover_text(format!("{label} · {}", key.interp.label()));
+        let reference = crate::state::KeyframeRef {
+            clip: clip.0,
+            effect: EffectInstance::instance_index(&it.effects, e.instance_id).unwrap_or(usize::MAX),
+            effect_id: Some(e.instance_id),
+            param: param_id.into(),
+            mask: None,
+            time: key.time,
+        };
+        let rect = keys.key(app, ui, reference.clone(), it, span, rect, &response, key.interp);
+        let col = if app.ui.keyframe_selection.contains(&reference) {
+            t.hot_text
+        } else if key.time == mt {
+            t.accent
+        } else {
+            t.text_dim
+        };
         super::super::effect_controls::paint_keyframe(&p, rect.shrink2(vec2(1.0, 1.0)), key.interp, col);
         app.auto.add_response(&format!("{auto}.key.{}", key.time.0), &response, "Keyframe");
         if response.clicked() {
+            execute(app, clip, e.instance_id, "effects.select", json!({}));
             app.stop();
             if let Err(error) = app.session.execute("playhead.set", json!({"time":time.0})) {
                 app.ui.status = error.to_string();
@@ -332,7 +352,7 @@ fn key_menu(
         let label = if key.interp == kind { format!("{} (current)", kind.label()) } else { kind.label().into() };
         app.auto.add_response(&format!("{prefix}.{wire}"), &response, &label);
         if response.clicked() {
-            execute(app, clip, &e.effect, "effects.setInterpolation", json!({"param":param,"mediaTime":key.time.0,"interpolation":wire}));
+            execute(app, clip, e.instance_id, "effects.setInterpolation", json!({"param":param,"mediaTime":key.time.0,"interpolation":wire}));
             ui.close();
         }
     }
@@ -350,13 +370,13 @@ fn key_menu(
     });
     app.auto.add_response(&format!("{prefix}.moveToPlayhead"), &response, "Move to playhead");
     if response.clicked() {
-        execute(app, clip, &e.effect, "effects.moveKeyframe", json!({"param":param,"mediaTime":key.time.0,"to":target.0}));
+        execute(app, clip, e.instance_id, "effects.moveKeyframe", json!({"param":param,"mediaTime":key.time.0,"to":target.0}));
         ui.close();
     }
     let response = ui.button("Delete keyframe");
     app.auto.add_response(&format!("{prefix}.delete"), &response, "Delete keyframe");
     if response.clicked() {
-        execute(app, clip, &e.effect, "effects.deleteKeyframe", json!({"param":param,"mediaTime":key.time.0}));
+        execute(app, clip, e.instance_id, "effects.deleteKeyframe", json!({"param":param,"mediaTime":key.time.0}));
         ui.close();
     }
 }
