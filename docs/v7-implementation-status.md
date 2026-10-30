@@ -2,7 +2,8 @@
 
 ## V7.8 — stable instances and shared inline animation
 
-Core identity is committed/pushed as `281114d7`. The UI source now uses persisted effect
+Core identity is committed/pushed as `281114d7`, and the UI source as `63342208`, on
+`filmcraft-v7-animation-and-ux`. The UI uses persisted effect
 instance IDs for independent duplicate-effect disclosure and edits. Inline and Effect Controls
 share the existing keyframe selection: individual, Shift/Ctrl multiselection and marquee.
 Frame-snapped group drags preview without changing the project, commit through canonical engine
@@ -23,19 +24,29 @@ properties containing selected keys. Existing per-property stopwatch, previous/a
 controls remain functional. See the [architecture and exact boundaries](v7-animation-architecture.md).
 V7.5/V7.6 hierarchy, layout allocation, scrolling and canonical key menus are retained.
 
-**Verified so far:** 664 engine tests (three existing ignores), 73 project, 16 format, three
+**Verified:** 664 engine tests (three existing ignores), 73 project, 16 format, three
 identity migration, 69 editing, 232 UI library, 16 inline, 17 existing keyframe, eight menu,
 eight Escape/drag, three popup and ten preview tests (one existing ignore): **1,119 passed**.
 Affected-target Clippy and formatting passed. The standard production WASM build succeeded;
 preview is **http://127.0.0.1:8771/**. No merge or deployment. Current artifact SHA-256:
 `cbbf381ffbedf50be07e1a84ca7bafcf5311c68de445764d9b6c6ee28a50ced8`.
 
-**Chrome acceptance is still in progress for this checkpoint.** On the new production artifact,
-foreground popup cases and the existing complete hierarchy checks passed. The new harness's
-scroll fixture was corrected to move the real pointer before wheel events. A subsequent run
-hit a CDP screenshot timeout before the shared gestures; a fresh focused run is active.
-Final interaction captures/results will be recorded in the next evidence checkpoint.
-The one-second harness playback observations are functional observations, not benchmarks.
+**Actual Chrome acceptance is complete.** The production artifact passed physical instance-menu
+duplicate/reorder/remove/undo/redo, individual/Shift/Ctrl key selection, a preview-only exact
+12-frame group move, one-step undo/redo, Escape cancellation, occupied-destination rejection,
+marquee, inspector synchronization, all four filters and a grouped move across V1/V2 with their
+actual source-time offsets. Reopening the demo clears old view/key references despite reused IDs.
+Dark/light 1656×894 and narrow 1280×800 captures were inspected. Existing Source double-click/drop,
+clip trim/split/move undo and track targeting/source patch checks passed. A separate final Chrome
+run passed both popup cases and the complete progressive hierarchy acceptance. Both runs recorded
+zero JavaScript exceptions; pre-existing eframe web SetTheme warnings remain. Earlier retries
+encountered screenshot/navigation failures; the harness now selects its explicit normal test tab,
+checks navigation errors and disables unrelated extensions/background networking.
+
+[Verification and canonical before/after key data](verification/v7-shared-animation.json) ·
+[Nine actual interaction captures](screenshots/v7-shared/README.md). Repository layers and attribution
+passed for 210 assets. The one-second harness playback observations are functional observations,
+not benchmarks. Full native workspace tests and a fresh full-workspace lint run remain incomplete.
 
 Remaining boundaries: key references include source time, so moved-key selection is safely
 pruned when undo/external edits remove that time; highlighting across time undo is not promised.
@@ -44,8 +55,7 @@ coordinates may still appear Modified. Property-only selection, search, global a
 commands/keyboard routing and saved disclosure preferences remain pending. Track insert windows
 retain their existing slot semantics; persistent mask/key identity is a separate follow-up.
 
-Next: finish actual Chrome gestures/captures and push the evidence checkpoint; then implement
-Focus Clip as a reversible view of a real ClipId, followed by the dockable/floating Value/Speed
+Next: implement Focus Clip as a reversible view of a real ClipId, followed by the dockable/floating Value/Speed
 Graph Editor using the same canonical parameters and shared selection. Verify derivatives,
 Hold discontinuities and time domains before enabling broader operations. Preserve every
 unfinished requirement in [the complete V7 scope](requirements/v7/README.md). Severe Wave Warp +

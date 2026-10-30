@@ -1,0 +1,8 @@
+asset:        shared-multitrack.png
+title:        FilmCraft V7.8 shared inline animation
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-30 by FilmCraft contributors
+notes:        Actual Chrome Rust/egui screenshot with original procedural demo; real instance actions, shared key selection and drag gestures. No prototype mock state or generated artwork.

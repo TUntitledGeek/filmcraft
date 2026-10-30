@@ -16,7 +16,7 @@ mkdirSync(out, {recursive:true});
 const chrome = arg('chrome', 'C:/Program Files/Google/Chrome/Application/chrome.exe');
 const softwareVideo=arg('software-video','false')==='true';
 const unsafeWebgpu=arg('unsafe-webgpu','false')==='true';
-const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'fc-review-'))}`, '--no-first-run', '--no-default-browser-check', ...(unsafeWebgpu?['--enable-unsafe-webgpu']:[]), ...(softwareVideo?['--disable-accelerated-video-decode']:[]), '--autoplay-policy=no-user-gesture-required', '--window-size=1656,894', 'about:blank'], {stdio:['ignore','ignore','pipe'], windowsHide:true});
+const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), 'fc-review-'))}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-background-networking', ...(unsafeWebgpu?['--enable-unsafe-webgpu']:[]), ...(softwareVideo?['--disable-accelerated-video-decode']:[]), '--autoplay-policy=no-user-gesture-required', '--window-size=1656,894', 'about:blank'], {stdio:['ignore','ignore','pipe'], windowsHide:true});
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let ws, serial = 0;
 const pending = new Map();
@@ -51,7 +51,7 @@ try {
   for(let i=0;i<100;i++) {
     try {
       const pages=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-      const page=pages.find(p=>p.type==='page');
+      const page=pages.find(p=>p.type==='page'&&p.url==='about:blank');
       if(page) {ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j;});break;}
     } catch {}
     await sleep(100);
@@ -64,7 +64,8 @@ try {
   await send('Page.enable');await send('Runtime.enable');
   report.browser=await send('Browser.getVersion');
   await send('Emulation.setDeviceMetricsOverride',{width:1656,height:894,deviceScaleFactor:1,mobile:false});
-  await send('Page.navigate',{url});
+  report.navigation=await send('Page.navigate',{url});
+  if(report.navigation.errorText)throw new Error('Preview navigation failed: '+report.navigation.errorText);
   let ready=false;
   for(let i=0;i<240;i++){
     ready=await js('(async()=>{if(!window.filmcraft)return false;try{await filmcraft.inspect();return true;}catch{return false;}})()');

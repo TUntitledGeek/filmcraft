@@ -307,3 +307,12 @@ The Tabler integration is adapted from Fallzola/filmcraft PR #2308, head d3f0ba4
 | `docs/screenshots/v7-hierarchy/hierarchy-key-menu.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-popup/popup-over-clip-edge.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-popup/popup-over-animation.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-duplicate-effects.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-keyframes-before.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-group-drag-preview.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-keyframes-after.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-marquee-selection.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-inspector-selection.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-multitrack.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-narrow.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-shared/shared-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
