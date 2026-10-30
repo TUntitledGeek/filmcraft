@@ -15,6 +15,7 @@ use crate::theme::Tokens;
 #[path = "effect_controls_selection.rs"]
 mod selection;
 pub(crate) use selection::Interaction;
+pub(crate) use selection::paint as paint_keyframe;
 
 const ROW_H: f32 = 22.0;
 /// The narrowest the effect list and the keyframe area can be dragged (#643): the list's rows are

@@ -62,17 +62,26 @@ Time Remapping are explicitly read-only inline with an explanation; existing cli
 Controls workflows remain available. No speculative inverse is used.
 
 Key lanes support animation toggling, add/remove, previous/next and clicking a key to seek.
-Inline key selection, group retiming and interpolation editing are pending. Diamonds are click
-targets, not drag handles. Existing Effect Controls key editing remains intact.
+The V7.6 context menu reuses canonical interpolation and single-key move/delete commands.
+All seven existing temporal interpolation modes are available; glyphs reuse Effect Controls'
+linear/hold/curved painting. Move to playhead uses the exact current source/effect Tick and is
+disabled outside the owning clip or when another key occupies the destination. A move retains
+the key's value, interpolation and influence, with one ordinary engine undo step. Menu actions
+re-resolve the unique effect at dispatch and do not store an index or independent animation data.
+
+Shared inline key selection and group drag retiming remain pending. The existing group gesture
+stores index-based KeyframeRef values across frames; its identity must be hardened before
+reusing it in independently disclosed clips. Current inline glyphs are click/context targets,
+not drag handles. Existing Effect Controls key editing remains intact.
 
 ## Required follow-up
 
 | Requirement | Integration boundary |
 | --- | --- |
 | Persistent duplicate-effect disclosure | Stable model UIDs and backward-compatible round-trip/reorder tests |
-| Selection / group retiming | Shared KeyframeRef selection and existing preview/commit/cancel commands |
+| Selection / group drag retiming | Harden KeyframeRef identity, then reuse existing preview/commit/cancel commands |
 | Reverse / speed / holds / split / slip | Canonical domains, invertibility and cut-boundary regression matrix |
-| Interpolation / Bezier influence | Existing canonical commands and graph machinery |
+| Bezier influence / graph editing | Existing canonical commands and graph machinery; inline temporal menu is implemented |
 | Animated / Modified / All / Selected / search | UI-only filters; never delete data or dirty the project |
 | Animation toolbar / shortcuts | Registered commands; preserve editing and text-input bindings |
 | Focus Clip | View one real clip with the ordinary timeline recoverable |

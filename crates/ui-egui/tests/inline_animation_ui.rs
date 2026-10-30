@@ -277,3 +277,92 @@ fn unsupported_retime_domains_display_values_but_disable_inline_mutation() {
         }
     }
 }
+
+fn click_widget(h: &mut App, id: &str, button: egui::PointerButton) {
+    let [x, y, w, height] = h.state().auto.find(id).unwrap_or_else(|| panic!("Missing {id}")).rect;
+    let pos = egui::pos2(x + w / 2.0, y + height / 2.0);
+    h.input_mut().events.push(egui::Event::PointerMoved(pos));
+    h.input_mut().events.push(egui::Event::PointerButton { pos, button, pressed: true, modifiers: Default::default() });
+    step(h);
+    h.input_mut().events.push(egui::Event::PointerButton { pos, button, pressed: false, modifiers: Default::default() });
+    step(h);
+}
+
+#[test]
+fn real_inline_key_menu_edits_interpolation_and_exact_time_with_undo_and_collision_guards() {
+    use filmcraft_project::Interpolation;
+    let mut h = demo(1100.0);
+    let c = clip(&h);
+    h.state_mut().ui.timeline.split = 0.8;
+    let rate = h.state().session.sequence_rate();
+    for (frame, value) in [(15, 40.0), (45, 75.0)] {
+        h.state_mut().session.execute("playhead.set", json!({"frame":frame})).unwrap();
+        h.state_mut().session.execute("effects.setParam", json!({"clip":c.0,"effect":"opacity","param":"opacity","value":value})).unwrap();
+        if frame == 15 {
+            h.state_mut().session.execute("effects.addKeyframe", json!({"clip":c.0,"effect":"opacity","param":"opacity"})).unwrap();
+        }
+    }
+    toggle(&mut h, json!({"clip":c.0,"effect":"opacity"}));
+    toggle(&mut h, json!({"clip":c.0,"effect":"opacity","param":"opacity"}));
+    let key = |h: &App, frame| {
+        let it = h.state().session.active_sequence().unwrap().find_item(c).unwrap().1;
+        it.effect("opacity").unwrap().param("opacity").unwrap().keyframes.iter().find(|k| k.time == it.effect_time_at(rate.tick_of(frame))).cloned()
+    };
+    let source = key(&h, 15).unwrap().time;
+    let id = format!("timeline.animation.clip.{}.effect.opacity.param.opacity.key.{}", c.0, source.0);
+    for (kind, wire) in [
+        (Interpolation::Hold, "hold"),
+        (Interpolation::Bezier, "bezier"),
+        (Interpolation::AutoBezier, "autoBezier"),
+        (Interpolation::ContinuousBezier, "continuousBezier"),
+        (Interpolation::EaseIn, "easeIn"),
+        (Interpolation::EaseOut, "easeOut"),
+        (Interpolation::Linear, "linear"),
+    ] {
+        let old = key(&h, 15).unwrap();
+        let project = h.state().session.project.clone();
+        click_widget(&mut h, &id, egui::PointerButton::Secondary);
+        assert!(Arc::ptr_eq(&project, &h.state().session.project));
+        click_widget(&mut h, &format!("{id}.menu.{wire}"), egui::PointerButton::Primary);
+        assert_eq!(key(&h, 15).unwrap().interp, kind);
+        h.state_mut().session.execute("edit.undo", json!({})).unwrap();
+        assert_eq!(key(&h, 15).unwrap(), old);
+        h.state_mut().session.execute("edit.redo", json!({})).unwrap();
+        assert_eq!(key(&h, 15).unwrap().interp, kind);
+        step(&mut h);
+    }
+    // The second key already occupies the playhead, so a move must not overwrite it.
+    click_widget(&mut h, &id, egui::PointerButton::Secondary);
+    assert_eq!(h.state().auto.find(&format!("{id}.menu.moveToPlayhead")).unwrap().enabled, Some(false));
+    h.input_mut().events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
+    step(&mut h);
+    let outside = h.state().session.active_sequence().unwrap().find_item(c).unwrap().1.end() + rate.frame_duration();
+    h.state_mut().session.execute("playhead.set", json!({"time":outside.0})).unwrap();
+    step(&mut h);
+    click_widget(&mut h, &id, egui::PointerButton::Secondary);
+    assert_eq!(h.state().auto.find(&format!("{id}.menu.moveToPlayhead")).unwrap().enabled, Some(false));
+    h.input_mut().events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() });
+    step(&mut h);
+    h.state_mut().session.execute("playhead.set", json!({"frame":30})).unwrap();
+    step(&mut h);
+    let old = key(&h, 15).unwrap();
+    let expected_source = h.state().session.active_sequence().unwrap().find_item(c).unwrap().1.effect_time_at(rate.tick_of(30));
+    click_widget(&mut h, &id, egui::PointerButton::Secondary);
+    click_widget(&mut h, &format!("{id}.menu.moveToPlayhead"), egui::PointerButton::Primary);
+    let moved = key(&h, 30).unwrap();
+    assert!(key(&h, 15).is_none());
+    assert_eq!(moved.time, expected_source);
+    assert_eq!(moved.value, old.value);
+    assert_eq!(moved.interp, old.interp);
+    h.state_mut().session.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(key(&h, 15).unwrap(), old);
+    h.state_mut().session.execute("edit.redo", json!({})).unwrap();
+    step(&mut h);
+    let moved_id = format!("timeline.animation.clip.{}.effect.opacity.param.opacity.key.{}", c.0, moved.time.0);
+    click_widget(&mut h, &moved_id, egui::PointerButton::Secondary);
+    click_widget(&mut h, &format!("{moved_id}.menu.delete"), egui::PointerButton::Primary);
+    assert!(key(&h, 30).is_none());
+    assert!(key(&h, 45).is_some());
+    h.state_mut().session.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(key(&h, 30).unwrap(), moved);
+}

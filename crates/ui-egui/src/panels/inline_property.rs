@@ -7,7 +7,7 @@ use crate::{
     theme::Tokens,
 };
 use egui::{Align2, Rect, Sense, Stroke, pos2, vec2};
-use filmcraft_project::{ClipId, EffectInstance, ParamKind, ParamValue, TrackItem};
+use filmcraft_project::{ClipId, EffectInstance, Interpolation, Keyframe, Param, ParamKind, ParamValue, TrackItem};
 use filmcraft_time::Tick;
 use serde_json::{Value, json};
 
@@ -289,9 +289,9 @@ pub(super) fn keys(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, r
         let rate = app.session.sequence_rate();
         let drop_frame = app.session.active_sequence().is_some_and(|q| q.settings.drop_frame);
         let label = filmcraft_time::format_time(time, rate, drop_frame, filmcraft_time::TimeDisplay::Timecode, 48000);
-        let response = ui.interact(rect, egui::Id::new((&auto, key.time.0)), Sense::click()).on_hover_text(format!("{label} · {:?}", key.interp));
+        let response = ui.interact(rect, egui::Id::new((&auto, key.time.0)), Sense::click()).on_hover_text(format!("{label} · {}", key.interp.label()));
         let col = if key.time == mt { t.accent } else { t.text_dim };
-        icons::paint(&p, rect.shrink2(vec2(2.0, 3.0)), Icon::Keyframe, col);
+        super::super::effect_controls::paint_keyframe(&p, rect.shrink2(vec2(1.0, 1.0)), key.interp, col);
         app.auto.add_response(&format!("{auto}.key.{}", key.time.0), &response, "Keyframe");
         if response.clicked() {
             app.stop();
@@ -299,9 +299,66 @@ pub(super) fn keys(app: &mut FilmcraftApp, ui: &mut egui::Ui, layout: &Layout, r
                 app.ui.status = error.to_string();
             }
         }
+        response.context_menu(|ui| key_menu(app, ui, clip, it, e, param_id, param, key, &auto));
     }
     let x = layout.x_of(app.session.playhead());
     p.line_segment([pos2(x, row.min.y), pos2(x, row.max.y)], Stroke::new(1.0, t.playhead));
+}
+
+#[allow(clippy::too_many_arguments)]
+fn key_menu(
+    app: &mut FilmcraftApp,
+    ui: &mut egui::Ui,
+    clip: ClipId,
+    it: &TrackItem,
+    e: &EffectInstance,
+    param: &str,
+    value: &Param,
+    key: &Keyframe,
+    auto: &str,
+) {
+    let prefix = format!("{auto}.key.{}.menu", key.time.0);
+    ui.label(egui::RichText::new("Temporal interpolation").color(app.tokens.text_dim));
+    for (kind, wire) in [
+        (Interpolation::Linear, "linear"),
+        (Interpolation::Bezier, "bezier"),
+        (Interpolation::AutoBezier, "autoBezier"),
+        (Interpolation::ContinuousBezier, "continuousBezier"),
+        (Interpolation::Hold, "hold"),
+        (Interpolation::EaseIn, "easeIn"),
+        (Interpolation::EaseOut, "easeOut"),
+    ] {
+        let response = ui.selectable_label(key.interp == kind, kind.label());
+        let label = if key.interp == kind { format!("{} (current)", kind.label()) } else { kind.label().into() };
+        app.auto.add_response(&format!("{prefix}.{wire}"), &response, &label);
+        if response.clicked() {
+            execute(app, clip, &e.effect, "effects.setInterpolation", json!({"param":param,"mediaTime":key.time.0,"interpolation":wire}));
+            ui.close();
+        }
+    }
+    ui.separator();
+    let ph = app.session.playhead();
+    let target = it.effect_time_at(ph);
+    let inside = ph >= it.start && ph < it.end();
+    let occupied = value.keyframes.iter().any(|k| k.time == target && k.time != key.time);
+    let response = ui.add_enabled(inside && !occupied && target != key.time, egui::Button::new("Move to playhead")).on_hover_text(if !inside {
+        "Place the playhead inside this clip"
+    } else if occupied {
+        "Another keyframe already occupies the playhead"
+    } else {
+        "Move this key without changing its value or interpolation"
+    });
+    app.auto.add_response(&format!("{prefix}.moveToPlayhead"), &response, "Move to playhead");
+    if response.clicked() {
+        execute(app, clip, &e.effect, "effects.moveKeyframe", json!({"param":param,"mediaTime":key.time.0,"to":target.0}));
+        ui.close();
+    }
+    let response = ui.button("Delete keyframe");
+    app.auto.add_response(&format!("{prefix}.delete"), &response, "Delete keyframe");
+    if response.clicked() {
+        execute(app, clip, &e.effect, "effects.deleteKeyframe", json!({"param":param,"mediaTime":key.time.0}));
+        ui.close();
+    }
 }
 
 #[cfg(test)]
