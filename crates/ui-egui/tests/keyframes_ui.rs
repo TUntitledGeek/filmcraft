@@ -36,6 +36,9 @@ impl Driver {
         let harness = b.build_eframe(move |_cc| app);
         let mut d = Driver { harness, tx, shots };
         d.frames(4);
+        // These tests exercise Properties and Effect Controls simultaneously. Clean Editing
+        // intentionally tabs them together; Classic Editing gives each a visible group.
+        d.ok("ui.set", json!({"workspace":"Classic Editing"}));
         let seq = d.exec("sequence.inspect", json!({}));
         let c = &seq["video"][0]["items"][0];
         let clip = Clip { id: c["clip"].as_u64().unwrap(), start: c["start"].as_i64().unwrap(), duration: c["duration"].as_i64().unwrap() };
@@ -573,7 +576,9 @@ fn escape_cancels_a_group_preview_without_editing_the_project() {
 #[test]
 fn effect_and_mask_keyframes_move_together_without_crossing_parameters() {
     let (mut d, clip) = Driver::demo();
-    d.click("effectControls.effect.motion");
+    // Close the fixed Motion rows so the mask keys are actually visible. Clicking the effect
+    // title only selects it; automation must not click a registered rectangle below the panel.
+    d.click("effectControls.effect.motion.twirl");
     d.exec("masks.add", json!({"clip":clip.id,"effect":"opacity","shape":"ellipse"}));
     let mut keys = Vec::new();
     for (mask, seconds) in [(None, 1.0), (Some(0), 1.5)] {

@@ -198,6 +198,8 @@ fn show_recent_projects(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect) {
         let resp = ui.interact(row, egui::Id::new(("hub-recent", i)), Sense::click()).on_hover_text(path.as_str());
         let name = crate::menus::recent_name(path);
         app.auto.add(&format!("hub.recent.{i}"), row, &name);
+        // Preserve the existing control-channel widget IDs across the Project Hub rename.
+        app.auto.add(&format!("import.recent.{i}"), row, &name);
 
         let bg = if resp.hovered() { t.hover } else { t.tl_header_bg };
         ui.painter().rect_filled(row, 6.0, bg);
