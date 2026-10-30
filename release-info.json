@@ -1,0 +1,8 @@
+{
+  "sourceBranch": "filmcraft-v7-animation-and-ux",
+  "sourceCommit": "5fff5b0135d8846b9d7619ef5bffb9e900d4f46a",
+  "checkpoint": "V7.8 stable effect identity and shared inline animation",
+  "wasmSha256": "cbbf381ffbedf50be07e1a84ca7bafcf5311c68de445764d9b6c6ee28a50ced8",
+  "publishedAt": "2026-10-30T21:20:27.759Z",
+  "gpuWaveSphereFix": false
+}
