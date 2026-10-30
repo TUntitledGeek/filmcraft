@@ -1,0 +1,1211 @@
+{
+  "date": "2026-10-30",
+  "sourceBranch": "filmcraft-v7-animation-and-ux",
+  "runtimeSourceCommit": "6fdb2b69eb462518e048fa0e8304961912b3a871",
+  "crashFixCommit": "4627da25",
+  "pagesCommit": "93090067",
+  "publicUrl": "https://tuntitledgeek.github.io/filmcraft/",
+  "productionBuild": {
+    "rust": "1.99.0",
+    "target": "wasm32-unknown-unknown",
+    "profile": "release",
+    "threads": false,
+    "wasmBytes": 43173672,
+    "version": "3508794d2c0bc4a9",
+    "sha256": "1bcae9ffcd7a7f9f9280660c646f3b97a0163c80e2c76c3e0e04d00fbc461dff"
+  },
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+    "logicalCpus": 22,
+    "memoryGB": 31.367168426513672
+  },
+  "adapter": {
+    "vendor": "intel",
+    "architecture": "xe-lpg",
+    "device": "",
+    "description": ""
+  },
+  "browser": {
+    "protocolVersion": "1.3",
+    "product": "Chrome/155.0.8059.86",
+    "revision": "@804d6b05f089b27af8342622a36558c49401a1d4",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+    "jsVersion": "15.5.35.25"
+  },
+  "conditions": {
+    "headless": true,
+    "viewport": [
+      1536,
+      838
+    ],
+    "deviceScaleFactor": 1,
+    "workingPixels": [
+      960,
+      540
+    ],
+    "draft": false,
+    "coldFullProbePixels": [
+      1920,
+      1080
+    ],
+    "requestedPlaybackSeconds": 2.2,
+    "projects": "Same read-only captured project copy; all seven effects enabled, three Position keys and four Opacity keys preserved; no project snapshot published",
+    "edits": "Temperature, blurriness, Wave height, Spherize radius (160) at fixed frame 75 with a cached source; each undone, final redo/undo restores the exact original stack",
+    "metric": "Control-command to acknowledged matching Program frame/revision, including polling; not hardware input latency or GPU execution time",
+    "compilation": "All compilation and Clippy finished before these quantitative measurements; sequential fresh Chrome profiles; background user applications left unchanged",
+    "limitations": "Two short fresh-profile runs per build; substantial cold-render variance; first-pass procedural generation remains slow. No sustained real-time or 60 FPS claim."
+  },
+  "before": {
+    "wasmSha256": "cbbf381ffbedf50be07e1a84ca7bafcf5311c68de445764d9b6c6ee28a50ced8",
+    "repeats": 2,
+    "parameterEditMedianMs": 877.2074499999981,
+    "parameterEditRangeMs": [
+      701.1855999999971,
+      1255.337599999999
+    ],
+    "uncachedHalfFrameMedianMs": 921.3324499999999,
+    "runs": [
+      {
+        "repeat": 1,
+        "errors": [],
+        "allEffectsEnabled": true,
+        "effectIdentities": [
+          {
+            "effect": "lumetri",
+            "instanceId": 1,
+            "enabled": true
+          },
+          {
+            "effect": "gaussian_blur",
+            "instanceId": 2,
+            "enabled": true
+          },
+          {
+            "effect": "wave_warp",
+            "instanceId": 3,
+            "enabled": true
+          },
+          {
+            "effect": "spherize",
+            "instanceId": 4,
+            "enabled": true
+          },
+          {
+            "effect": "motion",
+            "instanceId": 5,
+            "enabled": true
+          },
+          {
+            "effect": "opacity",
+            "instanceId": 6,
+            "enabled": true
+          },
+          {
+            "effect": "time_remap",
+            "instanceId": 7,
+            "enabled": true
+          }
+        ],
+        "parameterEdits": [
+          {
+            "instanceId": 1,
+            "param": "temperature",
+            "value": 75.7,
+            "wallMs": 701.1855999999971,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.005000000000109139,
+              "renderMsPerJob": 634.9049999999988,
+              "jobMsMean": 634.9100000000035,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          },
+          {
+            "instanceId": 2,
+            "param": "blurriness",
+            "value": 18.75,
+            "wallMs": 711.3776999999973,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.005000000000109139,
+              "renderMsPerJob": 652.0900000000001,
+              "jobMsMean": 652.0950000000012,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          },
+          {
+            "instanceId": 3,
+            "param": "height",
+            "value": 13,
+            "wallMs": 807.183100000002,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 733.8250000000007,
+              "jobMsMean": 733.8349999999991,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          },
+          {
+            "instanceId": 4,
+            "param": "radius",
+            "value": 160,
+            "wallMs": 1255.337599999999,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.005000000000109139,
+              "renderMsPerJob": 1183.3499999999985,
+              "jobMsMean": 1183.3550000000032,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          }
+        ],
+        "undoRedoPreserved": true,
+        "halfFrameWaits": [
+          {
+            "frame": 89,
+            "wallMs": 1031.063299999998,
+            "cacheHit": false
+          },
+          {
+            "frame": 12,
+            "wallMs": 990.1434000000008,
+            "cacheHit": false
+          },
+          {
+            "frame": 100,
+            "wallMs": 989.3915000000015,
+            "cacheHit": false
+          },
+          {
+            "frame": 21,
+            "wallMs": 887.9305999999997,
+            "cacheHit": false
+          },
+          {
+            "frame": 111,
+            "wallMs": 954.7343000000001,
+            "cacheHit": false
+          }
+        ],
+        "fullFrameWaits": [
+          {
+            "frame": 33,
+            "wallMs": 2476.9688000000024
+          },
+          {
+            "frame": 44,
+            "wallMs": 2646.2697000000044
+          },
+          {
+            "frame": 55,
+            "wallMs": 3695.2220000000016
+          },
+          {
+            "frame": 66,
+            "wallMs": 3354.448400000001
+          },
+          {
+            "frame": 77,
+            "wallMs": 3606.2474
+          }
+        ],
+        "playback": {
+          "elapsedMs": 4620.27999997139,
+          "presented": 2,
+          "exact": 1,
+          "dropped": 21,
+          "displayedImagesPerSecond": 0.43287419810322847,
+          "jobs": {
+            "jobs": 5,
+            "sourceMsPerJob": 145.254,
+            "renderMsPerJob": 582.385,
+            "jobMsMean": 727.6390000000001,
+            "failedJobs": 0,
+            "cancelled": 0
+          },
+          "gpuEffectLayerDelta": 0,
+          "rafMs": [
+            883.135000000002,
+            849.9399999999987,
+            708.3100000000013,
+            658.4199999999983,
+            691.5900000000001
+          ],
+          "longTasks": [
+            {
+              "start": 16502.68999993801,
+              "duration": 879
+            },
+            {
+              "start": 17382.225000023842,
+              "duration": 848
+            },
+            {
+              "start": 18232.225000023842,
+              "duration": 707
+            },
+            {
+              "start": 18942.799999952316,
+              "duration": 657
+            },
+            {
+              "start": 19603.25499999523,
+              "duration": 689
+            },
+            {
+              "start": 20297.334999918938,
+              "duration": 825
+            }
+          ]
+        },
+        "backend": "BrowserWebGpu",
+        "workers": "cooperative",
+        "failedFrameJobs": 0
+      },
+      {
+        "repeat": 2,
+        "errors": [],
+        "allEffectsEnabled": true,
+        "effectIdentities": [
+          {
+            "effect": "lumetri",
+            "instanceId": 1,
+            "enabled": true
+          },
+          {
+            "effect": "gaussian_blur",
+            "instanceId": 2,
+            "enabled": true
+          },
+          {
+            "effect": "wave_warp",
+            "instanceId": 3,
+            "enabled": true
+          },
+          {
+            "effect": "spherize",
+            "instanceId": 4,
+            "enabled": true
+          },
+          {
+            "effect": "motion",
+            "instanceId": 5,
+            "enabled": true
+          },
+          {
+            "effect": "opacity",
+            "instanceId": 6,
+            "enabled": true
+          },
+          {
+            "effect": "time_remap",
+            "instanceId": 7,
+            "enabled": true
+          }
+        ],
+        "parameterEdits": [
+          {
+            "instanceId": 1,
+            "param": "temperature",
+            "value": 75.7,
+            "wallMs": 753.2170999999944,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.005000000000109139,
+              "renderMsPerJob": 684.5699999999997,
+              "jobMsMean": 684.5749999999971,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          },
+          {
+            "instanceId": 2,
+            "param": "blurriness",
+            "value": 18.75,
+            "wallMs": 1177.1977000000043,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 1102.0800000000017,
+              "jobMsMean": 1102.0899999999965,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          },
+          {
+            "instanceId": 3,
+            "param": "height",
+            "value": 13,
+            "wallMs": 1025.028099999996,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 926.1150000000016,
+              "jobMsMean": 926.125,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          },
+          {
+            "instanceId": 4,
+            "param": "radius",
+            "value": 160,
+            "wallMs": 947.2317999999941,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.004999999999199645,
+              "renderMsPerJob": 879.1699999999946,
+              "jobMsMean": 879.1750000000029,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 0
+          }
+        ],
+        "undoRedoPreserved": true,
+        "halfFrameWaits": [
+          {
+            "frame": 89,
+            "wallMs": 675.8798999999999,
+            "cacheHit": false
+          },
+          {
+            "frame": 12,
+            "wallMs": 743.8122000000003,
+            "cacheHit": false
+          },
+          {
+            "frame": 100,
+            "wallMs": 661.4716000000044,
+            "cacheHit": false
+          },
+          {
+            "frame": 21,
+            "wallMs": 699.0651000000071,
+            "cacheHit": false
+          },
+          {
+            "frame": 111,
+            "wallMs": 954.833300000013,
+            "cacheHit": false
+          }
+        ],
+        "fullFrameWaits": [
+          {
+            "frame": 33,
+            "wallMs": 3367.161799999987
+          },
+          {
+            "frame": 44,
+            "wallMs": 3350.2562000000034
+          },
+          {
+            "frame": 55,
+            "wallMs": 3473.80720000001
+          },
+          {
+            "frame": 66,
+            "wallMs": 3398.3418999999994
+          },
+          {
+            "frame": 77,
+            "wallMs": 3074.6677999999956
+          }
+        ],
+        "playback": {
+          "elapsedMs": 6382.414999961853,
+          "presented": 2,
+          "exact": 2,
+          "dropped": 44,
+          "displayedImagesPerSecond": 0.31336100833492553,
+          "jobs": {
+            "jobs": 5,
+            "sourceMsPerJob": 191.246,
+            "renderMsPerJob": 849.969,
+            "jobMsMean": 1041.215,
+            "failedJobs": 0,
+            "cancelled": 0
+          },
+          "gpuEffectLayerDelta": 0,
+          "rafMs": [
+            1316.4449999999997,
+            1149.9749999999985,
+            925.0349999999999,
+            991.630000000001,
+            1058.5699999999997
+          ],
+          "longTasks": [
+            {
+              "start": 16460.039999961853,
+              "duration": 1317
+            },
+            {
+              "start": 17778.299999952316,
+              "duration": 1145
+            },
+            {
+              "start": 18932.09000003338,
+              "duration": 922
+            },
+            {
+              "start": 19858.65999996662,
+              "duration": 982
+            },
+            {
+              "start": 20850.110000014305,
+              "duration": 1048
+            }
+          ]
+        },
+        "backend": "BrowserWebGpu",
+        "workers": "cooperative",
+        "failedFrameJobs": 0
+      }
+    ]
+  },
+  "after": {
+    "wasmSha256": "1bcae9ffcd7a7f9f9280660c646f3b97a0163c80e2c76c3e0e04d00fbc461dff",
+    "repeats": 2,
+    "parameterEditMedianMs": 56.870600000002014,
+    "parameterEditRangeMs": [
+      50.64440000000104,
+      79.38260000000082
+    ],
+    "uncachedHalfFrameMedianMs": 256.0064999999977,
+    "runs": [
+      {
+        "repeat": 1,
+        "errors": [],
+        "allEffectsEnabled": true,
+        "effectIdentities": [
+          {
+            "effect": "lumetri",
+            "instanceId": 1,
+            "enabled": true
+          },
+          {
+            "effect": "gaussian_blur",
+            "instanceId": 2,
+            "enabled": true
+          },
+          {
+            "effect": "wave_warp",
+            "instanceId": 3,
+            "enabled": true
+          },
+          {
+            "effect": "spherize",
+            "instanceId": 4,
+            "enabled": true
+          },
+          {
+            "effect": "motion",
+            "instanceId": 5,
+            "enabled": true
+          },
+          {
+            "effect": "opacity",
+            "instanceId": 6,
+            "enabled": true
+          },
+          {
+            "effect": "time_remap",
+            "instanceId": 7,
+            "enabled": true
+          }
+        ],
+        "parameterEdits": [
+          {
+            "instanceId": 1,
+            "param": "temperature",
+            "value": 75.7,
+            "wallMs": 79.38260000000082,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 0.16000000000000014,
+              "jobMsMean": 0.17000000000007276,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          },
+          {
+            "instanceId": 2,
+            "param": "blurriness",
+            "value": 18.75,
+            "wallMs": 67.05260000000271,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 0.11499999999999488,
+              "jobMsMean": 0.125,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          },
+          {
+            "instanceId": 3,
+            "param": "height",
+            "value": 13,
+            "wallMs": 58.70850000000064,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.004999999999199645,
+              "renderMsPerJob": 0.120000000000001,
+              "jobMsMean": 0.125,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          },
+          {
+            "instanceId": 4,
+            "param": "radius",
+            "value": 160,
+            "wallMs": 50.64440000000104,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.004999999999199645,
+              "renderMsPerJob": 0.10500000000000043,
+              "jobMsMean": 0.11000000000058208,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          }
+        ],
+        "undoRedoPreserved": true,
+        "halfFrameWaits": [
+          {
+            "frame": 89,
+            "wallMs": 238.53019999999742,
+            "cacheHit": false
+          },
+          {
+            "frame": 12,
+            "wallMs": 253.1440999999977,
+            "cacheHit": false
+          },
+          {
+            "frame": 100,
+            "wallMs": 258.86889999999767,
+            "cacheHit": false
+          },
+          {
+            "frame": 21,
+            "wallMs": 233.21160000000236,
+            "cacheHit": false
+          },
+          {
+            "frame": 111,
+            "wallMs": 344.89570000000094,
+            "cacheHit": false
+          }
+        ],
+        "fullFrameWaits": [
+          {
+            "frame": 33,
+            "wallMs": 1050.6347999999998
+          },
+          {
+            "frame": 44,
+            "wallMs": 1113.3174
+          },
+          {
+            "frame": 55,
+            "wallMs": 907.8401000000013
+          },
+          {
+            "frame": 66,
+            "wallMs": 735.5377000000008
+          },
+          {
+            "frame": 77,
+            "wallMs": 836.4636000000028
+          }
+        ],
+        "playback": {
+          "elapsedMs": 3339.1849999427795,
+          "presented": 4,
+          "exact": 1,
+          "dropped": 45,
+          "displayedImagesPerSecond": 1.1978970916761258,
+          "jobs": {
+            "jobs": 11,
+            "sourceMsPerJob": 234.29409090909087,
+            "renderMsPerJob": 0.19090909090909103,
+            "jobMsMean": 234.485,
+            "failedJobs": 0,
+            "cancelled": 0
+          },
+          "gpuEffectLayerDelta": 3,
+          "rafMs": [
+            333.3299999999999,
+            200.0450000000019,
+            366.59000000000015,
+            266.78499999999985,
+            233.34499999999753,
+            174.86000000000058,
+            233.3199999999997,
+            383.38500000000204,
+            299.994999999999,
+            299.97999999999956,
+            316.65999999999985
+          ],
+          "longTasks": [
+            {
+              "start": 15975.389999985695,
+              "duration": 330
+            },
+            {
+              "start": 16306.25,
+              "duration": 204
+            },
+            {
+              "start": 16512.195000052452,
+              "duration": 359
+            },
+            {
+              "start": 16872.740000009537,
+              "duration": 268
+            },
+            {
+              "start": 17144.805000066757,
+              "duration": 227
+            },
+            {
+              "start": 17374.6550000906,
+              "duration": 176
+            },
+            {
+              "start": 17556.350000023842,
+              "duration": 227
+            },
+            {
+              "start": 17785.00499999523,
+              "duration": 378
+            },
+            {
+              "start": 18165.325000047684,
+              "duration": 304
+            },
+            {
+              "start": 18473.850000023842,
+              "duration": 294
+            },
+            {
+              "start": 18769.230000019073,
+              "duration": 312
+            }
+          ]
+        },
+        "backend": "BrowserWebGpu",
+        "workers": "cooperative",
+        "failedFrameJobs": 0
+      },
+      {
+        "repeat": 2,
+        "errors": [],
+        "allEffectsEnabled": true,
+        "effectIdentities": [
+          {
+            "effect": "lumetri",
+            "instanceId": 1,
+            "enabled": true
+          },
+          {
+            "effect": "gaussian_blur",
+            "instanceId": 2,
+            "enabled": true
+          },
+          {
+            "effect": "wave_warp",
+            "instanceId": 3,
+            "enabled": true
+          },
+          {
+            "effect": "spherize",
+            "instanceId": 4,
+            "enabled": true
+          },
+          {
+            "effect": "motion",
+            "instanceId": 5,
+            "enabled": true
+          },
+          {
+            "effect": "opacity",
+            "instanceId": 6,
+            "enabled": true
+          },
+          {
+            "effect": "time_remap",
+            "instanceId": 7,
+            "enabled": true
+          }
+        ],
+        "parameterEdits": [
+          {
+            "instanceId": 1,
+            "param": "temperature",
+            "value": 75.7,
+            "wallMs": 63.201600000000326,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 0.10500000000000043,
+              "jobMsMean": 0.11499999999978172,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          },
+          {
+            "instanceId": 2,
+            "param": "blurriness",
+            "value": 18.75,
+            "wallMs": 53.86319999999978,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.010000000000218279,
+              "renderMsPerJob": 0.10999999999999943,
+              "jobMsMean": 0.12000000000080036,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          },
+          {
+            "instanceId": 3,
+            "param": "height",
+            "value": 13,
+            "wallMs": 55.03270000000339,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.004999999999199645,
+              "renderMsPerJob": 0.10500000000000043,
+              "jobMsMean": 0.11000000000058208,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          },
+          {
+            "instanceId": 4,
+            "param": "radius",
+            "value": 160,
+            "wallMs": 52.1765000000014,
+            "delta": {
+              "jobs": 1,
+              "sourceMsPerJob": 0.004999999999199645,
+              "renderMsPerJob": 0.10500000000000043,
+              "jobMsMean": 0.11000000000058208,
+              "failedJobs": 0,
+              "cancelled": 0
+            },
+            "gpuLayers": 1
+          }
+        ],
+        "undoRedoPreserved": true,
+        "halfFrameWaits": [
+          {
+            "frame": 89,
+            "wallMs": 243.43190000000322,
+            "cacheHit": false
+          },
+          {
+            "frame": 12,
+            "wallMs": 249.68469999999797,
+            "cacheHit": false
+          },
+          {
+            "frame": 100,
+            "wallMs": 269.8897999999972,
+            "cacheHit": false
+          },
+          {
+            "frame": 21,
+            "wallMs": 287.0820999999996,
+            "cacheHit": false
+          },
+          {
+            "frame": 111,
+            "wallMs": 425.89110000000073,
+            "cacheHit": false
+          }
+        ],
+        "fullFrameWaits": [
+          {
+            "frame": 33,
+            "wallMs": 746.9891000000061
+          },
+          {
+            "frame": 44,
+            "wallMs": 690.0520000000033
+          },
+          {
+            "frame": 55,
+            "wallMs": 660.0353000000032
+          },
+          {
+            "frame": 66,
+            "wallMs": 632.0218999999997
+          },
+          {
+            "frame": 77,
+            "wallMs": 589.4542000000001
+          }
+        ],
+        "playback": {
+          "elapsedMs": 3237.945000052452,
+          "presented": 4,
+          "exact": 1,
+          "dropped": 40,
+          "displayedImagesPerSecond": 1.235351434300213,
+          "jobs": {
+            "jobs": 11,
+            "sourceMsPerJob": 226.4086363636364,
+            "renderMsPerJob": 0.19136363636363632,
+            "jobMsMean": 226.6,
+            "failedJobs": 0,
+            "cancelled": 0
+          },
+          "gpuEffectLayerDelta": 3,
+          "rafMs": [
+            166.90999999999985,
+            224.78999999999905,
+            208.53499999999985,
+            316.4400000000005,
+            216.65999999999985,
+            291.65999999999985,
+            241.70000000000073,
+            366.6299999999992,
+            329.1200000000008,
+            312.59000000000015,
+            358.96500000000015
+          ],
+          "longTasks": [
+            {
+              "start": 13663.159999966621,
+              "duration": 166
+            },
+            {
+              "start": 13830.090000033379,
+              "duration": 224
+            },
+            {
+              "start": 14055.884999990463,
+              "duration": 209
+            },
+            {
+              "start": 14265.965000033379,
+              "duration": 315
+            },
+            {
+              "start": 14582.920000076294,
+              "duration": 216
+            },
+            {
+              "start": 14803.175000071526,
+              "duration": 286
+            },
+            {
+              "start": 15092.680000066757,
+              "duration": 238
+            },
+            {
+              "start": 15332.555000066757,
+              "duration": 361
+            },
+            {
+              "start": 15695.455000042915,
+              "duration": 326
+            },
+            {
+              "start": 16024.365000009537,
+              "duration": 309
+            },
+            {
+              "start": 16335.375,
+              "duration": 359
+            },
+            {
+              "start": 16698.25499999523,
+              "duration": 202
+            }
+          ]
+        },
+        "backend": "BrowserWebGpu",
+        "workers": "cooperative",
+        "failedFrameJobs": 0
+      }
+    ]
+  },
+  "imageComparison": {
+    "region": [
+      290,
+      75,
+      1208,
+      411
+    ],
+    "pixels": 308448,
+    "meanMaxChannelDifference": 0.0769140989729225,
+    "p99MaxChannelDifference": 1,
+    "worstMaxChannelDifference": 17,
+    "identicalPixels": 287532,
+    "criterion": "Program picture including clip outlines: p99 <= 6, mean < 1.5 in 8-bit channels"
+  },
+  "native": {
+    "gpuPassed": 41,
+    "renderPassed": 204,
+    "existingIgnored": 3,
+    "strictEffectTolerance": 0.0001
+  },
+  "gates": {
+    "affectedClippy": true,
+    "fmt": true,
+    "layers": true,
+    "assetsBeforeNewCaptures": 210,
+    "productionWasm": true,
+    "fullWorkspaceRerun": false,
+    "assetsAfterNewCaptures": 212
+  },
+  "localAcceptance": {
+    "status": "passed",
+    "details": {
+      "status": "passed",
+      "clip": 29,
+      "ids": {
+        "lumetri": 50,
+        "gaussian_blur": 51,
+        "wave_warp": 52,
+        "spherize": 53
+      },
+      "gpuLayerDelta": 1,
+      "edits": [
+        {
+          "effect": "lumetri",
+          "instanceId": 50,
+          "param": "temperature",
+          "value": 75.7,
+          "acknowledgedPictureMs": 68.07990000000063,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 16,
+            "renderScale": 0.5,
+            "revision": 16
+          }
+        },
+        {
+          "effect": "gaussian_blur",
+          "instanceId": 51,
+          "param": "blurriness",
+          "value": 18.75,
+          "acknowledgedPictureMs": 159.91820000000007,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 18,
+            "renderScale": 0.5,
+            "revision": 18
+          }
+        },
+        {
+          "effect": "wave_warp",
+          "instanceId": 52,
+          "param": "height",
+          "value": 13,
+          "acknowledgedPictureMs": 45.99070000000029,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 20,
+            "renderScale": 0.5,
+            "revision": 20
+          }
+        },
+        {
+          "effect": "spherize",
+          "instanceId": 53,
+          "param": "radius",
+          "value": 160,
+          "acknowledgedPictureMs": 50.389499999999316,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 22,
+            "renderScale": 0.5,
+            "revision": 22
+          }
+        }
+      ],
+      "nonzeroSphere": {
+        "effect": "spherize",
+        "enabled": true,
+        "instance_id": 53,
+        "params": {
+          "center": {
+            "value": {
+              "Vec2": {
+                "x": 960,
+                "y": 540
+              }
+            }
+          },
+          "radius": {
+            "value": {
+              "Float": 160
+            }
+          }
+        }
+      },
+      "undoRedoPreserved": true,
+      "note": "Functional acceptance timings include control/polling overhead; use the controlled benchmark for performance claims."
+    },
+    "errors": []
+  },
+  "publicAcceptance": {
+    "status": "passed",
+    "details": {
+      "status": "passed",
+      "clip": 29,
+      "ids": {
+        "lumetri": 50,
+        "gaussian_blur": 51,
+        "wave_warp": 52,
+        "spherize": 53
+      },
+      "gpuLayerDelta": 1,
+      "edits": [
+        {
+          "effect": "lumetri",
+          "instanceId": 50,
+          "param": "temperature",
+          "value": 75.7,
+          "acknowledgedPictureMs": 53.61590000000069,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 16,
+            "renderScale": 0.5,
+            "revision": 16
+          }
+        },
+        {
+          "effect": "gaussian_blur",
+          "instanceId": 51,
+          "param": "blurriness",
+          "value": 18.75,
+          "acknowledgedPictureMs": 57.59979999999996,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 18,
+            "renderScale": 0.5,
+            "revision": 18
+          }
+        },
+        {
+          "effect": "wave_warp",
+          "instanceId": 52,
+          "param": "height",
+          "value": 13,
+          "acknowledgedPictureMs": 58.21849999999904,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 20,
+            "renderScale": 0.5,
+            "revision": 20
+          }
+        },
+        {
+          "effect": "spherize",
+          "instanceId": 53,
+          "param": "radius",
+          "value": 160,
+          "acknowledgedPictureMs": 54.660100000000966,
+          "monitor": {
+            "draft": false,
+            "frame": 76,
+            "gradingDragActive": false,
+            "playheadFrame": 76,
+            "projectRevision": 22,
+            "renderScale": 0.5,
+            "revision": 22
+          }
+        }
+      ],
+      "nonzeroSphere": {
+        "effect": "spherize",
+        "enabled": true,
+        "instance_id": 53,
+        "params": {
+          "center": {
+            "value": {
+              "Vec2": {
+                "x": 960,
+                "y": 540
+              }
+            }
+          },
+          "radius": {
+            "value": {
+              "Float": 160
+            }
+          }
+        }
+      },
+      "undoRedoPreserved": true,
+      "note": "Functional acceptance timings include control/polling overhead; use the controlled benchmark for performance claims."
+    },
+    "errors": [],
+    "backend": "BrowserWebGpu",
+    "crossOriginIsolated": false,
+    "threads": false,
+    "unsafeWebgpu": false
+  },
+  "deferred": [
+    "Procedural Ocean first-pass frame generation",
+    "General ordered hybrid GPU/CPU fallback and remaining unsupported effects/masks",
+    "All unfinished V7 requirements, including Focus/Graph and unverified time domains"
+  ],
+  "parameterEditImprovement": 15.424620981666573,
+  "coldFrameWaitImprovement": 3.59886350541884,
+  "publicArtifact": {
+    "url": "https://tuntitledgeek.github.io/filmcraft/filmcraft_web_bg.wasm?v=3508794d2c0bc4a9&release=93090067",
+    "status": 200,
+    "bytes": 43173672,
+    "sha256": "1bcae9ffcd7a7f9f9280660c646f3b97a0163c80e2c76c3e0e04d00fbc461dff",
+    "matchesVerified": true
+  }
+}

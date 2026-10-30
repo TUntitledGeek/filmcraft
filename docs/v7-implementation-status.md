@@ -1,5 +1,56 @@
 # FilmCraft V7 implementation status
 
+## V7.9 — complete Ocean effect-stack GPU path (2026-10-30)
+
+The Ocean Sunset diagnosis identified two independent GPU blockers: Wave Warp and enabled
+zero-radius Spherize. Both now have GPU operations, including nonzero/animated Spherize,
+so the current Lumetri → Gaussian Blur → Wave Warp → Spherize stack can remain enabled.
+Motion/Opacity keys, project/effect identity, order, undo and all V7.8 editing work are preserved.
+A malformed-coordinate bilinear-sampler crash discovered during testing is also corrected.
+
+**Verified and pushed:** crash guard `4627da25`, GPU implementation `6fdb2b69`.
+245 GPU/render tests passed; three existing ignored. Strict GPU/CPU image tolerances were
+retained. Affected Clippy, formatting, dependency layers and assets passed (212 attributed
+assets after the two real browser captures). The standard Rust 1.99.0 release WASM build
+passed: 43,173,672 bytes, version `3508794d2c0bc4a9`, SHA-256
+`1bcae9ffcd7a7f9f9280660c646f3b97a0163c80e2c76c3e0e04d00fbc461dff`.
+No experimental runtime/toolchain or custom browser is required.
+
+Two fresh-profile Chrome runs per build used the same captured clip with all seven effects
+and the existing Position/Opacity keys enabled. Fixed-frame parameter edits, with the source
+cached, improved from median **877 ms to 57 ms** (15.4×); the new-build range was 51–79 ms.
+Uncached half-resolution picture waits improved from median **921 ms to 256 ms** (3.6×).
+These are command-to-acknowledged-picture timings with polling overhead, not hardware input
+latency. Cold procedural playback remained slow; no real-time/60-FPS result is claimed.
+Compilation was finished before these measurements. All parameter undo/redo checks passed.
+The real Program-picture comparison, including outlines, had p99 maximum 8-bit channel
+difference 1, mean 0.077 and worst 17 at a small number of outline samples.
+
+The checked-in Chrome fixture passed locally and against the public Pages editor, including
+GPU execution of the enabled stack, parameter edits, nonzero Spherize and exact stack
+restoration through undo/redo. No captured JavaScript exceptions or failed frame jobs.
+See [verification data](verification/v7-ocean-stack-gpu.json),
+[real before/after captures](screenshots/v7-ocean-gpu/README.md), and
+[diagnosis, implementation and reproduction](performance-ocean-stack.md).
+
+The already-verified `5fff5b01` V7 checkpoint was published to the existing `gh-pages` hosting
+branch as `a25e58cd` at the user's explicit request. The live release marker was checked.
+The verified GPU build followed as `1291b159`, completed with its matching generated glue
+in `93090067`. The public editor at https://tuntitledgeek.github.io/filmcraft/ passed Chrome
+acceptance on WebGPU, with ordinary single-threaded WASM and no unsafe-WebGPU flag.
+No source-branch merge; Pages publishing was explicitly authorized by the user.
+
+The full native workspace sweep was not repeated for this rendering-only increment;
+the complete affected render/GPU suites and existing V7.8 evidence remain distinct.
+Private recovery/UI/project snapshots were kept local and were not included in source or
+the deployed application. The user's original open editing session was not modified.
+
+The procedural source generator remains an independent first-pass playback bottleneck;
+GPU effect support is not a claim that all effects, masks or all projects are real-time.
+All original requirements under `docs/requirements/v7/` and all unfinished V7 UX/animation
+work remain binding. This performance checkpoint does not replace Focus/Graph or the
+remaining time-domain and interaction work tracked below.
+
 ## V7.8 — stable instances and shared inline animation
 
 Core identity is committed/pushed as `281114d7`, and the UI source as `63342208`, on
