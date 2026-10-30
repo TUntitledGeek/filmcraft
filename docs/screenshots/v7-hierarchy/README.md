@@ -23,3 +23,12 @@ actual key lanes. Rows use FilmCraft tokens and its existing track header/ruler,
 prototype artwork or mock data. Opening anchors the clip; deliberate shared track scrolling can
 move it out of view to reach lower groups. Short views scroll the hierarchy instead of nesting
 an inspector scrollbar. Focus/Graph/filters and broader domain editing remain pending.
+
+## V7.6 canonical key context actions
+
+Verified product source: `8833df92`. [Actual Chrome context menu](hierarchy-key-menu.png)
+shows Hold selected on a real Opacity key. The full hierarchy and editing acceptance was repeated
+with 25 captures; results are in [v7-inline-key-context.json](../../verification/v7-inline-key-context.json).
+All seven interpolation modes use canonical commands. Exact single-key Move to playhead and
+context deletion support undo/redo. Group drag selection/retiming, persistent effect identity,
+Focus and Graph remain pending.

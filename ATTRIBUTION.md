@@ -304,3 +304,4 @@ The Tabler integration is adapted from Fallzola/filmcraft PR #2308, head d3f0ba4
 | `docs/screenshots/v7-hierarchy/hierarchy-short-light.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-hierarchy/hierarchy-same-track.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
 | `docs/screenshots/v7-hierarchy/hierarchy-audio.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |
+| `docs/screenshots/v7-hierarchy/hierarchy-key-menu.png` | FilmCraft contributors | Original FilmCraft UI and procedural demo | MIT OR Apache-2.0 |

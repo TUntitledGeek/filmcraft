@@ -1,5 +1,50 @@
 # FilmCraft V7 implementation status
 
+## V7.6 verified follow-up: canonical key context actions
+
+Verified product source is pushed as `8833df92`, following the safely pushed V7.5 hierarchy
+checkpoint `8cbf0232`. Right-click a real inline key to choose any of the seven existing temporal
+interpolation modes, move it to the playhead or delete it. Each action uses existing engine
+commands and undo/redo. Move uses the actual source/effect Tick, preserves the key's other data,
+and is disabled outside the owning clip or when another key occupies that destination.
+Key glyphs reuse Effect Controls' linear/hold/curved shapes. Opening the menu does not edit
+the project, and actions resolve a unique effect immediately without storing an effect index.
+
+All 12 inline tests pass, including a real egui menu test exercising all seven modes, exact
+retiming of a clip with nonzero source In, value/interpolation preservation, collision/outside
+guards, deletion and undo/redo. Current native coverage is **327 passed**: 231 UI library,
+12 inline, 17 existing keyframe, 10 Clean Editing, 8 Escape/drag, 2 fullscreen host, 8 menu,
+12 docking, 25 Studio Pro and 2 track-height tests. UI all-target Clippy, formatting, layers,
+49-crate WASM compatibility and production standard WASM all passed. Attribution passed for
+199 assets. Full native workspace tests and a fresh full-workspace Clippy run remain incomplete.
+
+The combined real Chrome hierarchy/editing run passed again with **25 captures and zero recorded
+browser errors**. It checked interpolation undo/redo, exact move undo/redo, both move guards and
+context deletion, then repeated the multi-track/narrow/short/theme and existing editing checks.
+Existing upstream eframe web SetTheme viewport warnings remain; the actual canvas light/dark
+appearance is verified. No new playback/performance benchmark is claimed. GPU Wiggle and
+renderer code are unchanged; severe Wave Warp + Lumetri + Blur remains unresolved.
+
+Evidence: [actual results](verification/v7-inline-key-context.json),
+[real key-menu capture](screenshots/v7-hierarchy/hierarchy-key-menu.png),
+[hierarchy gallery](screenshots/v7-hierarchy/README.md).
+Current production WASM is 43,050,455 bytes, SHA-256
+`a5afb9ab6a13c457d7af17a09d10cebdd41024f93905292f8c5a1d87217b6b8d`.
+Preview remains **http://127.0.0.1:8771/**; this build has not been merged or deployed.
+
+**Boundary:** single-key context retiming is implemented; shared inline key selection and group
+drag preview/commit/cancel are not. The existing Effect Controls gesture holds index-based
+KeyframeRef values across frames. Harden effect identity before extending that to independently
+disclosed clips. Persistent duplicate-effect disclosure, broader retime/hold domains, Bezier
+influence editing, filters, toolbar, Focus/Graph and every remaining original UX requirement
+remain required. The previous V7.5 limitations below describe that earlier checkpoint;
+this section supersedes only its statement that all inline interpolation/retiming is pending.
+
+The [complete master prompt and animation plan](requirements/v7/README.md) are now preserved
+verbatim in the repository with provenance/hashes, alongside the full correction request.
+They remain requirements, not implementation claims. The HTML remains a local audited workflow
+reference, with its hash recorded. The following full scope ledger is still binding.
+
 ## V7.5 verified correction: progressive inline hierarchy
 
 The user's [correction request](v7-inline-correction-request.md) supersedes V7.4's fixed-height layout.
@@ -191,9 +236,9 @@ Pending/deferred here means **still required**, not removed from scope.
 | 2 | Subtle Unified visual refinement | Pending; baseline design retained, no broad redesign claimed |
 | 3 | Collision-safe inline hierarchy, Focus, Graph | Partial: measured multi-clip hierarchy verified; persistent duplicate identity, Focus and Graph pending |
 | 4 | Animated/Modified/All/Selected, search, shortcuts | Pending; command/shortcut conflict audit first |
-| 5 | Numeric/keyframe editing and undo | Partial: typed edits, add/remove/nav/seek and undo verified; inline selection/retiming/interpolation pending |
+| 5 | Numeric/keyframe editing and undo | Partial: typed edits, add/remove/nav/seek, temporal context menu and exact single-key context retiming verified; shared selection/group dragging pending |
 | 6 | Value/velocity curves and influence | Pending shared Graph Editor; retain canonical interpolation |
-| 7 | Exact trim/split/slip/reverse/speed/nested domains | Pending full animation mapping matrix |
+| 7 | Exact trim/split/slip/reverse/speed/nested domains | Partial: normal-speed trimmed-source key context movement verified; full domain matrix pending |
 | 8 | Geometry, focus, virtualization, view persistence | Partial: shared measured geometry, clipping, scroll and compact restore verified; persistent disclosure, broader focus/scaling matrix pending |
 | 9 | Compact Effect Controls, optional lane, no Fusion CTA | Pending; do not remove existing professional operations |
 | 10 | Wave/Wiggle/Glow performance | Partial: Wiggle measured/fixed; Wave and Glow investigation still required |
@@ -220,8 +265,8 @@ Pending/deferred here means **still required**, not removed from scope.
    filenames or array indexes. Clip IDs and parameter IDs already exist. General EffectInstance UIDs
    do not; existing EffectSel type/occurrence and inspector index strings are insufficient for all
    same-type duplicate/reorder/remove/undo cases. Do not silently change clip IDs or project semantics.
-4. Extend the verified hierarchy with shared key selection, canonical preview/commit/cancel
-   retiming and supported interpolation. Keep exact-time/unsupported-domain guards; add
+4. Harden identity for shared key selection, then reuse canonical group preview/commit/cancel
+   retiming and influence controls. Keep exact-time/unsupported-domain guards; add
    trim/split/slip/reverse/speed/hold/nested mapping cases before widening domain support.
    Add filters/toolbar and then Focus/Graph using the same canonical selected property.
 5. Continue compact Effect Controls, shared selection/Graph/Focus, header/browser/layout/Hub/storage
