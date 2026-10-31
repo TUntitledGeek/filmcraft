@@ -31,6 +31,28 @@ struct State {
     played: u64,
     played_at: f64,
     reported: bool,
+    missing: u64,
+    starvations: u64,
+}
+
+thread_local! {static MONITOR: RefCell<std::rc::Weak<RefCell<State>>> = const { RefCell::new(std::rc::Weak::new()) };}
+
+/// Output starvation is distinct from mixer/decode underruns. Collected from the
+/// worklet's real played/missing sample counts, not inferred from UI frame rate.
+pub fn stats() -> serde_json::Value {
+    MONITOR
+        .with(|h| {
+            h.borrow().upgrade().and_then(|h| {
+                h.try_borrow().ok().map(|s| {
+                    serde_json::json!({
+                        "active":s.fill.is_some(),"context":format!("{:?}",s.ctx.state()),"sampleRate":s.ctx.sample_rate(),
+                        "playedFrames":s.played,"missingFrames":s.missing,"starvedQuanta":s.starvations,
+                        "queuedFrames":s.queued.saturating_sub(Handle::estimate(&s)),"generation":s.generation
+                    })
+                })
+            })
+        })
+        .unwrap_or(serde_json::Value::Null)
 }
 
 /// Shared handle: one is the app's [`AudioOut`], one is pumped by the host every frame.
@@ -52,11 +74,16 @@ impl Handle {
             played: 0,
             played_at: 0.0,
             reported: false,
+            missing: 0,
+            starvations: 0,
         })));
+        MONITOR.with(|m| *m.borrow_mut() = Rc::downgrade(&h.0));
         let weak = Rc::downgrade(&h.0);
         wasm_bindgen_futures::spawn_local(async move {
             let r: Result<web_sys::AudioWorkletNode, JsValue> = async {
-                JsFuture::from(ctx.audio_worklet()?.add_module("audio-worklet.js")?).await?;
+                let assets = js_sys::Reflect::get(&js_sys::global(), &"filmcraftWorkerAssets".into()).unwrap_or(JsValue::UNDEFINED);
+                let url = js_sys::Reflect::get(&assets, &"audio".into()).ok().and_then(|v| v.as_string()).unwrap_or_else(|| "audio-worklet.js".into());
+                JsFuture::from(ctx.audio_worklet()?.add_module(&url)?).await?;
                 let o = web_sys::AudioWorkletNodeOptions::new();
                 o.set_number_of_inputs(0);
                 o.set_number_of_outputs(1);
@@ -79,6 +106,8 @@ impl Handle {
                             s.played = num("played") as u64;
                             s.played_at = num("time");
                             s.reported = true;
+                            s.missing = num("missing") as u64;
+                            s.starvations = num("starvations") as u64;
                         }
                     });
                     if let Ok(port) = node.port() {
@@ -153,15 +182,18 @@ impl Handle {
         }
     }
 
-    fn reset(s: &mut State) {
+    fn reset(s: &mut State, active: bool) {
         s.generation = s.generation.wrapping_add(1);
         s.queued = 0;
         s.played = 0;
         s.reported = false;
+        s.missing = 0;
+        s.starvations = 0;
         if let Some(node) = &s.node {
             let msg = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&msg, &"type".into(), &"reset".into());
             let _ = js_sys::Reflect::set(&msg, &"gen".into(), &s.generation.into());
+            let _ = js_sys::Reflect::set(&msg, &"active".into(), &active.into());
             Self::post(node, &msg, None);
         }
     }
@@ -179,7 +211,7 @@ impl AudioOut for Handle {
                 // without a user gesture the context stays suspended: use the wall clock
                 return Err("audio context suspended (no user gesture yet)".into());
             }
-            Self::reset(&mut s);
+            Self::reset(&mut s, true);
             s.fill = Some(fill);
         }
         self.pump();
@@ -189,7 +221,7 @@ impl AudioOut for Handle {
     fn stop(&mut self) {
         let mut s = self.0.borrow_mut();
         s.fill = None;
-        Self::reset(&mut s);
+        Self::reset(&mut s, false);
     }
 
     fn sample_rate(&self) -> u32 {

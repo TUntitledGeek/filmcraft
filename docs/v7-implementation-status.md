@@ -1,5 +1,16 @@
 # FilmCraft V7 implementation status
 
+## Performance stabilization — active work (2026-10-31)
+
+The [new performance-first brief](requirements/performance-stabilization-20261031.md)
+temporarily freezes nonessential UI/features. All original V7 requirements below
+remain binding. The [performance ledger](performance-stabilization.md) records the
+worker architecture, upstream review, actual verification and open acceptance work.
+Verified transport foundation `af3cf658` is pushed. Independent-worker browser
+integration is undergoing final-source build and matched Chrome acceptance; do not
+infer full stabilization or release approval from the intermediate checks.
+No merge or new Pages deployment is authorized by this brief.
+
 ## V7.9 — complete Ocean effect-stack GPU path (2026-10-30)
 
 The Ocean Sunset diagnosis identified two independent GPU blockers: Wave Warp and enabled

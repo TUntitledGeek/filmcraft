@@ -11,13 +11,15 @@
 //! | auto-save + recovery journal (data dir) | OPFS snapshot + media copies ([`recovery`], [`opfs`]) |
 //! | cpal audio output | WebAudio `AudioWorklet`, played-frame clock ([`audio`]) |
 //! | VideoToolbox… | WebCodecs `VideoDecoder` ([`webcodecs`]) |
-//! | frame worker threads | cooperative frame queue pumped between UI frames (`FrameServer::pump`) |
+//! | frame worker threads | independent WASM instances in standard browser Web Workers |
 //! | TCP control channel / MCP | `window.filmcraft` JavaScript API ([`api`]) |
 //!
 //! Everything here is `wasm32`-only; on other targets the crate is empty.
 #![cfg(target_arch = "wasm32")]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
 mod decoder_policy;
+pub mod frame_worker;
+mod reusable_buffer;
 
 pub mod api;
 pub mod audio;
@@ -46,6 +48,7 @@ thread_local! {
     static ACTIONS: RefCell<Vec<Action>> = const { RefCell::new(Vec::new()) };
     static CTX: RefCell<Option<egui::Context>> = const { RefCell::new(None) };
     static INFO: RefCell<serde_json::Value> = const { RefCell::new(serde_json::Value::Null) };
+    static WORKER_SEARCH: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// Run `f` on the UI thread at the next frame.
@@ -82,7 +85,18 @@ pub fn set_info(key: &str, v: serde_json::Value) {
 }
 
 pub fn info() -> serde_json::Value {
-    INFO.with(|i| i.borrow().clone())
+    let mut info = INFO.with(|i| i.borrow().clone());
+    if info.is_object() {
+        info["audioOutput"] = audio::stats();
+        info["wasmMemoryBytes"] = serde_json::json!(wasm_memory_bytes());
+    }
+    info
+}
+
+/// Allocated linear-memory capacity, not a claim about resident process RAM.
+pub(crate) fn wasm_memory_bytes() -> Option<u64> {
+    let buffer = js_sys::Reflect::get(&wasm_bindgen::memory(), &"buffer".into()).ok()?;
+    js_sys::Reflect::get(&buffer, &"byteLength".into()).ok()?.as_f64().filter(|n| n.is_finite() && *n >= 0.0).map(|n| n as u64)
 }
 
 /// The eframe app: the shared FilmCraft UI plus the web host's per-frame duties.
@@ -91,6 +105,7 @@ pub struct WebApp {
     pub audio: Option<audio::Handle>,
     pub autosave: recovery::Autosave,
     pub workspace_store: workspaces::Store,
+    pub frame_worker: frame_worker::Client,
 }
 
 impl eframe::App for WebApp {
@@ -118,15 +133,23 @@ impl eframe::App for WebApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.app.ui(ui, frame);
+        // Monitor/thumbnail requests are made while drawing the shared UI.
+        // Dispatch afterward, so a single idle input never leaves its new frame
+        // waiting for an unrelated future repaint.
+        self.frame_worker.tick(&mut self.app, ui.ctx());
     }
 }
 
 fn query_flag(name: &str) -> bool {
-    web_sys::window().and_then(|w| w.location().search().ok()).and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok()).is_some_and(|p| p.has(name))
+    query_search().and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok()).is_some_and(|p| p.has(name))
 }
 
 fn query_param(name: &str) -> Option<String> {
-    web_sys::window().and_then(|w| w.location().search().ok()).and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok()).and_then(|p| p.get(name))
+    query_search().and_then(|s| web_sys::UrlSearchParams::new_with_str(&s).ok()).and_then(|p| p.get(name))
+}
+
+fn query_search() -> Option<String> {
+    WORKER_SEARCH.with(|s| s.borrow().clone()).or_else(|| web_sys::window().and_then(|w| w.location().search().ok()))
 }
 
 fn url_hash_key() -> Option<String> {
@@ -151,11 +174,13 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
     let canvas: web_sys::HtmlCanvasElement = doc.get_element_by_id(&canvas_id).ok_or("no canvas")?.dyn_into()?;
 
     let isolated = js_sys::Reflect::get(&js_sys::global(), &"crossOriginIsolated".into()).ok().and_then(|v| v.as_bool()).unwrap_or(false);
-    // Frame rendering runs cooperatively on this thread. wasm threads need a cross-origin
-    // isolated page *and* a build with atomics (nightly `build-std`); this build has none.
+    // Workers use ordinary, independent WASM memories. No atomics/nightly/isolation
+    // requirement. The explicit cooperative flag is retained for matched diagnostics.
+    let external_frames = !query_flag("cooperative");
+    filmcraft_ui_egui::frames::set_external_default(external_frames);
     set_info("crossOriginIsolated", json!(isolated));
     set_info("threads", json!(false));
-    set_info("frameWorkers", json!("cooperative"));
+    set_info("frameWorkers", json!(if external_frames { "starting" } else { "cooperative" }));
     set_info("opfs", json!(opfs::available()));
 
     // Media kept in OPFS by earlier sessions come back under their paths (recovery).
@@ -292,7 +317,7 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                 set_info("audio", json!(audio.is_some()));
                 set_info("restoredMedia", json!(restored));
                 let workspace_store = workspaces::Store::new(&app.workspaces);
-                Ok(Box::new(WebApp { app, audio, autosave: recovery::Autosave::default(), workspace_store }))
+                Ok(Box::new(WebApp { app, audio, autosave: recovery::Autosave::default(), workspace_store, frame_worker: Default::default() }))
             }),
         )
         .await?;

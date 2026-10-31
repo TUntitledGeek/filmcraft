@@ -24,6 +24,12 @@ const MAX_FRAMES: usize = 256;
 const CACHE_BYTES: usize = 128 << 20;
 const MAX_SIDE: usize = 16_384;
 
+/// Capacity failures can use a worker-side CPU reference picture instead. Invalid
+/// geometry, planes or references must remain errors, never speculative fallback.
+pub fn capacity_error(error: &str) -> bool {
+    matches!(error, "frame plan metadata exceeds limit" | "frame exceeds remaining transfer budget" | "frame packet exceeds transfer budget")
+}
+
 pub struct Packet {
     pub metadata: String,
     pub buffers: Vec<Vec<u8>>,
@@ -426,6 +432,33 @@ mod tests {
     use super::*;
     use filmcraft_render::gpufx::FxOp;
     use filmcraft_render::plan::execute_cpu;
+
+    #[test]
+    fn hdr_input_transforms_round_trip_without_changing_the_reference_picture() {
+        for source in [filmcraft_color::ColorSpace::Rec2100Pq, filmcraft_color::ColorSpace::Rec2100Hlg, filmcraft_color::ColorSpace::SLog3SGamut3Cine] {
+            let frame = Arc::new(VideoFrame::rgba_f32(7, 5, (0..140).map(|i| if i % 4 == 3 { 0.75 } else { (i % 4 + 1) as f32 * 0.1 }).collect()));
+            let mut layer = PlanLayer::new(frame, Affine::IDENTITY, 0.8, Blend::Normal);
+            layer.input = Some(Arc::new(InputTransform::new(source, filmcraft_color::Range::Full, &filmcraft_color::ColorPipeline::REC709, Some(1000.0))));
+            let p = FramePlan::Layers { width: 7, height: 5, layers: vec![layer] };
+            let packet = Encoder::default().encode(&p, &crate::prepare(&p), &[]).unwrap();
+            let (got, _) = Decoder::default().decode(packet).unwrap();
+            let (reference, received) = (execute_cpu(&p), execute_cpu(&got));
+            assert_eq!(reference.to_rgba8(), received.to_rgba8());
+            assert!(reference.px.iter().zip(&received.px).all(|(a, b)| (a - b).abs() < 1e-6));
+        }
+    }
+
+    #[test]
+    fn capacity_limits_are_distinct_from_invalid_pixels_and_can_use_cpu_fallback() {
+        let mut p = plan(Arc::new(VideoFrame::rgba8(7, 5, vec![0; 140])));
+        let FramePlan::Layers { layers, .. } = &mut p else { panic!("layers") };
+        let fx = Arc::make_mut(layers[0].fx.as_mut().unwrap());
+        fx.ops = vec![fx.ops[0].clone(); 20000];
+        let error = Encoder::default().encode(&p, &crate::prepare(&p), &[]).err().unwrap();
+        assert!(capacity_error(&error), "large valid GPU metadata can be rendered on the worker instead: {error}");
+        assert!(!capacity_error("invalid pixel plane length or reference"));
+        assert!(!capacity_error("frame transport dimensions outside supported bounds"));
+    }
 
     fn plan(frame: Arc<VideoFrame>) -> FramePlan {
         let mut layer = PlanLayer::new(frame, Affine::IDENTITY, 0.75, Blend::Normal);

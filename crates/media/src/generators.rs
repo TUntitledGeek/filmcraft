@@ -114,7 +114,7 @@ impl GeneratorSource {
             start_timecode: None,
             file_size: None,
         };
-        Self { generator, info, cache: FrameCache::new(256 << 20) }
+        Self { generator, info, cache: FrameCache::new(if cfg!(target_arch = "wasm32") { 64 << 20 } else { 256 << 20 }) }
     }
 
     pub fn with_name(mut self, name: &str) -> Self {

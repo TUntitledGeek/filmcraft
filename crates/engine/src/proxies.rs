@@ -464,6 +464,9 @@ fn copy_for_ingest(s: &mut Session, item: ItemId, path: &str, dir: &Path) -> Res
         }
     };
     let copied = std::io::copy(&mut input, &mut output).and_then(|_| output.set_permissions(input.metadata()?.permissions()));
+    // Close the native handle before validating/reopening the copy. The WASM
+    // std::fs placeholder has no Drop implementation (and cannot open a file).
+    #[cfg(not(target_arch = "wasm32"))]
     drop(output);
     let out_s = out.to_string_lossy().into_owned();
     let linked = copied.map_err(|e| EngineError::Other(format!("copying {path}: {e}"))).and_then(|_| {

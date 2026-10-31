@@ -51,6 +51,7 @@ struct Transfers {
 const LOOKAHEAD: usize = 8;
 /// Decoded frames kept per source.
 const CACHE_FRAMES: usize = 40;
+const CACHE_BYTES: usize = 96 << 20;
 /// Chunks allowed in the decoder's queue before feeding pauses.
 const MAX_QUEUE: u32 = 24;
 /// A session that delivered nothing for this long may be restarted by another request.
@@ -63,6 +64,7 @@ thread_local! {
     static NEXT_ID: Cell<u32> = const { Cell::new(1) };
     static CANVAS: RefCell<Option<(web_sys::OffscreenCanvas, web_sys::OffscreenCanvasRenderingContext2d)>> = const { RefCell::new(None) };
     static DECODED: Cell<u64> = const { Cell::new(0) };
+    static CACHED_BYTES: Cell<usize> = const { Cell::new(0) };
     static FALLBACKS: Cell<u64> = const { Cell::new(0) };
     static SOURCES: Cell<u64> = const { Cell::new(0) };
     static TRANSFERS: RefCell<Transfers> = RefCell::new(Transfers::default());
@@ -167,7 +169,7 @@ pub async fn probe() {
             }
         }
     }
-    if web_sys::window().and_then(|w| w.location().search().ok()).is_some_and(|s| s.contains("nowebcodecs")) {
+    if crate::query_flag("nowebcodecs") {
         crate::set_info("webcodecs", json!("disabled"));
         return;
     }
@@ -207,7 +209,7 @@ pub fn stats() -> serde_json::Value {
         let s = s.borrow();
         json!({"nativeFrames":s.native,"canvasFrames":s.canvas,"closedFrames":s.closed,"staleFrames":s.stale,"nativeBytes":s.bytes,"nativeMs":s.native_ms,"canvasMs":s.canvas_ms,"canvasReasons":s.reasons})
     });
-    json!({"sources": SOURCES.with(Cell::get), "framesDecoded": DECODED.with(Cell::get), "fallbacks": FALLBACKS.with(Cell::get), "sessions": sessions,"transfers":transfers,"smallAvcCpuReadbackPolicy":SMALL_AVC_SOFTWARE.with(Cell::get)})
+    json!({"sources": SOURCES.with(Cell::get), "framesDecoded": DECODED.with(Cell::get), "decodedCacheBytes":CACHED_BYTES.with(Cell::get), "fallbacks": FALLBACKS.with(Cell::get), "sessions": sessions,"transfers":transfers,"smallAvcCpuReadbackPolicy":SMALL_AVC_SOFTWARE.with(Cell::get)})
 }
 
 /// A [`SharedReader`] as the demuxer's byte source.
@@ -294,6 +296,7 @@ struct Config {
 #[derive(Default)]
 struct Cache {
     frames: BTreeMap<i64, Arc<VideoFrame>>,
+    bytes: usize,
     failed: bool,
 }
 
@@ -629,6 +632,7 @@ impl WcSource {
 
     /// Move decoded pictures into the cache.
     fn collect(&self, c: &mut Cache, want: i64) {
+        let previous_bytes = c.bytes;
         let out = SESSIONS.with(|ss| {
             let ss = ss.borrow();
             let Some(s) = ss.get(&self.id) else { return Vec::new() };
@@ -636,12 +640,21 @@ impl WcSource {
         });
         for (pts, f) in out {
             let f = if self.config.rotation != 0 { f.rotated(self.config.rotation) } else { f };
-            c.frames.insert(pts, Arc::new(f));
+            c.bytes = c.bytes.saturating_add(f.byte_size());
+            if let Some(old) = c.frames.insert(pts, Arc::new(f)) {
+                c.bytes = c.bytes.saturating_sub(old.byte_size());
+            }
         }
-        while c.frames.len() > CACHE_FRAMES {
-            let Some(far) = c.frames.keys().copied().max_by_key(|p| (p - want).abs()) else { break };
-            c.frames.remove(&far);
+        while c.frames.len() > CACHE_FRAMES || c.bytes > CACHE_BYTES {
+            // Preserve the requested frame even when lookahead has already
+            // produced more than the byte budget (notably 4K). Evicting it here
+            // makes the synchronous caller perpetually report "decoding".
+            let Some(far) = crate::decoder_policy::eviction_candidate(c.frames.keys().copied(), want) else { break };
+            if let Some(old) = c.frames.remove(&far) {
+                c.bytes = c.bytes.saturating_sub(old.byte_size());
+            }
         }
+        CACHED_BYTES.with(|b| b.set(b.get().saturating_sub(previous_bytes).saturating_add(c.bytes)));
         // the session's own frame came out: other requests may restart it now
         SESSIONS.with(|ss| {
             if let Some(s) = ss.borrow_mut().get_mut(&self.id)
@@ -655,6 +668,8 @@ impl WcSource {
 
 impl Drop for WcSource {
     fn drop(&mut self) {
+        let bytes = self.state.get_mut().unwrap_or_else(|e| e.into_inner()).bytes;
+        CACHED_BYTES.with(|b| b.set(b.get().saturating_sub(bytes)));
         SESSIONS.with(|ss| {
             if let Ok(mut ss) = ss.try_borrow_mut() {
                 ss.remove(&self.id);

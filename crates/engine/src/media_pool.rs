@@ -14,9 +14,9 @@
 //! - Paths that came from a document (the project file, a template, an interchange file) are
 //!   opened through [`crate::doc_path`] ([`MediaPool::follow`]); a refused one renders as missing.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use filmcraft_frame::{AudioBuffer, VideoFrame};
@@ -47,6 +47,8 @@ pub struct OfflineMedia {
 }
 
 pub struct MediaPool {
+    recent_sources: Mutex<VecDeque<ItemId>>,
+    idle_source_limit: AtomicUsize,
     /// item → (reference key, source)
     sources: RwLock<HashMap<ItemId, (String, SharedSource)>>,
     proxies: RwLock<HashMap<ItemId, (String, SharedSource)>>,
@@ -65,6 +67,8 @@ impl Default for MediaPool {
     /// A pool with the built-in container/codec openers registered.
     fn default() -> Self {
         Self {
+            recent_sources: Mutex::new(VecDeque::new()),
+            idle_source_limit: AtomicUsize::new(0),
             sources: RwLock::new(HashMap::new()),
             proxies: RwLock::new(HashMap::new()),
             offline: Arc::new(RwLock::new(HashMap::new())),
@@ -146,6 +150,26 @@ fn file_name(path: &str) -> String {
 }
 
 impl MediaPool {
+    /// A worker owns its decoder lifetimes. Retire idle sources after a completed
+    /// task, bounding the aggregate of their internal frame caches. In-use Arc
+    /// handles remain valid; native/shared export pools are not pruned implicitly.
+    pub fn set_idle_source_limit(&self, limit: usize) {
+        self.idle_source_limit.store(limit.min(64), Ordering::Relaxed);
+    }
+
+    pub fn trim_idle_sources(&self) {
+        let limit = self.idle_source_limit.load(Ordering::Relaxed);
+        if limit == 0 {
+            return;
+        }
+        if self.sources.read().unwrap_or_else(|e| e.into_inner()).len() <= limit && self.proxies.read().unwrap_or_else(|e| e.into_inner()).len() <= limit {
+            return;
+        }
+        let keep: BTreeSet<_> = self.recent_sources.lock().unwrap_or_else(|e| e.into_inner()).iter().rev().take(limit).copied().collect();
+        self.sources.write().unwrap_or_else(|e| e.into_inner()).retain(|id, _| keep.contains(id));
+        self.proxies.write().unwrap_or_else(|e| e.into_inner()).retain(|id, _| keep.contains(id));
+    }
+
     pub fn register_opener(&self, o: Opener) {
         self.openers.write().unwrap_or_else(|e| e.into_inner()).push(o);
     }
@@ -310,6 +334,14 @@ impl MediaPool {
 
     fn resolve(&self, p: &Project, item: ItemId, services: &dyn Services, proxies: bool) -> Option<SharedSource> {
         let (item, m, _) = p.resolve_media(item)?;
+        if self.idle_source_limit.load(Ordering::Relaxed) > 0 {
+            let mut recent = self.recent_sources.lock().unwrap_or_else(|e| e.into_inner());
+            recent.retain(|id| *id != item);
+            recent.push_back(item);
+            if recent.len() > 64 {
+                recent.pop_front();
+            }
+        }
         let it = p.item(item)?;
         if proxies
             && !m.offline

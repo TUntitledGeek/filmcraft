@@ -245,6 +245,12 @@
       if (s) s.textContent = "Downloading and compiling FilmCraft…";
       const { default: init, start } = await import("./filmcraft_web.js" + v);
       await init({ module_or_path: new URL("filmcraft_web_bg.wasm" + v, location.href) });
+      window.filmcraftWorkerAssets = {
+        glue: new URL("filmcraft_web.js" + v, location.href).href,
+        worker: new URL("frame-worker.js" + v, location.href).href,
+        audio: new URL("audio-worklet.js" + v, location.href).href,
+        search: location.search,
+      };
       if (s) s.textContent = "Initializing GPU Video Engine…";
       window.filmcraftLoad.wasmMs = performance.now() - t0;
       await start("filmcraft_canvas");

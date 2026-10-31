@@ -20,7 +20,19 @@ use filmcraft_engine::{MediaPool, Services};
 use filmcraft_project::{ItemId, Project};
 use filmcraft_time::Tick;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+mod external;
+pub use external::{ExternalFrameJob, ExternalFrameResult, FrameTask, FrameTimings};
+
+static EXTERNAL_DEFAULT: AtomicBool = AtomicBool::new(false);
+static SERVER_IDS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// A browser host enables this before creating its app. Independent worker WASM
+/// instances retain the cooperative default; no shared-memory runtime is involved.
+pub fn set_external_default(enabled: bool) {
+    EXTERNAL_DEFAULT.store(enabled, Ordering::Relaxed);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Target {
     /// Composite of a sequence at a timeline time.
     Sequence(ItemId),
@@ -51,7 +63,7 @@ fn background_work(prio: u32, target: Target) -> bool {
     prio >= BACKGROUND_PRIO && matches!(target, Target::Item(_))
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FrameKey {
     pub target: Target,
     pub frame: i64,
@@ -84,6 +96,7 @@ struct Job {
     cancel: Arc<std::sync::atomic::AtomicBool>,
     /// Queued by playback prefetch (dropped when playback stops).
     prefetch: bool,
+    playback: bool,
     /// While playing: how far before this frame the frames are late (the playhead's distance;
     /// zero for the frame due now), so a decoder catching up may skip pictures only late frames
     /// need (`filmcraft_media::cancel::with_catch_up`).
@@ -93,6 +106,12 @@ struct Job {
     scale: f32,
     project: Arc<Project>,
     prio: u32,
+}
+
+struct RequestMode {
+    prefetch: bool,
+    playback: bool,
+    catch_up: Option<Tick>,
 }
 
 /// A future prefetch frame is not a replacement for the due frame. Coalesce revisions
@@ -107,6 +126,8 @@ fn coalesce_monitor_revisions(queue: &mut VecDeque<Job>, limit: u32) {
 }
 
 struct Shared {
+    external: AtomicBool,
+    epoch: u64,
     queue: Mutex<VecDeque<Job>>,
     cv: Condvar,
     done: Mutex<Cache>,
@@ -305,7 +326,7 @@ struct PlanCache {
 
 impl PlanCache {
     const MAX: usize = 96;
-    const BUDGET: usize = 1 << 30;
+    const BUDGET: usize = if cfg!(target_arch = "wasm32") { 256 << 20 } else { 1 << 30 };
 
     fn get(&mut self, k: &FrameKey) -> Option<Arc<GpuPlan>> {
         self.clock += 1;
@@ -408,7 +429,7 @@ impl FrameServer {
     /// Settings ▸ Memory ▸ frame cache budget (bytes); evicts down to it right away.
     pub fn set_cache_budget(&self, bytes: usize) {
         let mut c = self.shared.done.lock().unwrap_or_else(|e| e.into_inner());
-        c.budget = bytes.max(16 << 20);
+        c.budget = if cfg!(target_arch = "wasm32") { bytes.clamp(16 << 20, 128 << 20) } else { bytes.max(16 << 20) };
         if c.bytes > c.budget
             && let Some((k, v)) = c.map.iter().next().map(|(k, (v, _))| (*k, v.clone()))
         {
@@ -425,9 +446,11 @@ impl FrameServer {
 
     pub fn new(pool: Arc<MediaPool>, services: Arc<dyn Services>, previews: Arc<PreviewStore>, workers: usize) -> Self {
         let shared = Arc::new(Shared {
+            external: AtomicBool::new(EXTERNAL_DEFAULT.load(Ordering::Relaxed)),
+            epoch: SERVER_IDS.fetch_add(1, Ordering::Relaxed),
             queue: Mutex::new(VecDeque::new()),
             cv: Condvar::new(),
-            done: Mutex::new(Cache { map: HashMap::new(), bytes: 0, budget: 768 << 20, clock: 0 }),
+            done: Mutex::new(Cache { map: HashMap::new(), bytes: 0, budget: if cfg!(target_arch = "wasm32") { 128 << 20 } else { 768 << 20 }, clock: 0 }),
             plans: Mutex::new(PlanCache::default()),
             in_flight: Mutex::new(Vec::new()),
             profiling: AtomicBool::new(false),
@@ -481,7 +504,7 @@ impl FrameServer {
 
     /// Worker threads.
     pub fn workers(&self) -> usize {
-        self.shared.workers
+        if self.is_external() { 1 } else { self.shared.workers }
     }
 
     /// (cached images, their bytes, cached GPU plans, their bytes).
@@ -532,10 +555,11 @@ impl FrameServer {
     /// non-reference pictures, while nearby frames stay decoded (and cached) for scrubbing back.
     pub fn request(&self, key: FrameKey, time: Tick, scale: f32, project: &Arc<Project>, prio: u32) {
         let late = (prio == 0).then(|| Tick::from_seconds_f64(SCRUB_KEEP_S));
-        self.request_job(key, time, scale, project, prio, false, late);
+        self.request_job(key, time, scale, project, prio, RequestMode { prefetch: false, playback: false, catch_up: late });
     }
 
-    fn request_job(&self, key: FrameKey, time: Tick, scale: f32, project: &Arc<Project>, prio: u32, prefetch: bool, catch_up: Option<Tick>) {
+    fn request_job(&self, key: FrameKey, time: Tick, scale: f32, project: &Arc<Project>, prio: u32, mode: RequestMode) {
+        let RequestMode { prefetch, playback, catch_up } = mode;
         let hit = || self.shared.stats.lock().unwrap_or_else(|e| e.into_inner()).request_hits += 1;
         if self.shared.done.lock().unwrap_or_else(|e| e.into_inner()).map.contains_key(&key)
             || self.shared.plans.lock().unwrap_or_else(|e| e.into_inner()).map.contains_key(&key)
@@ -551,6 +575,7 @@ impl FrameServer {
         if let Some(j) = q.iter_mut().find(|j| j.key == key) {
             j.prio = j.prio.min(prio);
             j.prefetch &= prefetch;
+            j.playback = playback;
             // the playhead only moves on: the newest (smallest) margin
             j.catch_up = match (j.catch_up, catch_up) {
                 (Some(a), Some(b)) => Some(a.min(b)),
@@ -573,12 +598,12 @@ impl FrameServer {
             let same_view = |k: &FrameKey| k.target == key.target;
             q.retain(|j| !(same_view(&j.key) && j.prio <= 10 && ((!j.prefetch && j.key.frame != key.frame) || j.key.revision < key.revision)));
             for (k, c, prefetch) in self.shared.in_flight.lock().unwrap_or_else(|e| e.into_inner()).iter() {
-                if !prefetch && same_view(k) && k.frame != key.frame {
+                if !prefetch && same_view(k) && k.frame != key.frame && !(self.is_external() && playback) {
                     c.store(true, Ordering::Relaxed);
                 }
             }
         }
-        q.push_back(Job { key, queued: Instant::now(), cancel: Default::default(), prefetch, catch_up, time, scale, project: project.clone(), prio });
+        q.push_back(Job { key, queued: Instant::now(), cancel: Default::default(), prefetch, playback, catch_up, time, scale, project: project.clone(), prio });
         drop(q);
         self.shared.cv.notify_one();
     }
@@ -594,10 +619,17 @@ impl FrameServer {
         let dir = if speed < 0.0 { -1 } else { 1 };
         let step = speed.abs().max(1.0) as i64;
         let fps = rate.as_f64() * speed.abs().max(1.0) / step as f64;
-        let (lead, stride) = if preroll { (1, 1) } else { playback_plan(self.render_cost(), fps, self.shared.workers) };
+        let (lead, stride) = if preroll { (1, 1) } else { playback_plan(self.render_cost(), fps, self.workers()) };
         if lead <= 1 {
             // the frame due now; once the clock runs, the frames before it are late
-            self.request_job(key, rate.tick_of(key.frame), scale, project, 0, false, (!preroll && dir > 0).then_some(Tick::ZERO));
+            self.request_job(
+                key,
+                rate.tick_of(key.frame),
+                scale,
+                project,
+                0,
+                RequestMode { prefetch: false, playback: true, catch_up: (!preroll && dir > 0).then_some(Tick::ZERO) },
+            );
         }
         // During preroll the clock has not started: only the frames that gate start, not a
         // prefetch run that walks the rest of a LongGOP and evicts the playhead pictures.
@@ -607,12 +639,36 @@ impl FrameServer {
             if f >= 0 {
                 // forward play: frames before the playhead are late (reverse play skips nothing)
                 let late = (!preroll && dir > 0).then(|| rate.tick_of(f) - rate.tick_of(key.frame));
-                self.request_job(FrameKey { frame: f, ..key }, rate.tick_of(f), scale, project, i as u32 + 1, true, late);
+                self.request_job(
+                    FrameKey { frame: f, ..key },
+                    rate.tick_of(f),
+                    scale,
+                    project,
+                    i as u32 + 1,
+                    RequestMode { prefetch: true, playback: true, catch_up: late },
+                );
             }
         }
         let (target, rev, cur) = (key.target, key.revision, key.frame);
         let span = (lead + ahead * stride) * step + 26;
-        self.retain_queue(|k| k.target != target || (k.revision == rev && (k.frame - cur) * dir >= 0 && (k.frame - cur).abs() < span));
+        let keep = |k: &FrameKey| {
+            k.target != target || (k.revision == rev && k.frame.saturating_sub(cur).saturating_mul(dir) >= 0 && k.frame.abs_diff(cur) < span as u64)
+        };
+        if self.is_external() {
+            self.shared.queue.lock().unwrap_or_else(|e| e.into_inner()).retain(|j| {
+                keep(&j.key) && (j.key.target != target || lead <= 1 || j.key.frame.saturating_sub(cur).saturating_mul(dir) >= lead.saturating_mul(step))
+            });
+            for (k, c, _) in self.shared.in_flight.lock().unwrap_or_else(|e| e.into_inner()).iter() {
+                // An independent worker keeps running while the clock advances.
+                // A just-late picture can still be shown by the monitor's bounded
+                // nearest-frame path. Cancelling at every tick starves slow work.
+                if k.target == target && (k.revision != rev || k.frame.saturating_sub(cur).saturating_mul(dir) < -6 || k.frame.abs_diff(cur) >= span as u64) {
+                    c.store(true, Ordering::Relaxed);
+                }
+            }
+        } else {
+            self.retain_queue(keep);
+        }
     }
 
     /// Whether playback can start at `key`: the next [`PREROLL_FRAMES`] frames (up to `last`)
@@ -674,7 +730,7 @@ impl FrameServer {
     /// Cooperative pump on wasm32. The budget is checked between jobs; one expensive job can
     /// exceed it. It is not a hard upper bound on main-thread latency.
     pub fn pump_cooperative(&self, budget: Duration, max_prio: Option<u32>) -> usize {
-        if cfg!(not(target_arch = "wasm32")) {
+        if cfg!(not(target_arch = "wasm32")) || self.shared.external.load(Ordering::Relaxed) {
             return 0;
         }
         let t0 = Instant::now();
@@ -844,7 +900,7 @@ fn worker(
                 if sh.stop.load(Ordering::Relaxed) {
                     return;
                 }
-                if !q.is_empty() {
+                if !q.is_empty() && !sh.external.load(Ordering::Relaxed) {
                     // highest priority (lowest number) first; FIFO among equals
                     let best = q.iter().enumerate().min_by_key(|(i, j)| (j.prio, *i)).map(|(i, _)| i).unwrap_or(0);
                     if let Some(job) = q.remove(best) {
@@ -1094,6 +1150,7 @@ mod tests {
             queued: super::Instant::now(),
             cancel: Default::default(),
             prefetch,
+            playback: false,
             catch_up: None,
             time: filmcraft_time::Tick::ZERO,
             scale: 0.5,

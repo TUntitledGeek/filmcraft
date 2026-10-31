@@ -9,6 +9,10 @@ class FilmcraftOutput extends AudioWorkletProcessor {
     this.gen = 0;
     this.played = 0;
     this.quanta = 0;
+    this.active = false;
+    this.started = false;
+    this.missing = 0;
+    this.starvations = 0;
     this.port.onmessage = (e) => {
       const m = e.data;
       if (m.type === "reset") {
@@ -16,9 +20,14 @@ class FilmcraftOutput extends AudioWorkletProcessor {
         this.queue = [];
         this.offset = 0;
         this.played = 0;
+        this.active = !!m.active;
+        this.started = false;
+        this.missing = 0;
+        this.starvations = 0;
         this.port.postMessage({ gen: this.gen, played: 0, time: currentTime });
       } else if (m.type === "data" && m.gen === this.gen) {
         this.queue.push(m.samples);
+        this.started = true;
       }
     };
   }
@@ -45,12 +54,16 @@ class FilmcraftOutput extends AudioWorkletProcessor {
     }
     // only real frames advance the clock; a starved queue plays silence and holds it
     this.played += i;
+    if (this.active && this.started && i < n) {
+      this.missing += n - i;
+      this.starvations++;
+    }
     for (; i < n; i++) {
       left[i] = 0;
       right[i] = 0;
     }
     if (++this.quanta % 4 === 0) {
-      this.port.postMessage({ gen: this.gen, played: this.played, time: currentTime });
+      this.port.postMessage({ gen: this.gen, played: this.played, time: currentTime, missing: this.missing, starvations: this.starvations });
     }
     return true;
   }

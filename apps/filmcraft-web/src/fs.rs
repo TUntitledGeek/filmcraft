@@ -27,7 +27,7 @@ pub const CHUNK: u64 = 1 << 20;
 /// Chunks fetched past the end of a read (sequential playback, demuxer scans).
 const READ_AHEAD: u64 = 3;
 /// Bytes of cached chunks kept (least recently used evicted).
-pub const CACHE_BUDGET: usize = 384 << 20;
+pub const CACHE_BUDGET: usize = 128 << 20;
 /// Largest Blob `read_file` will load whole (captions, interchange documents, projects).
 const WHOLE_FILE_MAX: u64 = 256 << 20;
 
@@ -145,6 +145,10 @@ pub fn inflight() -> usize {
     FS.with(|fs| fs.borrow().inflight.len())
 }
 
+pub(crate) fn cache_bytes() -> usize {
+    FS.with(|fs| fs.borrow().bytes)
+}
+
 /// Wait until no fetch is running.
 pub async fn idle() {
     while inflight() > 0 {
@@ -155,11 +159,79 @@ pub async fn idle() {
 /// Resolve after `ms` milliseconds.
 pub async fn sleep(ms: i32) {
     let p = js_sys::Promise::new(&mut |resolve, _| {
-        if let Some(w) = web_sys::window() {
-            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms);
+        if let Ok(f) = js_sys::Reflect::get(&js_sys::global(), &"setTimeout".into()).and_then(|v| v.dyn_into::<js_sys::Function>()) {
+            let _ = f.call2(&js_sys::global(), &resolve, &ms.into());
         }
     });
     let _ = JsFuture::from(p).await;
+}
+
+/// Immutable media handles for an independent worker. Only referenced in-memory
+/// files are copied; exports and saved project downloads are not worker inputs.
+pub(crate) fn worker_manifest(paths: &std::collections::BTreeSet<String>, previous: u64) -> Result<(u64, Option<js_sys::Array>), wasm_bindgen::JsValue> {
+    use std::hash::{Hash, Hasher};
+    FS.with(|table| {
+        let table = table.borrow();
+        // Image sequences resolve sibling files lazily. Blob handles are cheap
+        // immutable structured clones, so include registered siblings as well.
+        let mut paths = paths.clone();
+        paths.extend(table.entries.iter().filter(|(_, e)| matches!(e, Entry::Blob { .. })).map(|(p, _)| p.clone()));
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        for path in &paths {
+            path.hash(&mut hash);
+            match table.entries.get(path) {
+                Some(Entry::Blob { id, size }) => {
+                    id.hash(&mut hash);
+                    size.hash(&mut hash);
+                }
+                Some(Entry::Mem(b)) => {
+                    b.len().hash(&mut hash);
+                    (b.as_ptr() as usize).hash(&mut hash);
+                }
+                None => 0u8.hash(&mut hash),
+            }
+        }
+        let signature = hash.finish();
+        if signature == previous {
+            return Ok((signature, None));
+        }
+        let entries = js_sys::Array::new();
+        for path in &paths {
+            if let Some(blob) = match table.entries.get(path) {
+                Some(Entry::Blob { id, .. }) => table.blobs.get(id).cloned(),
+                Some(Entry::Mem(b)) => Some(bytes_to_blob(b, "application/octet-stream")?),
+                None => None,
+            } {
+                let entry = js_sys::Array::new();
+                entry.push(&path.clone().into());
+                entry.push(&blob);
+                entries.push(&entry);
+            }
+        }
+        Ok((signature, Some(entries)))
+    })
+}
+
+/// Called only once in a fresh worker realm. Blob identity and async reads never
+/// share a table with the UI or with a previously retired worker.
+pub(crate) fn install_worker_manifest(entries: js_sys::Array) -> Result<(), wasm_bindgen::JsValue> {
+    if entries.length() > 100_000 {
+        return Err("worker media manifest is too large".into());
+    }
+    for entry in entries.iter() {
+        let pair = js_sys::Array::from(&entry);
+        let path = pair.get(0).as_string().ok_or("invalid worker media path")?;
+        let blob = pair.get(1).dyn_into::<web_sys::Blob>()?;
+        FS.with(|table| {
+            let mut table = table.borrow_mut();
+            let id = table.next_id;
+            table.next_id = id.saturating_add(1);
+            let size = blob.size() as u64;
+            table.blobs.insert(id, blob);
+            table.entries.insert(path, Entry::Blob { id, size });
+        });
+    }
+    Ok(())
 }
 
 /// Load `[a, b)` of a registered Blob into the chunk cache (import prewarm: container index).

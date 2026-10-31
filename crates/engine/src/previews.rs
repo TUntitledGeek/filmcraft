@@ -198,6 +198,28 @@ impl PreviewStore {
         self.dir.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
+    /// Read-only host handoff for a worker with its own file services.
+    pub fn manifest(&self) -> (Option<PathBuf>, Vec<String>) {
+        let mut files: Vec<_> = self.files.read().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect();
+        files.sort();
+        (self.dir(), files)
+    }
+
+    /// Install known preview names without relying on an OS directory listing.
+    /// Browser workers receive the corresponding immutable Blob handles separately.
+    pub fn install_manifest(&self, dir: Option<PathBuf>, names: &[String]) -> std::result::Result<(), String> {
+        if names.len() > 100_000 || names.iter().any(|n| parse_video_name(n).is_none() && !n.strip_suffix(".wav").is_some_and(is_hash)) {
+            return Err("invalid render-preview manifest".into());
+        }
+        *self.dir.write().unwrap_or_else(|e| e.into_inner()) = dir;
+        *self.files.write().unwrap_or_else(|e| e.into_inner()) = names.iter().cloned().collect();
+        self.reindex();
+        self.sources.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.audio.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.bump();
+        Ok(())
+    }
+
     /// Point the store at `dir` and index the previews already there.
     pub fn set_dir(&self, dir: Option<PathBuf>) {
         let mut files = HashSet::new();

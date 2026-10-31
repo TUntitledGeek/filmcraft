@@ -75,6 +75,57 @@ issues. The fork had no PRs at review time. No bundle was blindly merged.
 Earlier reviewed/adapted contributions remain in [the inventory](upstream-performance-inventory.md).
 Deferred Rayon/atomics and broad lazy GPU-frame/residency changes remain deferred.
 
+## Worker integration verification in progress
+
+The isolated-worker implementation now exists in the browser host, rather than
+only as a transport foundation. It preserves the existing GPU compositor and
+uses the original frame server inside the worker. Important integration fixes:
+
+* Dispatch after the shared UI queues monitor requests; completion wakes the UI.
+* Replace the entire worker/cache namespace when the document changes. Results
+  hold weak completion handles and cannot resurrect retired documents.
+* Explicit playback mode, independent of decoder catch-up margins: forward and
+  reverse Source/Program playback can finish useful late frames; paused scrubs
+  replace obsolete work. Full job cost drives lookahead, including late results.
+* Paused obsolete jobs can be preempted without continually restarting playback.
+* GPU initialization, unsupported stages/transitions and oversized valid plan
+  metadata can use the CPU reference path **inside the worker**. GPU presentation
+  retains float values/alpha; invalid planes or geometry remain errors.
+* Worker media pools retire idle sources (12 recent media items, including their
+  full/proxy handles); native pools retain their existing default behavior.
+* Browser budgets: plan cache 256 MiB, RGBA cache up to 128 MiB, generator cache
+  64 MiB/source, Blob chunks 128 MiB, transported source dictionary 128 MiB,
+  WebCodecs 40 frames/96 MiB per source. The currently requested decoded frame is
+  protected even if it alone exceeds the decoded-cache budget. Frame-plan byte
+  accounting is conservative and can count shared backing planes more than once.
+* An async WebCodecs copy owns a buffer lease until consumption, preventing
+  overlapping `copyTo` operations from sharing writable scratch storage. At most
+  one idle scratch buffer (up to 16 MiB) is retained; pending copies own theirs.
+* `filmcraft.info()` reports main/worker allocated WASM linear-memory capacity
+  (not OS resident RAM), decoder/cache bytes and actual AudioWorklet starvation
+  counters. Output starvation is distinct from mixer/decode underruns. Output
+  counters reset with audio generations; sustained-loop analysis must group them.
+* Real Lumetri drag verification uses the active Color panel's existing parameter
+  row target and checks canonical effect state/undo. No grading UI redesign is added.
+
+Actual checks so far: 204 render + 47 GPU tests passed (3 existing render ignores),
+3 engine cache/manifest tests passed, 13 browser-host policy tests passed, audio
+worklet output/clock/counter tests passed. Latest frame-server suite: 16 passed,
+including forward/reverse Program/Source behavior and paused-scrub cancellation.
+The V7 UI regression run passed 287 tests before the final explicit-mode refinement;
+the additional mode cases passed in the latest focused run. Affected native Clippy,
+browser-target Clippy, layers and attribution checks have passed; final-source
+checks/build and accepted measurements are being completed.
+
+Intermediate ordinary-Chrome checks passed menu ownership over clip edges/drawers,
+shared key selection/real drags/marquee, duplicate instances, inspector sync,
+fullscreen/Preferences and the complete enabled GPU stack. The worker ran with
+`crossOriginIsolated=false`, standard WASM, no unsafe-WebGPU or custom-browser flag.
+Imported AVC also played and completed real selection, trimming/move cancel and
+undo. Intermediate runs taken during compilation are **excluded from performance
+claims**. A test-harness warm-run lexical-scope error was corrected before the
+accepted set. Final accepted runs must identify their exact WASM hashes.
+
 ## Open acceptance work
 
 1. Transport, cancellation, malformed-input regressions and production WASM build;

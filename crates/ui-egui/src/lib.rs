@@ -565,16 +565,13 @@ pub fn generate_random_room_code() -> String {
 #[cfg(target_arch = "wasm32")]
 pub fn web_collab_send(json_str: &str) {
     use wasm_bindgen::JsCast;
-    if let Some(w) = web_sys::window() {
-        if let Ok(bridge) = js_sys::Reflect::get(&w, &"filmcraftCollabBridge".into()) {
-            if !bridge.is_undefined() {
-                if let Ok(send_fn) = js_sys::Reflect::get(&bridge, &"send".into()) {
-                    if let Ok(func) = send_fn.dyn_into::<js_sys::Function>() {
-                        let _ = func.call1(&bridge, &wasm_bindgen::JsValue::from_str(json_str));
-                    }
-                }
-            }
-        }
+    if let Some(w) = web_sys::window()
+        && let Ok(bridge) = js_sys::Reflect::get(&w, &"filmcraftCollabBridge".into())
+        && !bridge.is_undefined()
+        && let Ok(send_fn) = js_sys::Reflect::get(&bridge, &"send".into())
+        && let Ok(func) = send_fn.dyn_into::<js_sys::Function>()
+    {
+        let _ = func.call1(&bridge, &wasm_bindgen::JsValue::from_str(json_str));
     }
 }
 
@@ -789,7 +786,7 @@ impl FilmcraftApp {
     }
 
     /// Rebuild the frame server if the session's media pool was replaced (e.g. project opened).
-    fn sync_pool(&mut self) {
+    fn sync_pool(&mut self, ctx: &egui::Context) {
         if !Arc::ptr_eq(&self.frames.pool, &self.session.media) || !Arc::ptr_eq(&self.frames.previews, &self.session.previews) {
             self.frames = Arc::new(FrameServer::new(
                 self.session.media.clone(),
@@ -797,6 +794,7 @@ impl FilmcraftApp {
                 self.session.previews.clone(),
                 FrameServer::default_workers(),
             ));
+            self.frames.set_context(ctx);
             self.textures.clear();
             self.thumb_used.clear();
             self.tl.reset_media_caches();
@@ -2863,7 +2861,7 @@ impl FilmcraftApp {
         let focused = ctx.input(|i| i.focused);
         let was_focused: bool = ctx.data(|d| d.get_temp(focus_key)).unwrap_or(focused);
         ctx.data_mut(|d| d.insert_temp(focus_key, focused));
-        if !on || filmcraft_engine::media_watch::media_files(&self.session.project, &self.session.media).is_empty() {
+        if !on || !filmcraft_engine::media_watch::has_file_media(&self.session.project) {
             return;
         }
         let last: f64 = ctx.data(|d| d.get_temp(last_key)).unwrap_or(f64::NEG_INFINITY);
@@ -2891,7 +2889,7 @@ impl FilmcraftApp {
             // Keep polling the auto-save worker (status, "also save the project" results).
             ctx.request_repaint_after(std::time::Duration::from_secs(1));
         }
-        self.sync_pool();
+        self.sync_pool(&ctx);
         self.apply_prefs(&ctx);
         #[cfg(not(target_arch = "wasm32"))]
         self.tick_media_refresh(&ctx);
@@ -3360,7 +3358,7 @@ impl eframe::App for FilmcraftApp {
                 let _ = w.send(json!({"ok": true, "result": null}));
             }
         }
-        if self.frames.queue_len() > 0 {
+        if cfg!(target_arch = "wasm32") && !self.frames.is_external() && self.frames.queue_len() > 0 {
             if is_interacting {
                 ctx.request_repaint();
             } else if self.playback.playing {

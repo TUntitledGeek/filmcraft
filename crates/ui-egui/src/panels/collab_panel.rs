@@ -11,12 +11,12 @@ use filmcraft_engine::cloud_sync::{ShareParams, generate_share_url};
 pub fn get_base_invite_url() -> String {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(w) = web_sys::window() {
-            if let Ok(loc) = w.location().href() {
-                let clean = loc.split('?').next().unwrap_or(&loc);
-                let clean = clean.split('#').next().unwrap_or(clean);
-                return clean.to_string();
-            }
+        if let Some(w) = web_sys::window()
+            && let Ok(loc) = w.location().href()
+        {
+            let clean = loc.split('?').next().unwrap_or(&loc);
+            let clean = clean.split('#').next().unwrap_or(clean);
+            return clean.to_string();
         }
         "https://tuntitledgeek.github.io/filmcraft/".to_string()
     }

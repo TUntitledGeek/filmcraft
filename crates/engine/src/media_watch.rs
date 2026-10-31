@@ -59,6 +59,11 @@ pub fn media_files(p: &Project, pool: &MediaPool) -> BTreeMap<String, String> {
         .collect()
 }
 
+/// Cheap idle-redraw check; resolving/following every path belongs to the due scan.
+pub fn has_file_media(p: &Project) -> bool {
+    p.items.values().any(|i| matches!(&i.kind, ItemKind::Media(m) if !m.offline && matches!(&m.media, MediaRef::File { .. })))
+}
+
 /// `media.refreshChanged`: stamp the project's media files now and read the changed ones again.
 pub(crate) fn refresh_changed(s: &mut Session, _: &Value) -> Result<Value> {
     let now = media_files(&s.project, &s.media).into_iter().map(|(p, file)| (p, stamp(&file))).collect();
