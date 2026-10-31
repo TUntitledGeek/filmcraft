@@ -50,9 +50,12 @@ async function playback(label,startFrame,duration){
 try{
  for(let i=0;i<120;i++){try{const p=(await(await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find(p=>p.type==='page'&&p.url==='about:blank');if(p){ws=new WebSocket(p.webSocketDebuggerUrl);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j});break}}catch{}await sleep(100)}assert(ws,'Chrome did not start');
  ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id)pending.get(m.id)?.(m);else if(m.method==='Runtime.exceptionThrown')report.errors.push(m.params.exceptionDetails)};
+ ws.onclose=()=>{for(const [id,finish]of [...pending])finish({id,error:{message:'Benchmark Chrome connection closed'}})};
  await send('Runtime.enable');await send('Page.enable');report.browser=await send('Browser.getVersion');await send('Emulation.setDeviceMetricsOverride',{width:1656,height:894,deviceScaleFactor:1,mobile:false});
  const nav=await send('Page.navigate',{url});assert(!nav.errorText,nav.errorText);
- let ready=false;for(let i=0;i<200;i++){ready=await js('(async()=>{if(!window.filmcraft)return false;try{await filmcraft.inspect();return true}catch{return false}})()');if(ready)break;await sleep(200)}assert(ready,'FilmCraft did not start');
+ console.log('stage: bootstrap');
+ const bootStart=performance.now();let ready=false;while(performance.now()-bootStart<45000){ready=await js('(async()=>{if(!window.filmcraft)return false;try{return await Promise.race([filmcraft.inspect().then(()=>true),new Promise(r=>setTimeout(()=>r(false),2500))])}catch{return false}})()');if(ready)break;await sleep(200)}assert(ready,'FilmCraft did not start within 45 seconds');
+ console.log('stage: project');
  report.adapter=await js('(async()=>{const a=await navigator.gpu?.requestAdapter();return a?{vendor:a.info.vendor,architecture:a.info.architecture,description:a.info.description}:null})()');
  if(arg('project','')){
   const bytes=readFileSync(arg('project',''));report.projectSha256=createHash('sha256').update(bytes).digest('hex');
@@ -64,6 +67,7 @@ try{
   for(let i=0;i<count;i++){const imported=await js(`filmcraft.importUrl(new URL(${JSON.stringify(arg('media','/fixtures/avc720p30.mp4'))},location.href).href)`);assert(!imported.errors?.length&&imported.items?.length,'Fixture import failed '+JSON.stringify(imported));sources.push(...imported.items)}
   await execute('file.newSequence',{name:'Matched imported footage',fromItems:workload==='large'?Array.from({length:72},()=>sources).flat():sources});
  }
+ console.log('stage: workspace');
  await call('ui.set',{mode:'edit',workspace:'Clean Editing',theme:'dark',playbackRes:'Half',program:{zoom:.5},timeline:{pps:60,scroll:0}});
  await call('ui.playback',{action:'stop'});
  let sequence=await execute('sequence.inspect');const clip=sequence.video.flatMap(t=>t.items).find(c=>c.clip)?.clip;assert(clip,'No picture clip');report.clip=clip;
@@ -72,16 +76,19 @@ try{
  if(effects!=='none'){
   for(const effect of (effects==='grade'?['lumetri','gaussian_blur']:['lumetri','gaussian_blur','wave_warp','spherize'])){
    await execute('effects.apply',{clips:[clip],effect});
-   const params=effect==='lumetri'?{exposure:.6,contrast:12,saturation:110}:effect==='gaussian_blur'?{blurriness:8}:effect==='wave_warp'?{height:12,wavelength:120}: {radius:160};
+   const params=effect==='lumetri'?{exposure:.6,contrast:12,saturation:110}:effect==='gaussian_blur'?{blurriness:8}:effect==='wave_warp'?{height:12,width:120}: {radius:160};
    const state=await execute('sequence.inspect');const instance=state.video.flatMap(t=>t.items).find(c=>c.clip===clip).effects.filter(e=>e.effect===effect).at(-1).instanceId;
    for(const [param,value]of Object.entries(params))await execute('effects.setParam',{clip,effect:{instanceId:instance},param,value});
   }
  }
+ console.log('stage: initial picture');
  const initialPictureStart=performance.now();await execute('playhead.set',{frame:15});await picture(15);report.initialPictureMs=performance.now()-initialPictureStart;report.initial=await stats();report.info=await js('filmcraft.info()');assert(!report.info.frameWorkerError,report.info.frameWorkerError);assert(report.info.backend==='BrowserWebGpu','Matched benchmark requires the normal WebGPU backend');
  const stack=(await execute('sequence.inspect')).video.flatMap(t=>t.items).find(c=>c.clip===clip).effects;report.effectIdentity=stack.map(e=>({effect:e.effect,id:e.instanceId,enabled:e.enabled}));
  await capture('before');
  const duration=arg('project','')?Math.min(seconds,2.2):seconds;
+ console.log('stage: playback');
  report.playback=[await playback('cold',15,duration),await playback('warm',15,duration)];
+ console.log('stage: editing');
  // Cold seeks give the worker new work while ordinary real pointer input is tested.
  report.interactions=[];
  const other=(await execute('sequence.inspect')).video.flatMap(t=>t.items).find(c=>c.clip!==clip)?.clip;

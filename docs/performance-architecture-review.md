@@ -1,5 +1,11 @@
 # Performance architecture review
 
+Historical review of the pre-worker browser architecture. The newer independent
+frame-worker implementation, revised browser cache budgets, verification and
+remaining export/audio limitations are recorded in
+[the 2026-10-31 stabilization ledger](performance-stabilization.md). The baseline
+measurements and withdrawn experiment below remain historical evidence.
+
 The engine remains shared between native and browser hosts. Project snapshots, exact ticks,
 command-based edits, Source/Program independence, revision-keyed frame caches and the Unified UI
 are preserved. Native decoding uses platform factories where supported and software fallbacks;

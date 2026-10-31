@@ -1,0 +1,8 @@
+asset:        imported-before.png
+title:        FilmCraft V7.9 imported AVC full-stack baseline
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-31 by FilmCraft contributors
+notes:        Unmodified real Chrome Rust/egui screenshot at frame 15 with Lumetri, Gaussian Blur, Wave Warp and Spherize enabled on an original locally generated synthetic 1080p test pattern. Fixture generator used only as an external tool; no media codec source copied.

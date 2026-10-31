@@ -1,0 +1,8 @@
+asset:        imported-after.png
+title:        FilmCraft independent-worker imported AVC full stack
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-31 by FilmCraft contributors
+notes:        Unmodified real Chrome Rust/egui screenshot of the same authored frame 15 and enabled synthetic 1080p effect stack using the independent worker. Fixture generator used only as an external tool; no media codec source copied.

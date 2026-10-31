@@ -1,0 +1,8 @@
+asset:        ocean-after.png
+title:        FilmCraft independent-worker Ocean effect stack
+author:       FilmCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: LICENSE-MIT; LICENSE-APACHE
+added:        2026-10-31 by FilmCraft contributors
+notes:        Unmodified real Chrome Rust/egui screenshot of the same authored frame 15 and enabled original procedural Ocean effect stack using the independent worker. No private project file is included.
