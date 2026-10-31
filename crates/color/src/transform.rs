@@ -74,7 +74,7 @@ pub fn encode_channel(l: f64, curve: Curve, range: Range) -> f64 {
 
 /// A sampled signal → linear lookup with linear interpolation over `[lo, hi]` (values outside
 /// clamp), so log footage keeps its super-whites.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DecodeTable {
     pub lo: f32,
     pub hi: f32,
@@ -125,7 +125,7 @@ pub fn bt2390_eetf(nits: f64, src_peak: f64, dst_peak: f64) -> f64 {
 }
 
 /// Tone-mapping operator in working units: BT.2390 on max(R,G,B), applied as a ratio.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ToneMap {
     pub src_peak_nits: f64,
     pub dst_peak_nits: f64,
@@ -185,7 +185,7 @@ pub fn gamut_compress(c: [f32; 3]) -> [f32; 3] {
 }
 
 /// Source → working-space conversion for one colour space.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct InputTransform {
     pub source: ColorSpace,
     pub table: DecodeTable,

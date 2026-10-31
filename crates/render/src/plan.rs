@@ -48,7 +48,7 @@ pub struct PlanLayer {
 /// The GPU effect stage of a layer: the frame is decoded into a working image of `size` (the
 /// frame box-decimated by `decimation`, as the CPU decodes it), `ops` run on it in order, and the
 /// result is placed with the layer's matrix, opacity and blend mode.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LayerFx {
     pub size: (u32, u32),
     pub decimation: u32,

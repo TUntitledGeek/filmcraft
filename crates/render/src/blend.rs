@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 use crate::image::Image;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Blend {
     Normal,
     Dissolve,

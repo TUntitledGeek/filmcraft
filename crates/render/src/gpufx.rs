@@ -19,7 +19,7 @@ use crate::image::Image;
 
 /// A bilinear resample of the working image through an affine map (`Image::transformed` at a
 /// magnification or mild minification: no mip pre-filter).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Resample {
     /// Destination pixel → source pixel (None: singular map, the result is transparent).
     pub inv: Option<Affine>,
@@ -30,7 +30,7 @@ pub struct Resample {
 }
 
 /// One evaluated effect.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FxOp {
     BrightnessContrast {
         br: f32,

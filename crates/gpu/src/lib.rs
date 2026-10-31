@@ -44,6 +44,7 @@ pub mod fx;
 pub mod lut;
 pub mod mask;
 mod transition;
+pub mod transport;
 pub use export_renderer::ExportRenderer;
 pub use lut::GpuLut;
 pub use mask::GpuMask;
@@ -191,12 +192,12 @@ pub fn f16_to_f32_fast(h: u16) -> f32 {
 /// 8-bit frames need no conversion and have none.
 #[derive(Clone, Debug, Default)]
 pub struct Prepared {
-    planes: Vec<Vec<u8>>,
+    planes: Vec<Arc<Vec<u8>>>,
 }
 
 impl Prepared {
     pub fn bytes(&self) -> usize {
-        self.planes.iter().map(Vec::len).sum()
+        self.planes.iter().map(|p| p.len()).sum()
     }
 }
 
@@ -218,14 +219,14 @@ impl PreparedPlan {
 /// Values per parallel chunk when converting.
 const CHUNK: usize = 1 << 15;
 
-fn f32_to_f16_bytes(v: &[f32]) -> Vec<u8> {
+fn f32_to_f16_bytes(v: &[f32]) -> Arc<Vec<u8>> {
     let mut out = vec![0u8; v.len() * 2];
     out.par_chunks_mut(CHUNK * 2).zip(v.par_chunks(CHUNK)).for_each(|(o, s)| {
         for (o, x) in o.as_chunks_mut::<2>().0.iter_mut().zip(s) {
             o.copy_from_slice(&f32_to_f16(*x).to_le_bytes());
         }
     });
-    out
+    Arc::new(out)
 }
 
 /// Half floats of `code / 2^bits` for every 16-bit code (built once per bit depth).
@@ -239,7 +240,7 @@ fn code_table(bits: u32) -> &'static [[u8; 2]] {
 }
 
 /// `code / 2^bits` as half floats, through a per-code table (same values as converting each sample).
-fn codes_to_f16_bytes(v: &[u16], bits: u32) -> Vec<u8> {
+fn codes_to_f16_bytes(v: &[u16], bits: u32) -> Arc<Vec<u8>> {
     let table = code_table(bits);
     let mut out = vec![0u8; v.len() * 2];
     out.par_chunks_mut(CHUNK * 2).zip(v.par_chunks(CHUNK)).for_each(|(o, s)| {
@@ -247,7 +248,7 @@ fn codes_to_f16_bytes(v: &[u16], bits: u32) -> Vec<u8> {
             o.copy_from_slice(&table[*c as usize]);
         }
     });
-    out
+    Arc::new(out)
 }
 
 /// Convert a frame's texels for upload (None when it uploads as it is).

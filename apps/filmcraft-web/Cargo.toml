@@ -25,6 +25,10 @@ filmcraft-color = { workspace = true }
 filmcraft-isobmff = { workspace = true }
 filmcraft-format = { workspace = true }
 filmcraft-time = { workspace = true }
+filmcraft-project = { workspace = true }
+filmcraft-render = { workspace = true }
+filmcraft-gpu = { workspace = true }
+serde = { workspace = true }
 egui = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu"] }
 serde_json = { workspace = true }
@@ -70,6 +74,10 @@ web-sys = { version = "0.3", features = [
     "Location",
     "MessageEvent",
     "MessagePort",
+    "Worker",
+    "WorkerOptions",
+    "WorkerType",
+    "ErrorEvent",
     "Navigator",
     "OffscreenCanvas",
     "OffscreenCanvasRenderingContext2d",
